@@ -19,7 +19,13 @@ APP_DIR = Path(__file__).resolve().parent
 if str(APP_DIR) not in sys.path:
     sys.path.insert(0, str(APP_DIR))
 
-DEBUG_HOME = APP_DIR / "debug"
+# 源码运行时调试目录在 app/debug；打包后必须放在 exe 同目录，
+# 因为 PyInstaller 的单文件程序目录是临时解包目录。
+RUNTIME_BASE = (
+    Path(sys.executable).resolve().parent
+    if getattr(sys, "frozen", False) else APP_DIR
+)
+DEBUG_HOME = RUNTIME_BASE / "debug"
 
 
 def prepare_console() -> None:
@@ -37,8 +43,8 @@ def prepare_console() -> None:
 
 def clean_debug() -> int:
     target = DEBUG_HOME.resolve()
-    app_root = APP_DIR.resolve()
-    if target.parent != app_root:
+    runtime_base = RUNTIME_BASE.resolve()
+    if target.parent != runtime_base or target.name != "debug":
         print(f"[错误] 拒绝清理非 debug 目录：{target}")
         return 1
     files = sum(1 for path in target.rglob("*") if path.is_file()) if target.exists() else 0

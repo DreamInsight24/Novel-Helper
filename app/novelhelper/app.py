@@ -40,6 +40,29 @@ def _prepare_console() -> None:
             pass
 
 
+def _check_install() -> int:
+    """检查打包后的网页资源与数据目录是否可读写，供 CI 和故障排查使用。"""
+    required = ("index.html", "core.js", "style.css", "workstation.js")
+    missing = [name for name in required if not (store.WEB_DIR / name).is_file()]
+    if missing:
+        print(f"[错误] 安装不完整，缺少网页资源：{', '.join(missing)}")
+        print(f"       资源目录：{store.WEB_DIR}")
+        return 1
+    try:
+        store.ensure_dirs()
+        probe = store.DATA_DIR / ".write-test"
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink()
+    except OSError as exc:
+        print(f"[错误] 数据目录不可写：{store.DATA_DIR}（{exc}）")
+        print("       请把程序放到有写入权限的目录，或设置 NOVELHELPER_HOME。")
+        return 1
+    print("NovelHelper 安装检查通过。")
+    print(f"  网页资源：{store.WEB_DIR}")
+    print(f"  数据目录：{store.DATA_DIR}")
+    return 0
+
+
 def main() -> int:
     _prepare_console()
     parser = argparse.ArgumentParser(description="NovelHelper 开源小说创作工具")
@@ -47,7 +70,11 @@ def main() -> int:
     parser.add_argument("--port", type=int, default=None, help="监听端口（默认读取配置，初始为 8765）")
     parser.add_argument("--debug", action="store_true", help="开发者调试模式（需通过 app/run.py 启动）")
     parser.add_argument("--no-browser", action="store_true", help="不自动打开浏览器")
+    parser.add_argument("--check", action="store_true", help="检查网页资源与数据目录后退出")
     args = parser.parse_args()
+
+    if args.check:
+        return _check_install()
 
     if args.debug and not store.DEBUG_MODE:
         print("[错误] 调试模式必须通过 app/run.py --debug 启动，当前未启用隔离目录。")

@@ -16,6 +16,8 @@ TARGETS = [
     APP_DIR / "log",
     APP_DIR / "debug",
     ROOT_DIR / "log",
+    ROOT_DIR / "build",
+    ROOT_DIR / "dist",
 ]
 
 

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import threading
 import uuid
 from datetime import datetime
@@ -24,16 +25,21 @@ from typing import Any
 
 from . import prompts as prompts_mod, providers
 
+FROZEN = bool(getattr(sys, "frozen", False))
 STUDIO_DIR = Path(__file__).resolve().parent
-APP_ROOT = STUDIO_DIR.parent
+# PyInstaller 会把程序解包到临时目录，代码与网页资源在那里是只读的；
+# 数据、产出和日志必须放在 exe 所在的目录，才能跨启动保留。
+APP_ROOT = (
+    Path(sys.executable).resolve().parent
+    if FROZEN else STUDIO_DIR.parent
+)
 REPO_ROOT = APP_ROOT.parent
 WEB_DIR = STUDIO_DIR / "web"
 
 DEBUG_MODE = os.environ.get("NOVELHELPER_DEBUG") == "1"
-RUNTIME_ROOT = (
-    Path(os.environ.get("NOVELHELPER_HOME") or (APP_ROOT / "debug"))
-    if DEBUG_MODE else APP_ROOT
-)
+DEFAULT_LOG_DIR = "log" if (DEBUG_MODE or FROZEN) else "../log"
+_DEFAULT_RUNTIME = (APP_ROOT / "debug") if DEBUG_MODE else APP_ROOT
+RUNTIME_ROOT = Path(os.environ.get("NOVELHELPER_HOME") or _DEFAULT_RUNTIME)
 PROJECT_ROOT = RUNTIME_ROOT
 DATA_DIR = Path(os.environ.get("NOVELHELPER_DATA") or (RUNTIME_ROOT / "data"))
 
@@ -159,9 +165,9 @@ def _migrate_config() -> None:
         paths["data_dir"] = "data"
         changed = True
     if "log_dir" not in paths:
-        paths["log_dir"] = "log" if DEBUG_MODE else "../log"
+        paths["log_dir"] = DEFAULT_LOG_DIR
         changed = True
-    if DEBUG_MODE and paths.get("log_dir") == "../log":
+    if (DEBUG_MODE or FROZEN) and paths.get("log_dir") == "../log":
         paths["log_dir"] = "log"
         changed = True
     if DEBUG_MODE:
@@ -239,9 +245,8 @@ def text_dir() -> Path:
 
 def log_dir() -> Path:
     """本地日志目录。"""
-    default = "log" if DEBUG_MODE else "../log"
-    value = load("config").get("paths", {}).get("log_dir", default)
-    if DEBUG_MODE and value == "../log":
+    value = load("config").get("paths", {}).get("log_dir", DEFAULT_LOG_DIR)
+    if (DEBUG_MODE or FROZEN) and value == "../log":
         value = "log"
     return _root(value)
 
@@ -268,7 +273,7 @@ def default_config() -> dict:
             "plan_dir": "workspace/output/plan",
             "txt_dir": "workspace/output/txt",
             "text_dir": "workspace/text",
-            "log_dir": "log" if DEBUG_MODE else "../log",
+            "log_dir": DEFAULT_LOG_DIR,
         },
     }
 
