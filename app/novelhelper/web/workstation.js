@@ -441,6 +441,10 @@ function viewWorkstation(main) {
   logCard.appendChild(h('pre', { class: 'log', text: state.ui.log || '（暂无调用）' }));
   right.appendChild(logCard);
 
+  main.appendChild(h('div', { class: 'legal-footer' },
+    h('strong', { text: '使用声明：' }),
+    '本工具仅供合法的文学创作与学习交流使用。请勿使用本工具制作、传播违法违规内容，或从事任何违反法律法规、公序良俗的行为。使用者应自行承担相关责任。'));
+
   // 生成期间：禁用全部控件，并盖一层全屏锁。
   if (busy) {
     main.querySelectorAll('input, textarea, select, button').forEach(el => { el.disabled = true; });

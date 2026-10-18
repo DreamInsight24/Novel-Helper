@@ -82,6 +82,28 @@ html, body {
 .status-mini.err { color: var(--danger); }
 .side-note { font-size: 11px; color: #9aa1ac; margin-top: 6px; line-height: 1.5; }
 
+/* ── 开源信息与使用声明 ─────────────── */
+.about-links {
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.8;
+}
+.about-links a, .legal-footer a {
+  color: var(--accent);
+  text-decoration: none;
+}
+.about-links a:hover, .legal-footer a:hover { text-decoration: underline; }
+.legal-footer {
+  margin-top: 20px;
+  padding: 14px 4px 0;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.7;
+  text-align: center;
+}
+.legal-footer strong { color: #4b5563; }
+
 /* ── 主区 ───────────────────────────── */
 #main { flex: 1; overflow-y: auto; padding: 22px 26px 60px; }
 
