@@ -1,0 +1,2 @@
+# 可选依赖：安装后会使用 openai SDK；未安装时自动退回标准库 urllib。
+openai>=1.0
