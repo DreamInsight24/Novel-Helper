@@ -151,7 +151,7 @@ function viewWorkstation(main) {
   const mode = modes.find(m => m.id === ws.mode) || modes[0];
 
   main.appendChild(pageHead('AI 工作站',
-    '左侧选择设定、撰写用户提示词并选择工作提示词；右侧只显示本次 AI 输出。生成期间工作站会完全锁定。',
+    '左侧选择设定、撰写用户提示词并选择工作模式；右侧只显示本次 AI 输出。生成期间工作站会完全锁定。',
     h('div', { class: 'inline' },
       h('button', { text: '对话历史', onclick: () => openHistoryDialog() }),
       h('button', { text: '当前对话', onclick: () => returnToCurrent() }),
@@ -175,7 +175,7 @@ function viewWorkstation(main) {
 
   // ── 左侧：工作模式 ───────────────────────
   const modeCard = h('div', { class: 'card' });
-  modeCard.appendChild(h('h2', null, '工作提示词',
+  modeCard.appendChild(h('h2', null, '工作模式',
     h('span', { class: 'hint', text: '先选择要 AI 做哪一类工作' })));
   modeCard.appendChild(h('div', { class: 'field' },
     h('select', {
@@ -189,7 +189,7 @@ function viewWorkstation(main) {
     '模型：' + (mode.model || api.default_model || '跟随默认') +
     ' · 推理强度：' + (mode.effort || api.default_effort || 'medium')));
   modeCard.appendChild(h('div', { class: 'field', style: { marginTop: '10px' } },
-    h('label', { text: '本次工作要求（可选，会与上面的工作提示词一起发送）' }),
+    h('label', { text: '本次补充要求（可选，会与工作模式一起发送）' }),
     h('textarea', {
       rows: 4, value: ws.work_prompt || '',
       placeholder: '例如：先列 3 个方案，再选一个展开；或“只写 1500 字，收在悬念处”。',
@@ -255,7 +255,7 @@ function viewWorkstation(main) {
       (id, on) => { toggleId(sel.character_ids, id, on); touch('state', true); renderMain(); },
       c => recordName(c) + (c.category ? ' · ' + c.category : '')));
   } else {
-    charDetails.appendChild(h('div', { class: 'muted small', text: '还没有人物。可在「人物档案」中新建，或从「其他设定」导入并搬运。' }));
+    charDetails.appendChild(h('div', { class: 'muted small', text: '还没有人物。请到「人物档案」新建，或在该页导入人物 JSON。' }));
   }
   inputCard.appendChild(charDetails);
 
@@ -386,7 +386,7 @@ function viewWorkstation(main) {
   } else {
     outputCard.appendChild(h('div', { class: 'empty-output' },
       h('div', { class: 'empty-icon', text: '✎' }),
-      h('div', { text: '在左侧写好输入，选择工作提示词，然后点「开始生成」。' }),
+      h('div', { text: '在左侧写好输入，选择工作模式，然后点「开始生成」。' }),
       h('div', { class: 'small muted', text: '生成结果会显示在这里，并自动保存到对话历史。' })));
   }
 
@@ -859,6 +859,7 @@ async function boot() {
   renderNav();
   renderMain();
   status('就绪', 'ok');
+  maybeShowOnboarding();
   const s = await api('/api/workstation/status').catch(() => null);
   if (s && s.busy) pollBusyState();
 }

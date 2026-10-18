@@ -10,12 +10,13 @@ import json
 import mimetypes
 import re
 import threading
+import time
 import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from . import ai, context, elements as el, history, project, prompts as prompts_mod, providers, store
+from . import ai, context, elements as el, history, logger, project, prompts as prompts_mod, providers, store
 
 MAX_BODY = 128 * 1024 * 1024  # 128 MB，够放整章正文
 
@@ -57,11 +58,12 @@ def _json_default(obj):
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "NovelHelper/4.0"
+    server_version = "NovelHelper/2610.1"
     protocol_version = "HTTP/1.1"
 
     # ── 基础响应 ─────────────────────────────
     def _send(self, status: int, body: bytes, content_type: str):
+        self._last_status = status
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
@@ -102,19 +104,29 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = unquote(parsed.path)
         query = parse_qs(parsed.query)
+        started = time.time()
         try:
             if path.startswith("/api/"):
                 self._api(method, path, query)
             else:
                 self._static(path)
         except PermissionError as exc:
+            logger.log_warning("HTTP", "permission denied", method=method, path=path, error=str(exc))
             self._error(str(exc), status=403)
         except FileNotFoundError as exc:
+            logger.log_warning("HTTP", "not found", method=method, path=path, error=str(exc))
             self._error(f"找不到文件: {exc}", status=404)
         except ai.AIError as exc:
+            logger.log_exception("AI", "request failed", exc, method=method, path=path)
             self._error(str(exc), status=502, detail=str(exc))
         except Exception as exc:  # noqa: BLE001
+            logger.log_exception("ERROR", "unhandled request error", exc, method=method, path=path)
             self._error(f"{type(exc).__name__}: {exc}", status=500, detail=traceback.format_exc()[-2000:])
+        finally:
+            if path.startswith("/api/"):
+                logger.log_event("HTTP", method, path=path,
+                                 status=getattr(self, "_last_status", 0),
+                                 ms=round((time.time() - started) * 1000, 1))
 
     def do_POST(self):  # noqa: N802
         self._dispatch("POST")
@@ -193,6 +205,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             body = self._body()
             saved = store.save(name, body.get("data"))
+            logger.log_event("DATA", "save", collection=name, path=str(saved))
             self._json({"ok": True, "saved": str(saved)})
             return
 
@@ -217,11 +230,13 @@ class Handler(BaseHTTPRequestHandler):
                 target = project.save_json(coll, db, body.get("filename") or "")
             else:
                 target = project.save_txt(coll, db, body.get("filename") or "")
+            logger.log_event("DATA", "export", collection=coll, format=fmt, path=str(target))
             self._json({"ok": True, "path": str(target), "rel": project.rel_str(target)})
             return
 
         if path == "/api/backup" and method == "POST":
             target = store.backup_all()
+            logger.log_event("DATA", "backup", path=str(target))
             self._json({"ok": True, "path": str(target)})
             return
 
@@ -240,6 +255,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._error("内容为空，未保存")
                 return
             target = project.write_output(content, body.get("mode") or "AI 工作站生成", (body.get("name") or "").strip())
+            logger.log_event("DATA", "output", path=str(target), chars=len(content))
             self._json({"ok": True, "path": str(target), "rel": project.rel_str(target),
                         "chapters": project.list_chapters()})
             return
@@ -287,7 +303,10 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/models" and method == "POST":
             body = self._body()
             config = body.get("config") or store.load("config")
-            self._json({"ok": True, **ai.list_models(config)})
+            result = ai.list_models(config)
+            logger.log_event("MODEL", "list", provider=result.get("provider"),
+                             endpoint=result.get("endpoint"), count=len(result.get("models") or []))
+            self._json({"ok": True, **result})
             return
 
         if path == "/api/ai/preview" and method == "POST":
@@ -360,6 +379,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._error("地图表格格式错误：没有找到含「方位」表头的 Markdown 表格")
                 return
             store.save("worldmap", world)
+            logger.log_event("IMPORT", "map", source=source, regions=len(world.get("regions") or {}))
             self._json({"ok": True, "message": f"已导入地图：{len(world['regions'])} 个区域",
                         "collections": store.load_all()})
             return
@@ -371,6 +391,7 @@ class Handler(BaseHTTPRequestHandler):
                 data.get("items") or [], incoming, key="title", key_fields=["category", "title"])
             data["items"] = items
             store.save("memories", data)
+            logger.log_event("IMPORT", "memories", source=source, added=added, updated=updated)
             self._json({"ok": True, "message": f"{source}：新增 {added} 条记忆，更新 {updated} 条",
                         "collections": store.load_all()})
             return
@@ -384,6 +405,8 @@ class Handler(BaseHTTPRequestHandler):
                 if target == "worldmap":
                     world = project.import_worldmap_json(text, name=body.get("name") or "")
                     store.save("worldmap", world)
+                    logger.log_event("IMPORT", "map_json", source=source,
+                                     regions=len(world.get("regions") or {}))
                     self._json({
                         "ok": True,
                         "message": f"已导入地图：{len(world.get('regions') or {})} 个区域",
@@ -402,6 +425,8 @@ class Handler(BaseHTTPRequestHandler):
                 data.get("items") or [], incoming, key=key, key_fields=key_fields)
             data["items"] = items
             store.save(target, data)
+            logger.log_event("IMPORT", "json", source=source, target=target,
+                             added=added, updated=updated)
             self._json({"ok": True, "message": f"{source} → {target}：新增 {added} 条，更新 {updated} 条",
                         "collections": store.load_all()})
             return
@@ -413,6 +438,7 @@ class Handler(BaseHTTPRequestHandler):
             data.get("items") or [], incoming, key="name", key_fields=["source", "category", "name"])
         data["items"] = items
         store.save("other", data)
+        logger.log_event("IMPORT", "markdown", source=source, added=added, updated=updated)
 
         meta = store.load("meta")
         meta.setdefault("last_import", {})[source] = store.now_str()
@@ -528,6 +554,8 @@ class Handler(BaseHTTPRequestHandler):
         dst["items"] = dst_items
         store.save(src_coll, src)
         store.save(dst_coll, dst)
+        logger.log_event("DATA", "move", source=src_coll, target=dst_coll,
+                         count=moved, keep=keep)
         self._json({"ok": True, "moved": moved, "message": f"已搬运 {moved} 条 → {dst_coll}",
                     "collections": store.load_all()})
 
@@ -562,8 +590,13 @@ class Handler(BaseHTTPRequestHandler):
             messages = [{"role": "system", "content": assembled["system"]},
                         {"role": "user", "content": assembled["user"]}]
 
+        logger.log_event("AI", "legacy_request", tool=tool, input_chars=len(text))
         result = ai.chat(config, tool if tool in prm["tools"] else "write", messages, override=override)
         result["text"] = prompts_mod.with_notice(result.get("text", ""))
+        logger.log_event("AI", "legacy_response", tool=tool, model=result.get("model"),
+                         elapsed=result.get("elapsed"),
+                         tokens=(result.get("usage") or {}).get("total_tokens"),
+                         output_chars=len(result.get("text") or ""))
         result["ok"] = True
         result["tool"] = tool
         self._json(result)
@@ -599,9 +632,23 @@ class Handler(BaseHTTPRequestHandler):
             for key, value in (body.get("override") or {}).items():
                 if value not in (None, ""):
                     settings[key] = value
+            logger.log_event(
+                "AI", "request", mode=mode_id, mode_label=mode.get("label") or mode_id,
+                model=settings.get("model"), effort=settings.get("effort"),
+                provider=providers.provider_for_config(config).get("id"),
+                prompt_chars=len(user_prompt), user_message_chars=len(assembled["user"]),
+                prompt_excerpt=user_prompt[:240],
+            )
             result = ai.chat_settings(config, settings, messages)
             result["text"] = prompts_mod.with_notice(result.get("text", ""))
             _RUN_STATE["transport"] = result.get("transport", "")
+            logger.log_event(
+                "AI", "response", mode=mode_id, model=result.get("model"),
+                effort=result.get("effort"), elapsed=result.get("elapsed"),
+                tokens=(result.get("usage") or {}).get("total_tokens"),
+                output_chars=len(result.get("text") or ""),
+                output_excerpt=(result.get("text") or "")[:320],
+            )
 
             session_id = body.get("session_id") or history.current_session_id()
             session = history.load_session(session_id) if session_id else None
@@ -668,6 +715,9 @@ class Handler(BaseHTTPRequestHandler):
                 },
             })
             self._json(payload)
+        except Exception as exc:
+            logger.log_exception("AI", "workstation failed", exc, mode=mode_id)
+            raise
         finally:
             _RUN_STATE.update(busy=False, started="", mode="", transport="")
             _RUN_LOCK.release()

@@ -82,7 +82,7 @@ def ensure_dirs() -> None:
     _migrate_config()
     _migrate_modes()
     for path in (DATA_DIR, DATA_DIR / "conversations", io_in(), io_out(),
-                 out_dir(), plan_dir(), txt_dir(), text_dir()):
+                 out_dir(), plan_dir(), txt_dir(), text_dir(), log_dir()):
         path.mkdir(parents=True, exist_ok=True)
     # 首次启动时把内置默认设置落成可编辑的 JSON 文件。
     for name in COLLECTIONS:
@@ -115,6 +115,16 @@ def _migrate_config() -> None:
     if "efforts" not in cfg:
         cfg["efforts"] = list(providers.EFFORTS)
         changed = True
+    server = cfg.setdefault("server", {})
+    if "host" not in server:
+        server["host"] = "127.0.0.1"
+        changed = True
+    if "port" not in server:
+        server["port"] = 8765
+        changed = True
+    if "onboarding" not in cfg:
+        cfg["onboarding"] = {"done": False, "version": 1}
+        changed = True
     paths = cfg.setdefault("paths", {})
     mapping = {
         "import_dir": ("workspace/io/in", "workspace/import"),
@@ -133,6 +143,9 @@ def _migrate_config() -> None:
         changed = True
     if "data_dir" not in paths:
         paths["data_dir"] = "data"
+        changed = True
+    if "log_dir" not in paths:
+        paths["log_dir"] = "../log"
         changed = True
     if changed:
         save("config", cfg)
@@ -187,6 +200,11 @@ def text_dir() -> Path:
     return _root(load("config").get("paths", {}).get("text_dir", "workspace/text"))
 
 
+def log_dir() -> Path:
+    """本地日志目录。"""
+    return _root(load("config").get("paths", {}).get("log_dir", "../log"))
+
+
 # ─────────────────────────────────────────────
 # 默认值
 # ─────────────────────────────────────────────
@@ -194,6 +212,8 @@ def default_config() -> dict:
     return {
         "version": 4,
         "api": providers.default_api_config(),
+        "server": {"host": "127.0.0.1", "port": 8765},
+        "onboarding": {"done": False, "version": 1},
         "efforts": list(providers.EFFORTS),
         "writing": {
             "target_chars": 8000,
@@ -207,6 +227,7 @@ def default_config() -> dict:
             "plan_dir": "workspace/output/plan",
             "txt_dir": "workspace/output/txt",
             "text_dir": "workspace/text",
+            "log_dir": "../log",
         },
     }
 

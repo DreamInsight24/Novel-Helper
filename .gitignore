@@ -1,6 +1,8 @@
 # 本地数据与产出（首次启动自动生成）
 app/data/
 app/workspace/
+app/log/
+log/
 .venv/
 __pycache__/
 *.pyc

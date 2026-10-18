@@ -62,6 +62,7 @@ def main() -> int:
         "plan_dir": str(TEMP_WORK / "output" / "plan"),
         "txt_dir": str(TEMP_WORK / "output" / "txt"),
         "text_dir": str(TEMP_WORK / "text"),
+        "log_dir": str(TEMP_WORK / "log"),
     })
     store.save("config", cfg)
     for name in ("modes", "schema", "state", "sections", "history"):
@@ -71,6 +72,8 @@ def main() -> int:
     check("默认配置不包含 API Key", cfg["api"]["api_key"] == "")
     check("默认目标字数为 8000", cfg["writing"]["target_chars"] == 8000)
     check("默认超时为 899 秒", cfg["api"]["timeout"] == 899)
+    check("默认端口为 8765 且首次引导未完成",
+          cfg["server"]["port"] == 8765 and cfg["onboarding"]["done"] is False)
     check("默认元素模板包含自定义栏目",
           all(key in store.load("schema") for key in
               ("section_world", "section_species", "section_magic", "section_places", "section_religion")))
@@ -128,7 +131,7 @@ def main() -> int:
     draft_mode = next(m for m in db["modes"]["items"] if m["id"] == "draft")
     assembled = context.assemble_mode(db["config"], db, selection, outline_mode,
                                       work_prompt="先给一个场景框架。")
-    check("工作站 system 使用工作提示词",
+    check("工作站 system 使用工作模式提示词",
           "框架写作" in assembled["system"] and "章节目标" in assembled["system"])
     user = assembled["user"]
     check("工作站 user 包含已选设定与当前状态",
@@ -318,7 +321,7 @@ def main() -> int:
         check("成功后 state 保存最近输出与当前会话",
               saved_state["workstation"]["output"].startswith("## 测试输出")
               and saved_state["workstation"]["current_session"] == run["session_id"])
-        check("假模型收到工作提示词与用户提示词",
+        check("假模型收到工作模式补充要求与用户提示词",
               "控制在 80 字以内" in captured["messages"][1]["content"]
               and "测试提示词：雨夜入城" in captured["messages"][1]["content"])
         check("模式模型与推理强度被传入调用",
@@ -341,6 +344,11 @@ def main() -> int:
         map_ok_res = post("/api/import", {"kind": "json", "source": str(map_good), "target": "worldmap"})
         check("地图 JSON 可导入", map_ok_res.get("ok") and "导入地图" in map_ok_res.get("message", ""))
         check("导入地图写入区域", store.load("worldmap")["regions"]["rg_in"]["name"] == "导入城")
+
+        log_path = TEMP_WORK / "log" / "novelhelper.log"
+        log_text = log_path.read_text(encoding="utf-8") if log_path.exists() else ""
+        check("日志文件写入配置目录", log_path.exists() and "[HTTP]" in log_text)
+        check("日志记录 AI 交互", "[AI] request" in log_text and "[AI] response" in log_text)
 
         modes_res = get("/api/workstation/modes")
         check("GET /api/workstation/modes 返回动态模式",

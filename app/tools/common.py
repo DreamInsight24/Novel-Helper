@@ -21,7 +21,7 @@ ROOT = APP_DIR
 if str(APP_DIR) not in sys.path:
     sys.path.insert(0, str(APP_DIR))
 
-from novelhelper import ai, context, elements, project, prompts as prompts_mod, store  # noqa: E402
+from novelhelper import ai, context, elements, logger, project, prompts as prompts_mod, store  # noqa: E402
 
 PROJECT_ROOT = store.PROJECT_ROOT
 DATA_DIR = store.DATA_DIR
@@ -82,7 +82,18 @@ def db() -> dict:
 
 
 def chat(tool_name: str, messages: list, override: dict | None = None) -> str:
-    result = ai.chat(config(), tool_name, messages, override=override)
+    logger.log_event("AI", "cli_request", tool=tool_name,
+                     messages=len(messages),
+                     input_chars=sum(len(str(m.get("content") or "")) for m in messages))
+    try:
+        result = ai.chat(config(), tool_name, messages, override=override)
+    except Exception as exc:
+        logger.log_exception("AI", "cli_request_failed", exc, tool=tool_name)
+        raise
+    logger.log_event("AI", "cli_response", tool=tool_name, model=result.get("model"),
+                     elapsed=result.get("elapsed"),
+                     tokens=(result.get("usage") or {}).get("total_tokens"),
+                     output_chars=len(result.get("text") or ""))
     return prompts_mod.with_notice(result["text"])
 
 
