@@ -41,6 +41,28 @@ html, body {
 .brand { padding: 18px 18px 10px; }
 .brand-title { font-size: 17px; font-weight: 700; letter-spacing: .3px; }
 .brand-sub { font-size: 12px; color: var(--muted); }
+.debug-badge {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #8e2b21;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .08em;
+}
+.debug-badge[hidden] { display: none; }
+.debug-strip {
+  margin-bottom: 14px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #e7b4ad;
+  background: #fff1ef;
+  color: #8e2b21;
+  font-size: 12.5px;
+  font-weight: 600;
+}
 
 #nav { flex: 1; overflow-y: auto; padding: 6px 10px 16px; }
 .nav-group { margin: 12px 0 4px; padding: 0 8px; font-size: 11px; color: var(--muted); letter-spacing: .12em; }

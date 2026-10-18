@@ -26,11 +26,16 @@ from . import prompts as prompts_mod, providers
 
 STUDIO_DIR = Path(__file__).resolve().parent
 APP_ROOT = STUDIO_DIR.parent
-PROJECT_ROOT = APP_ROOT
 REPO_ROOT = APP_ROOT.parent
 WEB_DIR = STUDIO_DIR / "web"
 
-DATA_DIR = Path(os.environ.get("NOVELHELPER_DATA") or (APP_ROOT / "data"))
+DEBUG_MODE = os.environ.get("NOVELHELPER_DEBUG") == "1"
+RUNTIME_ROOT = (
+    Path(os.environ.get("NOVELHELPER_HOME") or (APP_ROOT / "debug"))
+    if DEBUG_MODE else APP_ROOT
+)
+PROJECT_ROOT = RUNTIME_ROOT
+DATA_DIR = Path(os.environ.get("NOVELHELPER_DATA") or (RUNTIME_ROOT / "data"))
 
 # 集合 = 一份 JSON 文件
 COLLECTIONS = (
@@ -112,6 +117,15 @@ def _migrate_config() -> None:
     if not api.get("provider"):
         api["provider"] = "deepseek"
         changed = True
+    ds = providers.get_provider("deepseek")
+    if providers.provider_for_config({"api": api})["id"] == "deepseek":
+        allowed = list(ds["models"])
+        if api.get("models") != allowed:
+            api["models"] = allowed
+            changed = True
+        if api.get("default_model") not in allowed:
+            api["default_model"] = ds["default_model"]
+            changed = True
     if "efforts" not in cfg:
         cfg["efforts"] = list(providers.EFFORTS)
         changed = True
@@ -120,7 +134,7 @@ def _migrate_config() -> None:
         server["host"] = "127.0.0.1"
         changed = True
     if "port" not in server:
-        server["port"] = 8765
+        server["port"] = 8766 if DEBUG_MODE else 8765
         changed = True
     if "onboarding" not in cfg:
         cfg["onboarding"] = {"done": False, "version": 1}
@@ -145,8 +159,25 @@ def _migrate_config() -> None:
         paths["data_dir"] = "data"
         changed = True
     if "log_dir" not in paths:
-        paths["log_dir"] = "../log"
+        paths["log_dir"] = "log" if DEBUG_MODE else "../log"
         changed = True
+    if DEBUG_MODE and paths.get("log_dir") == "../log":
+        paths["log_dir"] = "log"
+        changed = True
+    if DEBUG_MODE:
+        debug_paths = {
+            "import_dir": "workspace/import",
+            "export_dir": "workspace/export",
+            "output_dir": "workspace/output",
+            "plan_dir": "workspace/output/plan",
+            "txt_dir": "workspace/output/txt",
+            "text_dir": "workspace/text",
+            "log_dir": "log",
+        }
+        for key, value in debug_paths.items():
+            if paths.get(key) != value:
+                paths[key] = value
+                changed = True
     if changed:
         save("config", cfg)
 
@@ -172,7 +203,13 @@ def _migrate_modes() -> None:
 
 def _root(rel: str | Path) -> Path:
     path = Path(rel)
-    return path if path.is_absolute() else (PROJECT_ROOT / path)
+    target = path if path.is_absolute() else (PROJECT_ROOT / path)
+    if DEBUG_MODE:
+        try:
+            target.resolve().relative_to(RUNTIME_ROOT.resolve())
+        except ValueError as exc:
+            raise PermissionError(f"调试模式路径必须位于 {RUNTIME_ROOT}: {rel}") from exc
+    return target
 
 
 def io_in() -> Path:
@@ -202,7 +239,11 @@ def text_dir() -> Path:
 
 def log_dir() -> Path:
     """本地日志目录。"""
-    return _root(load("config").get("paths", {}).get("log_dir", "../log"))
+    default = "log" if DEBUG_MODE else "../log"
+    value = load("config").get("paths", {}).get("log_dir", default)
+    if DEBUG_MODE and value == "../log":
+        value = "log"
+    return _root(value)
 
 
 # ─────────────────────────────────────────────
@@ -212,7 +253,7 @@ def default_config() -> dict:
     return {
         "version": 4,
         "api": providers.default_api_config(),
-        "server": {"host": "127.0.0.1", "port": 8765},
+        "server": {"host": "127.0.0.1", "port": 8766 if DEBUG_MODE else 8765},
         "onboarding": {"done": False, "version": 1},
         "efforts": list(providers.EFFORTS),
         "writing": {
@@ -227,7 +268,7 @@ def default_config() -> dict:
             "plan_dir": "workspace/output/plan",
             "txt_dir": "workspace/output/txt",
             "text_dir": "workspace/text",
-            "log_dir": "../log",
+            "log_dir": "log" if DEBUG_MODE else "../log",
         },
     }
 

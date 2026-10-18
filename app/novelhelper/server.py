@@ -168,6 +168,9 @@ class Handler(BaseHTTPRequestHandler):
                 "export_dir": str(store.io_out()),
                 "import_dir": str(store.io_in()),
                 "text_dir": str(store.text_dir()),
+                "debug": store.DEBUG_MODE,
+                "runtime_root": str(store.RUNTIME_ROOT),
+                "log_file": str(logger.session_file()),
                 "providers": providers.public_providers(),
                 "default_modes": prompts_mod.default_modes(),
                 "efforts": list(providers.EFFORTS),
@@ -307,6 +310,16 @@ class Handler(BaseHTTPRequestHandler):
             logger.log_event("MODEL", "list", provider=result.get("provider"),
                              endpoint=result.get("endpoint"), count=len(result.get("models") or []))
             self._json({"ok": True, **result})
+            return
+
+        if path == "/api/client-log" and method == "POST":
+            body = self._body()
+            logger.log_event(
+                "CLIENT", body.get("level") or "info",
+                message=body.get("message") or "",
+                detail=body.get("detail") or "",
+            )
+            self._json({"ok": True})
             return
 
         if path == "/api/ai/preview" and method == "POST":

@@ -19,8 +19,8 @@ PROVIDERS = [
         "id": "deepseek",
         "label": "DeepSeek",
         "base_url": "https://api.deepseek.com",
-        "models": ["deepseek-chat", "deepseek-reasoner"],
-        "default_model": "deepseek-chat",
+        "models": ["deepseek-flash", "deepseek-v4-pro"],
+        "default_model": "deepseek-flash",
         "default_effort": "high",
         "key_env": "DEEPSEEK_API_KEY",
         "prompt_note": "当前使用 DeepSeek 的 OpenAI 兼容接口。",
@@ -132,11 +132,19 @@ def normalize_base_url(url: str) -> str:
     return (url or "").strip().rstrip("/")
 
 
+def same_base_url(left: str, right: str) -> bool:
+    a = normalize_base_url(left)
+    b = normalize_base_url(right)
+    return bool(a and b) and (
+        a == b or a == b + "/v1" or b == a + "/v1"
+    )
+
+
 def provider_for_config(config: dict) -> dict:
     api = (config or {}).get("api") or {}
     provider = get_provider(api.get("provider") or "custom")
     base_url = normalize_base_url(api.get("base_url") or provider.get("base_url") or "")
-    if provider["id"] != "custom" and base_url and base_url != normalize_base_url(provider["base_url"]):
+    if provider["id"] != "custom" and base_url and not same_base_url(base_url, provider["base_url"]):
         return get_provider("custom")
     return provider
 
@@ -151,9 +159,12 @@ def provider_note(config: dict) -> str:
 
 def provider_models(config: dict) -> list:
     api = (config or {}).get("api") or {}
+    provider = provider_for_config(config)
+    if provider["id"] == "deepseek":
+        return list(provider["models"])
     models = list(api.get("models") or [])
     if not models:
-        models = list(provider_for_config(config).get("models") or [])
+        models = list(provider.get("models") or [])
     return models
 
 

@@ -42,6 +42,7 @@ python app/run.py --no-browser
 - 选择 DeepSeek、OpenAI、OpenRouter、SiliconFlow、Moonshot/Kimi、阿里云百炼、智谱 GLM 或自定义接口。
 - URL 和 API Key 都可以手动填写；自定义或本地接口允许不填 Key。
 - 「从接口获取可用模型」会读取当前 URL 的 `/models`；也可以手动维护模型列表。
+- DeepSeek 预设当前提供 `deepseek-flash` 与 `deepseek-v4-pro`。
 - 设置默认模型、默认推理强度和超时。
 - **端口号**：在「模型设置 → 应用」修改，保存后下一次启动自动使用新端口；命令行 `--port` 可临时覆盖。
 - 「测试连接」只发送一条很短的测试请求，不会写入对话历史。
@@ -99,9 +100,26 @@ log/
 └── novelhelper.log       操作、AI 交互与错误日志
 ```
 
-日志按 5 MB 轮转，保留 5 份。API Key 不会写入日志。
+每次启动会新建 `log/novelhelper_YYYYMMDD_HHMMSS.log`，最多保留 10 个日志文件，超出时自动删除最早的。API Key 不会写入日志。
 
 对话历史只保存设定条目的 ID 指针，不重复保存整份设定；失效指针在读取时自动跳过。
+
+## 开发者调试模式
+
+调试模式只能通过命令行启动，使用独立的 `app/debug/` 数据、输出和日志目录，与正式版本互不共享。界面会显示 `DEBUG` 标识。
+
+```bash
+python app/run.py --debug
+python app/run.py --debug --port 8790
+```
+
+调试模式默认端口为 `8766`，可用 `--port` 临时指定。清理调试模式产生的全部文件：
+
+```bash
+python app/run.py --clean-debug
+```
+
+`app/debug/` 已加入 `.gitignore`。
 
 ## 命令行工具
 

@@ -3,43 +3,85 @@
 """
 本地文件日志。
 
-默认写入项目根目录 log/novelhelper.log，按 5 MB 轮转，保留 5 份。
+每次启动创建一个以时间命名的日志文件，例如：
+    log/novelhelper_20261018_174800.log
+
+最多保留 10 个日志文件，超出时删除最早的文件。
 记录用户请求、AI 交互元信息与异常；不会写入 API Key。
 """
 from __future__ import annotations
 
 import json
 import logging
-from logging.handlers import RotatingFileHandler
+from datetime import datetime
+from pathlib import Path
 
 from . import store
 
+MAX_LOGS = 10
 _LOGGER: logging.Logger | None = None
+_SESSION_FILE: Path | None = None
 
 
-def _get_logger() -> logging.Logger:
-    global _LOGGER
-    if _LOGGER is not None:
-        return _LOGGER
+def _prune(log_dir: Path) -> None:
+    files = sorted(
+        (path for path in log_dir.glob("novelhelper*.log") if path.is_file()),
+        key=lambda path: (path.stat().st_mtime, path.name),
+    )
+    while len(files) >= MAX_LOGS:
+        oldest = files.pop(0)
+        try:
+            oldest.unlink()
+        except OSError:
+            pass
+
+
+def start_session(force: bool = False) -> Path:
+    """创建本次启动的日志文件，并清理超出数量上限的旧日志。"""
+    global _LOGGER, _SESSION_FILE
+    if _LOGGER is not None and _SESSION_FILE is not None and not force:
+        return _SESSION_FILE
+
     log_dir = store.log_dir()
     log_dir.mkdir(parents=True, exist_ok=True)
+    _prune(log_dir)
+
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    target = log_dir / f"novelhelper_{stamp}.log"
+    index = 1
+    while target.exists():
+        target = log_dir / f"novelhelper_{stamp}_{index}.log"
+        index += 1
+
     logger = logging.getLogger("novelhelper")
     logger.setLevel(logging.INFO)
     logger.propagate = False
-    if not any(isinstance(handler, RotatingFileHandler) for handler in logger.handlers):
-        handler = RotatingFileHandler(
-            log_dir / "novelhelper.log",
-            maxBytes=5 * 1024 * 1024,
-            backupCount=5,
-            encoding="utf-8",
-        )
-        handler.setFormatter(logging.Formatter(
-            "%(asctime)s | %(levelname)s | %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-        ))
-        logger.addHandler(handler)
+    for handler in list(logger.handlers):
+        try:
+            handler.close()
+        except Exception:
+            pass
+        logger.removeHandler(handler)
+    handler = logging.FileHandler(target, encoding="utf-8")
+    handler.setFormatter(logging.Formatter(
+        "%(asctime)s | %(levelname)s | %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    ))
+    logger.addHandler(handler)
     _LOGGER = logger
-    return logger
+    _SESSION_FILE = target
+    return target
+
+
+def session_file() -> Path:
+    return _SESSION_FILE or start_session()
+
+
+def _get_logger() -> logging.Logger:
+    if _LOGGER is None:
+        start_session()
+    assert _LOGGER is not None
+    return _LOGGER
 
 
 def _value(value) -> str:

@@ -199,6 +199,12 @@ function providerById(id) {
     (state.providers || [])[(state.providers || []).length - 1] || null;
 }
 
+function sameProviderUrl(left, right) {
+  const a = String(left || '').replace(/\/+$/, '');
+  const b = String(right || '').replace(/\/+$/, '');
+  return !!a && !!b && (a === b || a === b + '/v1' || b === a + '/v1');
+}
+
 function apiCfg() {
   const cfg = state.db.config = state.db.config || {};
   cfg.api = cfg.api || {};
@@ -509,7 +515,7 @@ function viewAI(main) {
   const api = cfg.api;
   const preset = providerById(api.provider) || { label: '自定义 / OpenAI 兼容', base_url: '', models: [], key_env: 'CUSTOM_API_KEY' };
   const customUrl = !preset || preset.id === 'custom' ||
-    (api.base_url && preset.base_url && api.base_url.replace(/\/+$/, '') !== preset.base_url.replace(/\/+$/, ''));
+    (api.base_url && preset.base_url && !sameProviderUrl(api.base_url, preset.base_url));
   const host = (() => {
     try { return new URL(api.base_url || preset.base_url || '').hostname.toLowerCase(); }
     catch (e) { return ''; }
@@ -785,8 +791,7 @@ function showOnboarding(force) {
       api.default_model = models[0];
     }
     const customUrl = preset.id === 'custom' ||
-      (api.base_url && preset.base_url &&
-        api.base_url.replace(/\/+$/, '') !== preset.base_url.replace(/\/+$/, ''));
+      (api.base_url && preset.base_url && !sameProviderUrl(api.base_url, preset.base_url));
 
     body.appendChild(h('div', { class: 'notice',
       text: '先选择接口并填写 API Key。可以跳过；不配置也能浏览和编辑设定，但开始生成前需要模型可用。' }));
@@ -863,7 +868,7 @@ function showOnboarding(force) {
         h('label', { text: '模型名（可手动填写）' }),
         h('input', {
           type: 'text', value: api.default_model || '',
-          placeholder: '例如 gpt-4.1-mini / deepseek-chat',
+          placeholder: '例如 gpt-4.1-mini / deepseek-flash',
           oninput: e => { api.default_model = e.target.value; touch('config'); }
         })));
     }

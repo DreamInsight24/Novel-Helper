@@ -45,10 +45,15 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="NovelHelper 开源小说创作工具")
     parser.add_argument("--host", default=None, help="监听地址（默认读取配置，初始为 127.0.0.1）")
     parser.add_argument("--port", type=int, default=None, help="监听端口（默认读取配置，初始为 8765）")
+    parser.add_argument("--debug", action="store_true", help="开发者调试模式（需通过 app/run.py 启动）")
     parser.add_argument("--no-browser", action="store_true", help="不自动打开浏览器")
     args = parser.parse_args()
 
+    if args.debug and not store.DEBUG_MODE:
+        print("[错误] 调试模式必须通过 app/run.py --debug 启动，当前未启用隔离目录。")
+        return 2
     store.ensure_dirs()
+    log_file = logger.start_session()
     cfg = store.load("config")
     server_cfg = cfg.get("server") or {}
     host = args.host or server_cfg.get("host") or "127.0.0.1"
@@ -69,13 +74,18 @@ def main() -> int:
         print("       可以在「模型设置 → 应用」中修改端口，或使用 --port 临时指定。")
         return 1
     logger.log_event("APP", "start", host=host, port=port,
-                     data_dir=str(store.DATA_DIR), version="v2610.1")
+                     data_dir=str(store.DATA_DIR), version="v2610.1",
+                     debug=store.DEBUG_MODE, log_file=str(log_file))
 
     print("=" * 56)
     print("  NovelHelper · AI 小说工作站  v2610.1")
+    if store.DEBUG_MODE:
+        print("  DEBUG 模式 · 数据与正式版本隔离")
     print("=" * 56)
     print(f"  程序目录 : {store.APP_ROOT}")
+    print(f"  运行目录 : {store.RUNTIME_ROOT}")
     print(f"  数据目录 : {store.DATA_DIR}")
+    print(f"  日志文件 : {log_file}")
     print(f"  导入目录 : {store.io_in()}")
     print(f"  导出目录 : {store.io_out()}")
     print(f"  访问地址 : {url}")
