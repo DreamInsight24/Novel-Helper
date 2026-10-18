@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import threading
@@ -30,7 +31,7 @@ TEMP_DATA = Path(tempfile.mkdtemp(prefix="novelhelper_data_"))
 TEMP_WORK = Path(tempfile.mkdtemp(prefix="novelhelper_work_"))
 os.environ["NOVELHELPER_DATA"] = str(TEMP_DATA)
 
-from novelhelper import ai, context, history, project, prompts as prompts_mod, server, store  # noqa: E402
+from novelhelper import ai, context, history, logger, project, prompts as prompts_mod, server, store  # noqa: E402
 
 PASS: list[str] = []
 FAIL: list[str] = []
@@ -74,6 +75,29 @@ def main() -> int:
     check("默认超时为 899 秒", cfg["api"]["timeout"] == 899)
     check("默认端口为 8765 且首次引导未完成",
           cfg["server"]["port"] == 8765 and cfg["onboarding"]["done"] is False)
+    debug_home = TEMP_WORK / "debug"
+    debug_env = os.environ.copy()
+    debug_env.update({
+        "NOVELHELPER_DEBUG": "1",
+        "NOVELHELPER_HOME": str(debug_home),
+        "NOVELHELPER_DATA": str(debug_home / "data"),
+    })
+    debug_probe = subprocess.run(
+        [sys.executable, "-c",
+         "import sys; sys.path.insert(0, 'app'); "
+         "from novelhelper import store; store.ensure_dirs(); "
+         "print(store.DEBUG_MODE, store.PROJECT_ROOT, store.DATA_DIR, "
+         "store.load('config')['server']['port'], store.log_dir())"],
+        cwd=str(APP_DIR.parent), env=debug_env, capture_output=True,
+        text=True, timeout=20,
+    )
+    debug_text = debug_probe.stdout.strip()
+    check("调试模式使用独立目录与默认端口",
+          debug_probe.returncode == 0
+          and str(debug_home) in debug_text
+          and " 8766 " in debug_text
+          and str(debug_home / "log") in debug_text,
+          debug_text or debug_probe.stderr[-300:])
     check("默认元素模板包含自定义栏目",
           all(key in store.load("schema") for key in
               ("section_world", "section_species", "section_magic", "section_places", "section_religion")))
@@ -89,7 +113,9 @@ def main() -> int:
     check("默认提示词不再以「你是一位/你是一个」开头",
           not any(s.startswith("你是一位") or s.startswith("你是一个") for s in starts))
     check("默认提供商与模型列表",
-          cfg["api"]["provider"] == "deepseek" and "deepseek-chat" in cfg["api"]["models"])
+          cfg["api"]["provider"] == "deepseek"
+          and cfg["api"]["models"] == ["deepseek-flash", "deepseek-v4-pro"]
+          and cfg["api"]["default_model"] == "deepseek-flash")
 
     # ── 1. 造数据并组装 ───────────────────────
     store.save("characters", {"items": [{
@@ -325,7 +351,7 @@ def main() -> int:
               "控制在 80 字以内" in captured["messages"][1]["content"]
               and "测试提示词：雨夜入城" in captured["messages"][1]["content"])
         check("模式模型与推理强度被传入调用",
-              captured["settings"]["model"] == "deepseek-chat"
+              captured["settings"]["model"] == "deepseek-flash"
               and captured["settings"]["effort"] == "low")
 
         import_ok = post("/api/import", {"kind": "md", "source": str(sample), "target": "other"})
@@ -345,10 +371,23 @@ def main() -> int:
         check("地图 JSON 可导入", map_ok_res.get("ok") and "导入地图" in map_ok_res.get("message", ""))
         check("导入地图写入区域", store.load("worldmap")["regions"]["rg_in"]["name"] == "导入城")
 
-        log_path = TEMP_WORK / "log" / "novelhelper.log"
-        log_text = log_path.read_text(encoding="utf-8") if log_path.exists() else ""
-        check("日志文件写入配置目录", log_path.exists() and "[HTTP]" in log_text)
+        log_dir = TEMP_WORK / "log"
+        log_files = sorted(log_dir.glob("novelhelper_*.log"))
+        log_text = log_files[-1].read_text(encoding="utf-8") if log_files else ""
+        check("每次启动生成时间命名的日志", bool(log_files) and "novelhelper_" in log_files[-1].name)
+        check("日志文件写入配置目录", bool(log_files) and "[HTTP]" in log_text)
         check("日志记录 AI 交互", "[AI] request" in log_text and "[AI] response" in log_text)
+        client_log = post("/api/client-log", {"level": "error", "message": "selftest client error"})
+        check("浏览器错误可写入日志",
+              client_log.get("ok") and "[CLIENT]" in log_files[-1].read_text(encoding="utf-8"))
+        for index in range(12):
+            dummy = log_dir / f"novelhelper_20000101_0000{index:02d}_{index}.log"
+            dummy.write_text("old\n", encoding="utf-8")
+            os.utime(dummy, (0, 0))
+        logger.start_session(force=True)
+        remaining = list(log_dir.glob("novelhelper*.log"))
+        check("日志最多保留 10 个并删除最早",
+              len(remaining) <= 10 and not (log_dir / "novelhelper_20000101_000000_0.log").exists())
 
         modes_res = get("/api/workstation/modes")
         check("GET /api/workstation/modes 返回动态模式",

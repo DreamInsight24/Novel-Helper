@@ -2,6 +2,7 @@
 app/data/
 app/workspace/
 app/log/
+app/debug/
 log/
 .venv/
 __pycache__/

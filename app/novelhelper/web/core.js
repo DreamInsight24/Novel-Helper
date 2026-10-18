@@ -214,6 +214,9 @@ const state = {
   providers: [],
   default_modes: [],
   efforts: [],
+  debug: false,
+  runtime_root: '',
+  log_file: '',
   paths: {},
   view: 'writer',
   ui: {},
@@ -347,6 +350,25 @@ function appendToTextPanel(content, quiet) {
   if (!quiet) toast('已追加到纯文本工作站。', 'ok');
 }
 
+// 浏览器端异常也写入本地日志，便于排查界面问题。
+function clientLog(level, message, detail) {
+  try {
+    fetch('/api/client-log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ level, message, detail })
+    }).catch(() => {});
+  } catch (e) { /* 日志失败不影响界面 */ }
+}
+
+window.addEventListener('error', e => {
+  clientLog('error', e.message || 'window error',
+    (e.filename || '') + ':' + (e.lineno || 0) + ':' + (e.colno || 0));
+});
+window.addEventListener('unhandledrejection', e => {
+  clientLog('error', 'unhandled rejection', String(e.reason || ''));
+});
+
 // ═══════════════════════════════════════════
 // 侧栏与路由
 // ═══════════════════════════════════════════
@@ -417,6 +439,10 @@ function renderMain() {
   const main = document.getElementById('main');
   const keepTop = main.scrollTop;
   clear(main);
+  if (state.debug) {
+    main.appendChild(h('div', { class: 'debug-strip',
+      text: 'DEBUG 模式 · 当前数据、输出与日志与正式版本隔离' }));
+  }
   const map = {
     writer: viewWorkstation, chapters: viewChapters, text: viewText,
     inventory: viewInventory, memories: viewMemories, world: viewWorld,
@@ -481,6 +507,15 @@ async function refreshFiles() {
   state.providers = r.providers || [];
   state.default_modes = r.default_modes || [];
   state.efforts = r.efforts || EFFORTS;
+  state.debug = !!r.debug;
+  state.runtime_root = r.runtime_root || '';
+  state.log_file = r.log_file || '';
+  const badge = document.getElementById('debug-badge');
+  if (badge) badge.hidden = !state.debug;
+  document.body.classList.toggle('debug-mode', state.debug);
+  document.title = state.debug
+    ? 'NovelHelper [DEBUG] · AI 小说工作站'
+    : 'NovelHelper · AI 小说工作站';
   state.paths = {
     root: r.root, data: r.data_dir, export: r.export_dir,
     import: r.import_dir, text: r.text_dir
