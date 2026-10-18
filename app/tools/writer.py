@@ -18,8 +18,7 @@ writer.py
     --all-characters      带入全部人物档案
     --no-characters       不带人物档案
 
-提示词、模型、推理档、目录全部来自 data/prompts.json 与 data/config.json，
-改配置即可，不用动这个文件。
+模型、API Key、目录来自 data/config.json；旧版命令行使用内置兼容提示词。
 
 人物 / 记忆 / 世界观条目以 data/state.json 里的勾选为准（没勾选＝不带入）；
 命令行可用 --all-characters / --character 临时覆盖人物选择。

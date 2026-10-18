@@ -10,7 +10,8 @@ const WORK_FALLBACK = [
 ];
 
 function workModes() {
-  return (state.work_modes && state.work_modes.length) ? state.work_modes : WORK_FALLBACK;
+  const items = (state.db && state.db.modes && state.db.modes.items) || [];
+  return items.length ? items : WORK_FALLBACK;
 }
 
 function workModeLabel(id) {
@@ -33,6 +34,7 @@ function wsState() {
     .map(item => typeof item === 'string' ? item : (item && item.path) || '')
     .filter(Boolean);
   ws.mode = ws.mode || 'draft';
+  if (!workModes().some(m => m.id === ws.mode)) ws.mode = workModes()[0].id;
   ws.prompt = ws.prompt || '';
   ws.work_prompt = ws.work_prompt || '';
   ws.current_state = ws.current_state || '';
@@ -146,7 +148,7 @@ function viewWorkstation(main) {
   const turn = shownTurn();
   const output = currentOutput();
   const modes = workModes();
-  const mode = modes.find(m => m.id === ws.mode) || modes[2] || modes[0];
+  const mode = modes.find(m => m.id === ws.mode) || modes[0];
 
   main.appendChild(pageHead('AI 工作站',
     '左侧选择设定、撰写用户提示词并选择工作提示词；右侧只显示本次 AI 输出。生成期间工作站会完全锁定。',
@@ -182,6 +184,10 @@ function viewWorkstation(main) {
       value: m.id, text: m.label, selected: m.id === ws.mode
     })))));
   modeCard.appendChild(h('div', { class: 'mode-desc', text: mode.desc || '' }));
+  const api = (state.db.config || {}).api || {};
+  modeCard.appendChild(h('div', { class: 'small muted', style: { marginTop: '6px' } },
+    '模型：' + (mode.model || api.default_model || '跟随默认') +
+    ' · 推理强度：' + (mode.effort || api.default_effort || 'medium')));
   modeCard.appendChild(h('div', { class: 'field', style: { marginTop: '10px' } },
     h('label', { text: '本次工作要求（可选，会与上面的工作提示词一起发送）' }),
     h('textarea', {
@@ -303,7 +309,7 @@ function viewWorkstation(main) {
       h('span', { class: 'name', text: f.path }))));
     fileDetails.appendChild(fileBox);
   } else {
-    fileDetails.appendChild(h('div', { class: 'muted small', text: '把参考资料放进 workspace/io/in/，刷新后即可勾选。' }));
+    fileDetails.appendChild(h('div', { class: 'muted small', text: '把参考资料放进 workspace/import/，刷新后即可勾选。' }));
   }
   inputCard.appendChild(fileDetails);
 
@@ -365,7 +371,7 @@ function viewWorkstation(main) {
   // ── 右侧：输出 ───────────────────────────
   const outputCard = h('div', { class: 'card output-card' });
   const outHead = h('h2', null, 'AI 输出',
-    modeBadge(session ? (turn && turn.mode) : ws.last_tool || ws.mode),
+    modeBadge(session ? (turn && turn.mode) : ws.last_mode || ws.mode),
     h('span', { class: 'hint', text: output.length + ' 字' }));
   outputCard.appendChild(outHead);
 
@@ -388,6 +394,7 @@ function viewWorkstation(main) {
   if (meta && !session) {
     outputCard.appendChild(h('div', { class: 'small muted output-meta' },
       '模型 ' + (meta.model || '—') +
+      ' · 推理 ' + (meta.effort || '—') +
       ' · 耗时 ' + (meta.elapsed != null ? meta.elapsed + 's' : '—') +
       (meta.usage && meta.usage.total_tokens ? ' · tokens ' + meta.usage.total_tokens : '')));
   }
@@ -458,11 +465,12 @@ async function runWorkstation() {
   status('AI 生成中…', 'busy');
 
   try {
+    await saveNow('modes').catch(() => {});
     const selection = await wsLoadProjectFiles();
     const res = await api('/api/workstation/run', {
       method: 'POST',
       body: {
-        work_mode: ws.mode,
+        mode_id: ws.mode,
         prompt: ws.prompt,
         work_prompt: ws.work_prompt,
         selection,
@@ -474,7 +482,12 @@ async function runWorkstation() {
     state.ui.busy = false;
     state.ui.lastMeta = res;
     state.ui.currentSession = res.session || null;
-    state.ui.log = '[' + new Date().toLocaleTimeString() + '] ' + workModeLabel(res.work_mode) +
+    const local = wsState();
+    local.output = res.text || '';
+    local.mode = res.mode_id || res.work_mode || local.mode;
+    local.last_mode = res.mode_id || res.work_mode || local.last_mode;
+    local.current_session = res.session_id || local.current_session;
+    state.ui.log = '[' + new Date().toLocaleTimeString() + '] ' + workModeLabel(res.mode_id) +
       ' | 模型 ' + (res.model || '—') + ' | 耗时 ' + (res.elapsed || 0) + 's' +
       (res.usage && res.usage.total_tokens ? ' | tokens ' + res.usage.total_tokens : '') +
       '\n' + (state.ui.log || '');
@@ -487,8 +500,8 @@ async function runWorkstation() {
     }
     const next = wsState();
     next.output = res.text || '';
-    next.mode = res.work_mode || next.mode;
-    next.last_tool = res.work_mode || next.last_tool;
+    next.mode = res.mode_id || res.work_mode || next.mode;
+    next.last_mode = res.mode_id || res.work_mode || next.last_mode;
     next.current_session = res.session_id || next.current_session;
     state.ui.currentSession = res.session || state.ui.currentSession;
     renderNav();
@@ -509,11 +522,12 @@ function previewWorkstation() {
   (async () => {
     try {
       const ws = wsState();
+      await saveNow('modes').catch(() => {});
       const selection = await wsLoadProjectFiles();
       const res = await api('/api/ai/preview', {
         method: 'POST',
         body: {
-          mode: 'work', work_mode: ws.mode, work_prompt: ws.work_prompt,
+          mode_id: ws.mode, work_prompt: ws.work_prompt,
           selection
         }
       });

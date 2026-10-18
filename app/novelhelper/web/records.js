@@ -382,10 +382,10 @@ function viewRecords(main, key) {
         onclick: () => { const rec = newRecord(def); bucket.items.unshift(rec); ui.sel = rec.id; touch(def.coll); renderMain(); }
       }))));
 
-  if (key === 'other') {
-    main.appendChild(importPanel('md', { title: '导入 Markdown / JSON 到其他设定' }));
-    main.appendChild(moveBar(def.coll, key));
-  }
+  main.appendChild(importPanel(key === 'other' ? 'md' : 'json', key === 'other'
+    ? { title: '导入 Markdown / JSON 到其他设定', kinds: ['md', 'json'], target: 'other' }
+    : { title: '导入 JSON 到' + def.label, kinds: ['json'], target: def.coll }));
+  if (key === 'other') main.appendChild(moveBar(def.coll, key));
 
   const row = h('div', { class: 'row' });
   const listBox = h('div', { class: 'col', style: { flex: '0 0 320px' } });
@@ -628,37 +628,46 @@ function pointerList(rec, listKey, coll, targetColl, idKey, onChange, opts) {
 // ═══════════════════════════════════════════
 function importPanel(defaultKind, opts) {
   opts = opts || {};
-  const sources = state.sources || [];
-  const kinds = [
-    { id: 'md', label: 'Markdown → 其他设定（原文入库）' },
-    { id: 'json', label: 'NovelHelper JSON → 指定集合' }
-  ];
-  const kindSel = h('select', { onchange: () => drawTarget() },
-    kinds.map(k => h('option', { value: k.id, selected: k.id === (defaultKind || 'md'), text: k.label })));
-  const sourceSel = h('select', null, sources.length
-    ? sources.map(s => h('option', {
-      value: s.path,
-      text: '[' + s.group + '] ' + s.path
-    }))
-    : [h('option', { value: '', text: '（workspace/io/in 里还没有可导入的文件）' })]);
-  const targetSel = h('select', null, ['other', 'characters', 'factions', 'items', 'equipment', 'memories']
-    .map(c => h('option', { value: c, text: '导入到：' + c })));
-  const targetWrap = h('span');
-  const drawTarget = () => {
-    clear(targetWrap);
-    if (kindSel.value === 'json') targetWrap.appendChild(targetSel);
+  const labels = {
+    md: 'Markdown（.md）→ 当前设定',
+    json: 'JSON → 当前设定'
   };
-  drawTarget();
+  const kinds = (opts.kinds || [defaultKind || 'json']).map(id => ({ id, label: labels[id] || id }));
+  const target = opts.target || 'other';
+  const kindSel = h('select', { onchange: () => drawSources() },
+    kinds.map(k => h('option', {
+      value: k.id, selected: k.id === (defaultKind || kinds[0].id), text: k.label
+    })));
+  const sourceSel = h('select');
+
+  const drawSources = () => {
+    const kind = kindSel.value;
+    const sources = (state.sources || []).filter(s => {
+      const path = String(s.path || '').toLowerCase();
+      if (kind === 'md') return path.endsWith('.md');
+      if (kind === 'json') return path.endsWith('.json');
+      return true;
+    });
+    clear(sourceSel);
+    if (!sources.length) {
+      sourceSel.appendChild(h('option', { value: '', text: '（' + (state.paths.import || 'workspace/import') + ' 里没有可导入的文件）' }));
+    } else {
+      sources.forEach(s => sourceSel.appendChild(h('option', {
+        value: s.path, text: s.path + '（' + Math.max(1, Math.round((s.size || 0) / 1024)) + ' KB）'
+      })));
+    }
+  };
+  drawSources();
 
   const btn = h('button', { class: 'primary', text: '导入' });
-  btn.disabled = !sources.length;
   btn.onclick = async () => {
+    if (!sourceSel.value) { toast('请先选择要导入的文件。', 'err'); return; }
     btn.disabled = true;
     status('导入中…', 'busy');
     try {
       const res = await api('/api/import', {
         method: 'POST',
-        body: { kind: kindSel.value, source: sourceSel.value, target: targetSel.value }
+        body: { kind: kindSel.value, source: sourceSel.value, target }
       });
       setDb(res.collections);
       toast(res.message, 'ok');
@@ -671,11 +680,15 @@ function importPanel(defaultKind, opts) {
   };
 
   return h('details', { class: 'card' },
-    h('summary', null, (opts.title || '导入') + '　（' + (state.paths.import || 'workspace/io/in') + ' 里的文件）'),
-    h('div', { class: 'field', style: { marginTop: '10px' } }, kindSel),
-    h('div', { class: 'inline' }, sourceSel, targetWrap, btn),
+    h('summary', null, (opts.title || '导入') + '　（' + (state.paths.import || 'workspace/import') + ' 里的文件）'),
+    h('div', { class: 'field', style: { marginTop: '10px' } },
+      kindSel,
+      sourceSel),
+    h('div', { class: 'inline', style: { marginTop: '8px' } }, btn),
     h('div', { class: 'small muted', style: { marginTop: '8px' } },
-      'Markdown 现在只允许导入到「其他设定」。导入后在左侧勾选条目，点「搬运选中的条目到…」，即可转为人物、势力、道具、装备或自定义栏目的条目；原文会保留在补充说明里。'));
+      target === 'worldmap'
+        ? '地图 JSON 必须包含 rows、cols、cells、regions 四个字段；字段缺失或区域引用错误会给出提示。'
+        : '支持 NovelHelper 导出的 JSON、{"items": [...]}，或 {"名称": {...}} 结构；格式错误会提示。'));
 }
 
 function exportButtons(coll) {

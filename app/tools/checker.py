@@ -5,12 +5,12 @@ checker.py
 小说格式重排（去网文味）+ 剧情 BUG 修正
 
 用法:
-    python checker.py                  # 处理 out/ 下最新的 out_*.md
-    python checker.py out_xxx.md       # 处理指定文件（相对 out/ 或绝对路径）
-    python checker.py --all            # 处理 out/ 下所有未重排的 out_*.md
+    python checker.py                  # 处理输出目录下最新的 out_*.md
+    python checker.py out_xxx.md       # 处理指定文件（相对输出目录或绝对路径）
+    python checker.py --all            # 处理输出目录下所有未重排的 out_*.md
     python checker.py --tail           # 只重排「## 正文」部分，写作思路/建议原样保留
 
-提示词与模型来自 data/prompts.json（restyle 工具）与 data/config.json，改配置即可。
+模型与 API Key 来自 data/config.json；重排提示词使用内置兼容版本。
 """
 from __future__ import annotations
 

@@ -15,7 +15,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from . import ai, context, elements as el, history, project, prompts as prompts_mod, store
+from . import ai, context, elements as el, history, project, prompts as prompts_mod, providers, store
 
 MAX_BODY = 128 * 1024 * 1024  # 128 MB，够放整章正文
 
@@ -23,15 +23,6 @@ MAX_BODY = 128 * 1024 * 1024  # 128 MB，够放整章正文
 # 避免误触、重复点击或另一个标签页同时写入。
 _RUN_LOCK = threading.Lock()
 _RUN_STATE = {"busy": False, "started": "", "mode": "", "transport": ""}
-
-WORK_TO_TOOL = {
-    "logic": "reason",
-    "outline": "reason",
-    "draft": "write",
-    "polish": "fix",
-    "brainstorm": "idea",
-}
-
 
 def _compact_selection(selection: dict) -> dict:
     """历史里只保存指针与输入文本，不重复保存设定内容与项目文件正文。"""
@@ -48,6 +39,17 @@ def _compact_selection(selection: dict) -> dict:
     return data
 
 
+def _api_ready(config: dict) -> bool:
+    try:
+        api = ai.api_settings(config)
+        if api.get("api_key"):
+            return True
+        host = (urlparse(api.get("base_url") or "").hostname or "").lower()
+        return bool(api.get("provider", {}).get("generic") or host in ("127.0.0.1", "localhost", "::1"))
+    except Exception:
+        return False
+
+
 def _json_default(obj):
     if isinstance(obj, Path):
         return str(obj)
@@ -55,7 +57,7 @@ def _json_default(obj):
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "NovelHelper/3.0"
+    server_version = "NovelHelper/4.0"
     protocol_version = "HTTP/1.1"
 
     # ── 基础响应 ─────────────────────────────
@@ -154,8 +156,10 @@ class Handler(BaseHTTPRequestHandler):
                 "export_dir": str(store.io_out()),
                 "import_dir": str(store.io_in()),
                 "text_dir": str(store.text_dir()),
-                "work_modes": prompts_mod.WORK_MODES,
-                "api_ready": bool(((store.load("config").get("api") or {}).get("api_key"))),
+                "providers": providers.public_providers(),
+                "default_modes": prompts_mod.default_modes(),
+                "efforts": list(providers.EFFORTS),
+                "api_ready": _api_ready(store.load("config")),
             })
             return
 
@@ -164,7 +168,7 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/workstation/modes" and method == "GET":
-            self._json({"ok": True, "modes": prompts_mod.WORK_MODES})
+            self._json({"ok": True, "modes": store.load("modes").get("items") or []})
             return
 
         if path == "/api/history" and method == "GET":
@@ -280,39 +284,32 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"ok": True, **project.browse((query.get("path") or [""])[0])})
             return
 
-        if path == "/api/prompts/default" and method == "GET":
-            tool = (query.get("tool") or [""])[0]
-            group = (query.get("group") or ["tool"])[0]
-            if group == "work":
-                text = prompts_mod.WORK_PROMPTS.get(tool, "")
-            else:
-                text = prompts_mod.TOOL_PROMPTS.get(tool) or prompts_mod.default_prompts()["tools"].get(tool, "")
-            self._json({
-                "ok": True,
-                "tool": tool,
-                "group": group,
-                "text": text,
-                "sections": prompts_mod.DEFAULT_SECTIONS,
-            })
+        if path == "/api/models" and method == "POST":
+            body = self._body()
+            config = body.get("config") or store.load("config")
+            self._json({"ok": True, **ai.list_models(config)})
             return
 
         if path == "/api/ai/preview" and method == "POST":
             body = self._body()
             db = store.load_all()
-            assembled = context.assemble(
+            mode_id = body.get("mode_id") or body.get("work_mode") or "draft"
+            mode = context.find_mode(db, mode_id)
+            if mode is None:
+                self._error(f"模式不存在: {mode_id}")
+                return
+            assembled = context.assemble_mode(
                 db.get("config") or store.default_config(), db,
-                db.get("prompts") or prompts_mod.default_prompts(),
-                body.get("selection") or {}, plan=body.get("plan") or "",
-                mode=body.get("mode") or "write",
+                body.get("selection") or {}, mode,
                 work_prompt=body.get("work_prompt") or "",
-                work_mode=body.get("work_mode") or "draft",
             )
             self._json({"ok": True, "system": assembled["system"], "user": assembled["user"]})
             return
 
         if path == "/api/ai/ping" and method == "POST":
-            config = (self._body() or {}).get("config") or store.load("config")
-            self._json({"ok": True, "result": ai.ping(config)})
+            body = self._body()
+            config = body.get("config") or store.load("config")
+            self._json({"ok": True, "result": ai.ping(config, body.get("model") or "")})
             return
 
         if path == "/api/ai/run" and method == "POST":
@@ -360,7 +357,7 @@ class Handler(BaseHTTPRequestHandler):
         if kind == "worldmap":
             world = project.parse_worldmap(text, name=body.get("name") or "")
             if not world:
-                self._error("没有找到含「方位」表头的 Markdown 表格")
+                self._error("地图表格格式错误：没有找到含「方位」表头的 Markdown 表格")
                 return
             store.save("worldmap", world)
             self._json({"ok": True, "message": f"已导入地图：{len(world['regions'])} 个区域",
@@ -379,10 +376,30 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if kind == "json":
-            incoming = project.import_json(text, target)
+            allowed = set(store.RECORD_COLLECTIONS) | set(store.section_names()) | {"worldmap"}
+            if target not in allowed:
+                self._error(f"未知的导入目标: {target}")
+                return
+            try:
+                if target == "worldmap":
+                    world = project.import_worldmap_json(text, name=body.get("name") or "")
+                    store.save("worldmap", world)
+                    self._json({
+                        "ok": True,
+                        "message": f"已导入地图：{len(world.get('regions') or {})} 个区域",
+                        "collections": store.load_all(),
+                    })
+                    return
+                incoming = project.import_json(text, target)
+                incoming = project.validate_import_records(incoming, target)
+            except (ValueError, json.JSONDecodeError) as exc:
+                self._error(f"JSON 格式错误：{exc}")
+                return
             data = blobs.get(target) or store.default_for(target)
             key = "title" if target == "memories" else "name"
-            items, added, updated = project.merge_records(data.get("items") or [], incoming, key=key)
+            key_fields = ["category", "title"] if target == "memories" else [key]
+            items, added, updated = project.merge_records(
+                data.get("items") or [], incoming, key=key, key_fields=key_fields)
             data["items"] = items
             store.save(target, data)
             self._json({"ok": True, "message": f"{source} → {target}：新增 {added} 条，更新 {updated} 条",
@@ -520,7 +537,7 @@ class Handler(BaseHTTPRequestHandler):
         tool = body.get("tool") or "write"
         db = store.load_all()
         config = body.get("config") or db.get("config") or store.default_config()
-        prm = db.get("prompts") or prompts_mod.default_prompts()
+        prm = prompts_mod.default_prompts()
         selection = body.get("selection") or {}
         plan = body.get("plan") or ""
         override = body.get("override") or {}
@@ -546,6 +563,7 @@ class Handler(BaseHTTPRequestHandler):
                         {"role": "user", "content": assembled["user"]}]
 
         result = ai.chat(config, tool if tool in prm["tools"] else "write", messages, override=override)
+        result["text"] = prompts_mod.with_notice(result.get("text", ""))
         result["ok"] = True
         result["tool"] = tool
         self._json(result)
@@ -553,44 +571,48 @@ class Handler(BaseHTTPRequestHandler):
     # ── AI 工作站 ────────────────────────────
     def _workstation_run(self):
         body = self._body()
-        work_mode = body.get("work_mode") or body.get("mode") or "draft"
-        if work_mode not in prompts_mod.WORK_PROMPTS:
-            self._error(f"未知的工作模式: {work_mode}")
+        mode_id = body.get("mode_id") or body.get("work_mode") or body.get("mode") or "draft"
+        db = store.load_all()
+        mode = context.find_mode(db, mode_id)
+        if mode is None:
+            self._error(f"模式不存在: {mode_id}")
             return
         if not _RUN_LOCK.acquire(blocking=False):
             self._error("AI 正在生成中，工作站已锁定。请等待本次生成完成。", status=409)
             return
-        _RUN_STATE.update(busy=True, started=store.now_str(), mode=work_mode, transport="")
+        _RUN_STATE.update(busy=True, started=store.now_str(), mode=mode_id, transport="")
         try:
-            db = store.load_all()
             config = body.get("config") or db.get("config") or store.default_config()
-            prm = db.get("prompts") or prompts_mod.default_prompts()
             selection = body.get("selection") or {}
             user_prompt = body.get("prompt") or selection.get("prompt") or ""
             work_prompt = body.get("work_prompt") or ""
 
-            assembled = context.assemble(
-                config, db, prm, dict(selection, prompt=user_prompt),
-                mode="work", work_prompt=work_prompt, work_mode=work_mode,
+            assembled = context.assemble_mode(
+                config, db, dict(selection, prompt=user_prompt), mode,
+                work_prompt=work_prompt,
             )
             messages = [
                 {"role": "system", "content": assembled["system"]},
                 {"role": "user", "content": assembled["user"]},
             ]
-            tool_key = WORK_TO_TOOL.get(work_mode, "write")
-            result = ai.chat(config, tool_key, messages, override=body.get("override") or {})
+            settings = ai.mode_settings(config, mode)
+            for key, value in (body.get("override") or {}).items():
+                if value not in (None, ""):
+                    settings[key] = value
+            result = ai.chat_settings(config, settings, messages)
+            result["text"] = prompts_mod.with_notice(result.get("text", ""))
             _RUN_STATE["transport"] = result.get("transport", "")
 
             session_id = body.get("session_id") or history.current_session_id()
             session = history.load_session(session_id) if session_id else None
             if session is None:
                 session = history.create_session(
-                    history._title_from_prompt(user_prompt, work_mode), work_mode)
+                    history._title_from_prompt(user_prompt, mode_id), mode_id)
                 session_id = session["id"]
 
             saved = history.append_turn(
                 session_id,
-                mode=work_mode,
+                mode=mode_id,
                 user_prompt=user_prompt,
                 output=result["text"],
                 selection=_compact_selection(selection),
@@ -598,6 +620,8 @@ class Handler(BaseHTTPRequestHandler):
                 meta={
                     "model": result.get("model", ""),
                     "effort": result.get("effort", ""),
+                    "mode_label": mode.get("label") or mode_id,
+                    "provider": result.get("provider", ""),
                     "elapsed": result.get("elapsed", 0),
                     "usage": result.get("usage") or {},
                     "transport": result.get("transport", ""),
@@ -613,13 +637,13 @@ class Handler(BaseHTTPRequestHandler):
                 state = store.load("state")
                 ws = state.setdefault("workstation", store.default_workstation())
                 ws.update({
-                    "mode": work_mode,
+                    "mode": mode_id,
                     "prompt": user_prompt,
                     "work_prompt": work_prompt,
                     "current_state": selection.get("current_state") or "",
                     "extra": selection.get("extra") or "",
                     "output": result.get("text") or "",
-                    "last_tool": work_mode,
+                    "last_mode": mode_id,
                     "current_session": session_id,
                     "viewing_session": "",
                     "selection": _compact_selection(selection),
@@ -632,7 +656,9 @@ class Handler(BaseHTTPRequestHandler):
             payload = dict(result)
             payload.update({
                 "ok": True,
-                "work_mode": work_mode,
+                "mode_id": mode_id,
+                "mode_label": mode.get("label") or mode_id,
+                "work_mode": mode_id,
                 "session_id": session_id,
                 "session": history.session_for_client(saved, db),
                 "turn": saved.get("last_turn") or {},

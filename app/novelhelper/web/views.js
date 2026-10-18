@@ -20,7 +20,7 @@ function viewInventory(main) {
     '钱袋是背包的特殊字段，可以填数量或富裕 / 一般 / 紧张，留空＝不体现。'));
   const chars = collItems('characters');
   if (!chars.length) {
-    main.appendChild(h('div', { class: 'card muted', text: '把设定 Markdown 放进 workspace/io/in 后，从「其他设定」导入并搬运到「人物档案」；也可以直接新建人物。' }));
+    main.appendChild(h('div', { class: 'card muted', text: '把设定 Markdown 放进 workspace/import 后，从「其他设定」导入并搬运到「人物档案」；也可以直接新建人物。' }));
     return;
   }
   state.ui.inventory = state.ui.inventory || { sel: chars[0].id };
@@ -254,6 +254,8 @@ function viewWorld(main) {
           touch('worldmap'); renderMain();
         })
       }))));
+
+  main.appendChild(importPanel('json', { title: '导入地图 JSON', kinds: ['json'], target: 'worldmap' }));
 
   const row = h('div', { class: 'row' });
   const left = h('div', { class: 'col', style: { flex: '1 1 620px' } });
@@ -719,6 +721,8 @@ function viewMemories(main) {
         }
       }))));
 
+  main.appendChild(importPanel('json', { title: '导入记忆 JSON', kinds: ['json'], target: 'memories' }));
+
   const row = h('div', { class: 'row' });
   const left = h('div', { class: 'col', style: { flex: '0 0 300px' } });
   const right = h('div', { class: 'col' });
@@ -855,7 +859,7 @@ function splitMdSections(text) {
 // 章节与产出
 // ═══════════════════════════════════════════
 function viewChapters(main) {
-  main.appendChild(pageHead('章节与导出', 'workspace/out/ 下的正文、计划与转换结果。可预览、转 txt，或直接送到纯文本工作站继续整理。',
+  main.appendChild(pageHead('章节与导出', 'workspace/output/ 下的正文、计划与转换结果。可预览、转 txt，或直接送到纯文本工作站继续整理。',
     h('button', { text: '刷新', onclick: async () => { await refreshFiles(); renderMain(); } })));
   const card = h('div', { class: 'card' });
   const table = h('table', { class: 'grid' });
@@ -1114,7 +1118,7 @@ function viewText(main) {
     } catch (e) { toast('打开失败：' + e.message, 'err'); }
   };
 
-  // 从产出（workspace/out/）导入：.md 先转成 txt（去掉输出头、清理空行），再拷进文本文件夹。
+  // 从产出（workspace/output/）导入：.md 先转成 txt（去掉输出头、清理空行），再拷进文本文件夹。
   const importPath = async (path) => {
     if (ui.dirty) {
       if (ui.path) await flushFile();
@@ -1143,8 +1147,8 @@ function viewText(main) {
     const opts = (state.chapters || [])
       .filter(c => c.path.endsWith('.md') || c.path.endsWith('.txt'))
       .map(c => ({ value: c.path, label: c.name, meta: c.dir + ' · ' + c.mtime }));
-    if (!opts.length) { toast('workspace/out/ 下还没有产出。', 'err'); return; }
-    pickDialog('从产出导入（workspace/out/）', opts.slice(0, 120), rel => importPath(rel));
+    if (!opts.length) { toast('workspace/output/ 下还没有产出。', 'err'); return; }
+    pickDialog('从产出导入（workspace/output/）', opts.slice(0, 120), rel => importPath(rel));
   };
 
   const toolBar = h('div', { class: 'inline', style: { marginBottom: '8px', flexWrap: 'wrap' } });

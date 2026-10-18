@@ -66,6 +66,11 @@ async function api(path, opts) {
   return data;
 }
 
+/** 避免页面里用 api 作为配置对象时与全局请求函数重名。 */
+async function apiCall(path, opts) {
+  return api(path, opts);
+}
+
 function autoGrow(el) {
   if (!el || el.tagName !== 'TEXTAREA') return;
   el.style.height = 'auto';
@@ -206,7 +211,9 @@ const state = {
   sources: [],
   chapters: [],
   io: { files: [] },
-  work_modes: [],
+  providers: [],
+  default_modes: [],
+  efforts: [],
   paths: {},
   view: 'writer',
   ui: {},
@@ -290,8 +297,8 @@ function setDb(collections) {
   state.db.state = state.db.state || {};
   state.db.state.workstation = state.db.state.workstation || {};
   state.db.schema = state.db.schema || {};
-  state.db.prompts = state.db.prompts || { tools: {}, work: {}, sections: {} };
-  state.db.prompts.work = state.db.prompts.work || {};
+  state.db.modes = state.db.modes || { items: [] };
+  state.db.modes.items = state.db.modes.items || [];
   state.db.history = state.db.history || { items: [], current: '' };
 }
 
@@ -363,7 +370,7 @@ const NAV = [
   { group: '系统' },
   { id: 'elements', label: '元素模板' },
   { id: 'sections', label: '自定义栏目' },
-  { id: 'prompts', label: '提示词管理' },
+  { id: 'modes', label: '模式管理' },
   { id: 'ai', label: '模型设置' }
 ];
 
@@ -413,7 +420,7 @@ function renderMain() {
   const map = {
     writer: viewWorkstation, chapters: viewChapters, text: viewText,
     inventory: viewInventory, memories: viewMemories, world: viewWorld,
-    elements: viewElements, sections: viewSections, prompts: viewPrompts, ai: viewAI
+    elements: viewElements, sections: viewSections, modes: viewModes, ai: viewAI
   };
   if (map[state.view]) map[state.view](main);
   else if (defFor(state.view)) viewRecords(main, state.view);
@@ -460,7 +467,7 @@ const COLLECTIONS = {
   }
 };
 
-const EFFORTS = ['low', 'high', 'max'];
+const EFFORTS = ['none', 'low', 'medium', 'high', 'max'];
 
 // ═══════════════════════════════════════════
 // 数据刷新
@@ -471,7 +478,9 @@ async function refreshFiles() {
   state.sources = r.sources;
   state.chapters = r.chapters;
   state.io = r.io;
-  state.work_modes = r.work_modes || [];
+  state.providers = r.providers || [];
+  state.default_modes = r.default_modes || [];
+  state.efforts = r.efforts || EFFORTS;
   state.paths = {
     root: r.root, data: r.data_dir, export: r.export_dir,
     import: r.import_dir, text: r.text_dir

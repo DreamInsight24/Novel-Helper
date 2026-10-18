@@ -6,8 +6,8 @@ novelhelper/project.py
 
 约定：
 * 导入：.md 只允许进入「其他设定」；导入后可搬运到人物 / 势力 / 自定义栏目；
-* 导出：默认写到 workspace/io/out/，可以选 .txt（人看）或 .json（机器用）；
-* 小说正文写 workspace/out/*.md，计划与转换结果用 .txt。
+* 导出：默认写到 workspace/export/，可以选 .txt（人看）或 .json（机器用）；
+* 小说正文写 workspace/output/*.md，计划与转换结果用 .txt。
 """
 from __future__ import annotations
 
@@ -305,7 +305,7 @@ def _key_of(rec: dict, key: str, key_fields: list | None = None) -> str:
 # 导入源清单
 # ─────────────────────────────────────────────
 def import_sources() -> list:
-    """可导入的文件：workspace/io/in/ 下放进去的 md / txt / json。"""
+    """可导入的文件：workspace/import/ 下放进去的 md / txt / json。"""
     entries = []
     base = io_in()
     if not base.exists():
@@ -318,7 +318,7 @@ def import_sources() -> list:
         entries.append({
             "path": rel_str(path),
             "name": path.name,
-            "group": "io/in",
+            "group": "import",
             "size": path.stat().st_size,
             "mtime": datetime.fromtimestamp(path.stat().st_mtime).strftime("%Y-%m-%d %H:%M"),
         })
@@ -346,14 +346,119 @@ def import_json(text: str, target: str) -> list:
             }
             if target == "memories":
                 base["title"] = name
-                base["content"] = body.get("content") or json.dumps(body, ensure_ascii=False)
-                base["category"] = body.get("category") or "短期记忆"
+                base["content"] = (body.get("content") or body.get("内容")
+                                   or json.dumps(body, ensure_ascii=False))
+                base["category"] = body.get("category") or body.get("分类") or "短期记忆"
                 base.pop("name", None)
             else:
                 base["elements"] = _nested_to_elements(body)
+                if "content" in body or "内容" in body:
+                    base["content"] = body.get("content") or body.get("内容")
+                if "notes" in body or "备注" in body:
+                    base["notes"] = body.get("notes") or body.get("备注")
             out.append(base)
         return out
     return []
+
+
+def validate_import_records(records: list, target: str) -> list:
+    """校验并补齐 JSON 导入的记录，错误时给出可读的提示。"""
+    if not isinstance(records, list) or not records:
+        raise ValueError("JSON 中没有可导入的记录（需要数组，或 {\"items\": [...]}）")
+    prefix = {
+        "characters": "ch", "factions": "fa", "items": "it",
+        "equipment": "eq", "other": "ot", "memories": "mm",
+    }.get(target, "ot")
+    normalized = []
+    for index, rec in enumerate(records, 1):
+        if not isinstance(rec, dict):
+            raise ValueError(f"第 {index} 条记录不是 JSON 对象")
+        if target == "memories":
+            if not (rec.get("title") or rec.get("content")):
+                raise ValueError(f"第 {index} 条记忆缺少 title 或 content")
+            rec.setdefault("title", rec.get("content", "")[:30] or "未命名记忆")
+            rec.setdefault("category", "短期记忆")
+            rec.setdefault("chapter", "")
+            rec.setdefault("content", "")
+        else:
+            if not (rec.get("name") or rec.get("title")):
+                raise ValueError(f"第 {index} 条设定缺少 name 或 title")
+            rec.setdefault("name", rec.get("title") or "未命名")
+            rec.setdefault("elements", [])
+            rec.setdefault("content", "")
+        if not isinstance(rec.get("elements"), list):
+            raise ValueError(f"第 {index} 条记录的 elements 必须是数组")
+        rec.setdefault("id", new_id(prefix))
+        rec.setdefault("tags", [])
+        rec.setdefault("created", now_str())
+        rec.setdefault("updated", now_str())
+        normalized.append(rec)
+    return normalized
+
+
+def import_worldmap_json(text: str, name: str = "") -> dict:
+    """导入世界地图 JSON，并校验 rows / cols / cells / regions 结构。"""
+    data = json.loads(text)
+    if isinstance(data, dict) and isinstance(data.get("worldmap"), dict):
+        data = data["worldmap"]
+    if not isinstance(data, dict):
+        raise ValueError("地图 JSON 必须是一个对象")
+    missing = [key for key in ("rows", "cols", "cells", "regions") if key not in data]
+    if missing:
+        raise ValueError("地图 JSON 缺少字段：" + "、".join(missing) +
+                         "（需要 rows、cols、cells、regions）")
+    rows, cols = data.get("rows"), data.get("cols")
+    cells, regions = data.get("cells"), data.get("regions")
+    if not isinstance(rows, list) or not rows or not all(isinstance(x, str) and x.strip() for x in rows):
+        raise ValueError("地图的 rows 必须是非空字符串数组")
+    if not isinstance(cols, list) or not cols or not all(isinstance(x, str) and x.strip() for x in cols):
+        raise ValueError("地图的 cols 必须是非空字符串数组")
+    if not isinstance(cells, dict):
+        raise ValueError("地图的 cells 必须是对象")
+    if not isinstance(regions, dict):
+        raise ValueError("地图的 regions 必须是对象")
+
+    normalized_regions = {}
+    for raw_id, region in regions.items():
+        if not isinstance(region, dict):
+            raise ValueError(f"区域 {raw_id} 必须是对象")
+        rid = str(region.get("id") or raw_id)
+        if not rid:
+            raise ValueError("区域缺少 id")
+        elements = region.get("elements") or []
+        if not isinstance(elements, list):
+            raise ValueError(f"区域 {rid} 的 elements 必须是数组")
+        board = region.get("board") or {}
+        if not isinstance(board, dict):
+            raise ValueError(f"区域 {rid} 的 board 必须是对象")
+        normalized_regions[rid] = {
+            "id": rid,
+            "name": region.get("name") or rid,
+            "summary": region.get("summary") or "",
+            "details": region.get("details") or "",
+            "elements": elements,
+            "parent": region.get("parent") or "",
+            "tags": region.get("tags") or [],
+            "board": board,
+            "created": region.get("created") or now_str(),
+            "updated": region.get("updated") or now_str(),
+        }
+    normalized_cells = {}
+    for key, rid in cells.items():
+        if not isinstance(key, str):
+            raise ValueError("地图 cells 的键必须是「行|列」字符串")
+        if rid in (None, ""):
+            continue
+        if rid not in normalized_regions:
+            raise ValueError(f"cells 引用了不存在的区域 id：{rid}")
+        normalized_cells[key] = rid
+    return {
+        "name": name or data.get("name") or "世界地图",
+        "rows": list(rows),
+        "cols": list(cols),
+        "cells": normalized_cells,
+        "regions": normalized_regions,
+    }
 
 
 def _nested_to_elements(body: dict) -> list:
@@ -724,8 +829,8 @@ def _list_files(base: Path) -> dict:
 
 
 def list_io(dir_rel: str = "") -> dict:
-    """列出 io/ 下的文件（导入 / 导出默认目录）。"""
-    return _list_files(io_in() if dir_rel.startswith("io/in") else io_out())
+    """列出导入 / 导出目录下的文件。"""
+    return _list_files(io_in() if dir_rel.startswith("import") else io_out())
 
 
 def list_text() -> dict:

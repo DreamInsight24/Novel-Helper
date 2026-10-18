@@ -19,6 +19,7 @@ import threading
 import urllib.error
 import urllib.parse
 import urllib.request
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 APP_DIR = Path(__file__).resolve().parent
@@ -55,15 +56,15 @@ def main() -> int:
     # ── 0. 默认值 ─────────────────────────────
     cfg = store.default_config()
     cfg["paths"].update({
-        "import_dir": str(TEMP_WORK / "io" / "in"),
-        "export_dir": str(TEMP_WORK / "io" / "out"),
-        "output_dir": str(TEMP_WORK / "out"),
-        "plan_dir": str(TEMP_WORK / "out" / "plan"),
-        "txt_dir": str(TEMP_WORK / "out" / "txt"),
+        "import_dir": str(TEMP_WORK / "import"),
+        "export_dir": str(TEMP_WORK / "export"),
+        "output_dir": str(TEMP_WORK / "output"),
+        "plan_dir": str(TEMP_WORK / "output" / "plan"),
+        "txt_dir": str(TEMP_WORK / "output" / "txt"),
         "text_dir": str(TEMP_WORK / "text"),
     })
     store.save("config", cfg)
-    for name in ("prompts", "schema", "state", "sections", "history"):
+    for name in ("modes", "schema", "state", "sections", "history"):
         store.save(name, store.default_for(name))
     store.ensure_dirs()
 
@@ -76,12 +77,16 @@ def main() -> int:
     section_labels = [s.get("label") for s in store.load("sections")["items"]]
     check("默认栏目设置", "世界观" in section_labels and "宗教与信仰" in section_labels,
           "、".join(section_labels))
-    prm = store.load("prompts")
-    check("工作站默认五种工作提示词",
-          set(prm["work"]) == {"logic", "outline", "draft", "polish", "brainstorm"})
-    starts = [v.lstrip()[:6] for v in list(prm["tools"].values()) + list(prm["work"].values())]
+    modes = store.load("modes")["items"]
+    check("默认五种工作模式",
+          {m["id"] for m in modes} == {"logic", "outline", "draft", "polish", "brainstorm"})
+    check("每个模式都有模型与推理强度字段",
+          all("model" in m and "effort" in m and "system_prompt" in m for m in modes))
+    starts = [m["system_prompt"].lstrip()[:6] for m in modes]
     check("默认提示词不再以「你是一位/你是一个」开头",
           not any(s.startswith("你是一位") or s.startswith("你是一个") for s in starts))
+    check("默认提供商与模型列表",
+          cfg["api"]["provider"] == "deepseek" and "deepseek-chat" in cfg["api"]["models"])
 
     # ── 1. 造数据并组装 ───────────────────────
     store.save("characters", {"items": [{
@@ -119,8 +124,10 @@ def main() -> int:
         "project_files": [{"path": "参考资料.md", "label": "参考资料.md", "content": "附加资料片段"}],
     }
     db = store.load_all()
-    assembled = context.assemble(db["config"], db, db["prompts"], selection,
-                                 mode="work", work_prompt="先给一个场景框架。", work_mode="outline")
+    outline_mode = next(m for m in db["modes"]["items"] if m["id"] == "outline")
+    draft_mode = next(m for m in db["modes"]["items"] if m["id"] == "draft")
+    assembled = context.assemble_mode(db["config"], db, selection, outline_mode,
+                                      work_prompt="先给一个场景框架。")
     check("工作站 system 使用工作提示词",
           "框架写作" in assembled["system"] and "章节目标" in assembled["system"])
     user = assembled["user"]
@@ -129,8 +136,12 @@ def main() -> int:
     check("未勾选的世界观条目不发送", "不应该出现在提示词里" not in user)
     check("工作要求会进入 user 消息", "先给一个场景框架" in user)
     check("完整写作模式会带字数要求",
-          "1200" in context.assemble(db["config"], db, db["prompts"], selection,
-                                     mode="work", work_mode="draft")["user"])
+          "1200" in context.assemble_mode(db["config"], db, selection, draft_mode)["user"])
+    check("user 消息按设定名称自动拼装",
+          "## 人物档案" in user and "## 故事记忆" in user and "## 其他设定" in user
+          and "## 用户提示词" in user)
+    check("不再生成任务说明 / 字数说明标题",
+          "## 任务" not in user and "## 字数要求" not in user)
     map_db = store.load_all()
     map_db["worldmap"] = {
         "name": "测试地图", "cols": ["中部"], "rows": ["中部"],
@@ -142,7 +153,7 @@ def main() -> int:
         "characters": False, "memory": False, "world": False,
         "factions": False, "worldmap": True, "state": False,
     })
-    map_user = context.assemble(db["config"], map_db, db["prompts"], map_only, mode="work")["user"]
+    map_user = context.assemble_mode(db["config"], map_db, map_only, draft_mode)["user"]
     check("世界地图可独立于世界观条目发送",
           "测试地图" in map_user and "测试城" in map_user and "临海城市" not in map_user)
 
@@ -173,15 +184,45 @@ def main() -> int:
     check("会话文件独立存储", (TEMP_DATA / "conversations" / f"{session['id']}.json").exists())
 
     # ── 3. 导入规则 ───────────────────────────
-    md_dir = TEMP_WORK / "io" / "in"
+    md_dir = TEMP_WORK / "import"
     md_dir.mkdir(parents=True, exist_ok=True)
     sample = md_dir / "sample.md"
     sample.write_text("# 设定\n## 主要角色\n### 测试角色（主角）\n- 本名：林舟\n", encoding="utf-8")
     records = project.records_from_md(sample.read_text(encoding="utf-8"), str(sample))
     check("Markdown 可解析为「其他设定」条目",
           bool(records) and records[0]["name"] == "测试角色" and records[0]["content"])
+    char_json = md_dir / "characters.json"
+    char_json.write_text(json.dumps({
+        "items": [{
+            "name": "导入角色", "tag": "配角",
+            "elements": [{"key": "身份", "children": [{"key": "本名", "value": "导入名"}]}]
+        }]
+    }, ensure_ascii=False), encoding="utf-8")
+    map_bad = md_dir / "map_bad.json"
+    map_bad.write_text(json.dumps({"rows": [], "cols": []}), encoding="utf-8")
+    map_good = md_dir / "map_good.json"
+    map_good.write_text(json.dumps({
+        "name": "导入地图", "rows": ["中部"], "cols": ["中部"],
+        "cells": {"中部|中部": "rg_in"},
+        "regions": {"rg_in": {"id": "rg_in", "name": "导入城", "elements": [],
+                              "board": {}, "tags": [], "parent": ""}}
+    }, ensure_ascii=False), encoding="utf-8")
 
     # ── 4. HTTP 接口 ──────────────────────────
+    class ModelsHandler(BaseHTTPRequestHandler):
+        def do_GET(self):  # noqa: N802
+            payload = json.dumps({"data": [{"id": "alpha"}, {"id": "beta"}]}).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+
+        def log_message(self, *args):
+            pass
+
+    models_httpd = ThreadingHTTPServer(("127.0.0.1", 8792), ModelsHandler)
+    threading.Thread(target=models_httpd.serve_forever, daemon=True).start()
     httpd = server.serve(host="127.0.0.1", port=8793)
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     base = "http://127.0.0.1:8793"
@@ -209,10 +250,12 @@ def main() -> int:
 
     try:
         state = get("/api/state")
-        check("GET /api/state 返回默认配置与工作模式",
-              state.get("ok") and state.get("work_modes") and state.get("api_ready") is False)
+        check("GET /api/state 返回提供商与动态模式",
+              state.get("ok") and state.get("providers") and state.get("default_modes")
+              and state.get("collections", {}).get("modes", {}).get("items")
+              and state.get("api_ready") is False)
 
-        prev = post("/api/ai/preview", {"mode": "work", "work_mode": "draft", "selection": selection})
+        prev = post("/api/ai/preview", {"mode_id": "draft", "selection": selection})
         check("POST /api/ai/preview 工作站预览", prev.get("ok") and "测试角色" in prev["user"])
 
         hist = get("/api/history")
@@ -221,17 +264,31 @@ def main() -> int:
         check("GET /api/history/<id>", one.get("ok") and one["session"]["turns"])
 
         no_key = post("/api/workstation/run", {
-            "work_mode": "draft", "prompt": "测试", "selection": selection
+            "mode_id": "draft", "prompt": "测试", "selection": selection
         }, expect_error=True)
         check("无 API Key 时返回明确错误", no_key.get("ok") is False and "API Key" in (no_key.get("error") or ""))
         status = get("/api/workstation/status")
         check("生成失败后自动释放工作站锁", status.get("busy") is False)
+        models_missing = post("/api/models", {}, expect_error=True)
+        check("获取模型时缺 API Key 会提示",
+              models_missing.get("ok") is False and "API Key" in (models_missing.get("error") or ""))
+        custom_cfg = store.load("config")
+        custom_cfg["api"].update({
+            "provider": "custom",
+            "base_url": "http://127.0.0.1:8792/v1",
+            "api_key": "",
+            "models": [],
+            "default_model": "",
+        })
+        models_ok = post("/api/models", {"config": custom_cfg})
+        check("通过 URL 获取模型列表",
+              models_ok.get("ok") and models_ok.get("models") == ["alpha", "beta"])
 
         # 用本地假模型验证成功路径：输出、历史、state 都落盘。
         captured = {}
 
-        def fake_chat(config, tool, messages, override=None):
-            captured["tool"] = tool
+        def fake_chat(config, settings, messages):
+            captured["settings"] = settings
             captured["messages"] = messages
             return {
                 "text": "## 测试输出\n\n雨夜入城，灯火在水面上摇晃。",
@@ -242,15 +299,17 @@ def main() -> int:
                 "transport": "mock",
             }
 
-        server.ai.chat = fake_chat
+        server.ai.chat_settings = fake_chat
         run = post("/api/workstation/run", {
-            "work_mode": "draft",
+            "mode_id": "draft",
             "prompt": "测试提示词：雨夜入城。",
             "work_prompt": "控制在 80 字以内。",
             "selection": selection,
         })
         check("工作站成功生成并返回输出",
               run.get("ok") and run.get("text", "").startswith("## 测试输出") and run.get("session_id"))
+        check("AI 输出末尾自动附加生成声明",
+              "本内容由 AI 生成" in run.get("text", "") and run.get("text", "").rstrip().endswith("请自行核对与修改后使用。"))
         last_turn = (run.get("session", {}).get("turns") or [{}])[-1]
         check("成功生成保存了用户提示词与输出",
               last_turn.get("user_prompt") == "测试提示词：雨夜入城。"
@@ -262,6 +321,9 @@ def main() -> int:
         check("假模型收到工作提示词与用户提示词",
               "控制在 80 字以内" in captured["messages"][1]["content"]
               and "测试提示词：雨夜入城" in captured["messages"][1]["content"])
+        check("模式模型与推理强度被传入调用",
+              captured["settings"]["model"] == "deepseek-chat"
+              and captured["settings"]["effort"] == "low")
 
         import_ok = post("/api/import", {"kind": "md", "source": str(sample), "target": "other"})
         check("Markdown 可导入其他设定", import_ok.get("ok") and "其他设定" in import_ok.get("message", ""))
@@ -270,8 +332,19 @@ def main() -> int:
         check("Markdown 不能导入到其他集合",
               import_bad.get("ok") is False and "其他设定" in (import_bad.get("error") or ""))
 
-        default_work = get("/api/prompts/default?group=work&tool=draft")
-        check("GET /api/prompts/default?group=work", default_work.get("ok") and "任务" in default_work["text"])
+        json_ok = post("/api/import", {"kind": "json", "source": str(char_json), "target": "characters"})
+        check("JSON 可导入任意设定集合", json_ok.get("ok") and "characters" in json_ok.get("message", ""))
+        map_bad_res = post("/api/import", {"kind": "json", "source": str(map_bad), "target": "worldmap"},
+                           expect_error=True)
+        check("地图 JSON 格式错误会提示",
+              map_bad_res.get("ok") is False and "地图" in (map_bad_res.get("error") or ""))
+        map_ok_res = post("/api/import", {"kind": "json", "source": str(map_good), "target": "worldmap"})
+        check("地图 JSON 可导入", map_ok_res.get("ok") and "导入地图" in map_ok_res.get("message", ""))
+        check("导入地图写入区域", store.load("worldmap")["regions"]["rg_in"]["name"] == "导入城")
+
+        modes_res = get("/api/workstation/modes")
+        check("GET /api/workstation/modes 返回动态模式",
+              modes_res.get("ok") and any(m["id"] == "draft" for m in modes_res["modes"]))
 
         with urllib.request.urlopen(base + "/workstation.js", timeout=20) as resp:
             js = resp.read().decode("utf-8")
@@ -280,6 +353,8 @@ def main() -> int:
         deleted = delete("/api/history/" + hist["items"][0]["id"])
         check("DELETE /api/history/<id>", deleted.get("ok") is True)
     finally:
+        models_httpd.shutdown()
+        models_httpd.server_close()
         httpd.shutdown()
         httpd.server_close()
 
