@@ -743,6 +743,23 @@ function viewAI(main) {
   pCard.appendChild(h('div', { class: 'small muted' },
     '数据目录默认是 app/data/，可通过环境变量 NOVELHELPER_DATA 覆盖。改完目录记得重启服务。'));
   main.appendChild(pCard);
+
+  const about = h('div', { class: 'card about-card' });
+  about.appendChild(h('h2', null, '关于 NovelHelper'));
+  about.appendChild(h('div', { class: 'about-links' },
+    h('span', { text: 'NovelHelper 是免费开源工具。开源地址：' }),
+    h('a', {
+      href: 'https://github.com/DreamInsight24/Novel-Helper',
+      target: '_blank', rel: 'noopener noreferrer',
+      text: 'https://github.com/DreamInsight24/Novel-Helper'
+    }),
+    h('span', { text: '；作者 GitHub：' }),
+    h('a', {
+      href: 'https://github.com/DreamInsight24',
+      target: '_blank', rel: 'noopener noreferrer',
+      text: 'https://github.com/DreamInsight24'
+    })));
+  main.appendChild(about);
 }
 
 // ═══════════════════════════════════════════
