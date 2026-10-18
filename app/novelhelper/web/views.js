@@ -20,7 +20,7 @@ function viewInventory(main) {
     '钱袋是背包的特殊字段，可以填数量或富裕 / 一般 / 紧张，留空＝不体现。'));
   const chars = collItems('characters');
   if (!chars.length) {
-    main.appendChild(h('div', { class: 'card muted', text: '把设定 Markdown 放进 workspace/import 后，从「其他设定」导入并搬运到「人物档案」；也可以直接新建人物。' }));
+    main.appendChild(h('div', { class: 'card muted', text: '人物背包只编辑已有人物的随身物品与穿戴。还没有人物时，请到「人物档案」新建，或在该页导入人物 JSON。' }));
     return;
   }
   state.ui.inventory = state.ui.inventory || { sel: chars[0].id };

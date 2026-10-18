@@ -456,6 +456,10 @@ function addModeDialog() {
 // ═══════════════════════════════════════════
 function ensureApiProfiles(cfg) {
   cfg.api = cfg.api || {};
+  cfg.server = cfg.server || {};
+  cfg.server.host = cfg.server.host || '127.0.0.1';
+  cfg.server.port = Number(cfg.server.port) || 8765;
+  cfg.onboarding = cfg.onboarding || { done: false, version: 1 };
   cfg.api.profiles = cfg.api.profiles || {};
   cfg.api.provider = cfg.api.provider || 'deepseek';
   const preset = providerById(cfg.api.provider) || { base_url: '', models: [], default_model: '', default_effort: 'medium' };
@@ -469,6 +473,7 @@ function ensureApiProfiles(cfg) {
   cfg.api.max_tokens_field = cfg.api.max_tokens_field || preset.max_tokens_field || 'max_tokens';
   cfg.writing = cfg.writing || {};
   cfg.paths = cfg.paths || {};
+  cfg.paths.log_dir = cfg.paths.log_dir || '../log';
 }
 
 function saveProviderProfile(cfg, providerId) {
@@ -516,6 +521,10 @@ function viewAI(main) {
   main.appendChild(pageHead('模型设置',
     '支持多种 OpenAI 兼容提供商，也可以填写任意自定义 URL。API Key 只保存在本机 data/config.json。',
     h('div', { class: 'inline' },
+      h('button', {
+        text: '设置向导',
+        onclick: () => showOnboarding(true)
+      }),
       h('button', {
         text: '备份全部数据',
         onclick: async () => {
@@ -654,6 +663,8 @@ function viewAI(main) {
       class: 'primary', text: '保存配置',
       onclick: async () => {
         try {
+          cfg.onboarding = cfg.onboarding || {};
+          cfg.onboarding.done = true;
           saveProviderProfile(cfg, api.provider);
           await saveNow('config');
           toast('配置已保存', 'ok');
@@ -693,15 +704,193 @@ function viewAI(main) {
     text: '默认值会作为工作站目标字数的初始值；每次生成仍可单独修改。' }));
   main.appendChild(wCard);
 
+  const sCard = h('div', { class: 'card' });
+  sCard.appendChild(h('h2', null, '应用',
+    h('span', { class: 'hint', text: '端口修改后需要重新启动' })));
+  sCard.appendChild(h('div', { class: 'inline' },
+    h('div', { class: 'field' },
+      h('label', { text: '端口号（1–65535）' }),
+      h('input', {
+        type: 'number', min: 1, max: 65535,
+        value: cfg.server.port || 8765,
+        oninput: e => {
+          const value = Number(e.target.value);
+          if (Number.isInteger(value) && value >= 1 && value <= 65535) {
+            cfg.server.port = value;
+            touch('config');
+          }
+        }
+      })),
+    h('span', { class: 'small muted',
+      text: '默认 8765。保存后下一次启动会自动使用新端口；命令行 --port 可临时覆盖。' })));
+  main.appendChild(sCard);
+
   const pCard = h('div', { class: 'card' });
   pCard.appendChild(h('h2', null, '目录设置',
     h('span', { class: 'hint', text: '相对于 app/ 目录 ' + (state.paths.root || '') })));
   [['import_dir', '导入目录'], ['export_dir', '导出目录'],
-   ['output_dir', '正文输出目录'], ['text_dir', '纯文本工作站']].forEach(([key, label]) => {
+   ['output_dir', '正文输出目录'], ['text_dir', '纯文本工作站'],
+   ['log_dir', '日志目录']].forEach(([key, label]) => {
     pCard.appendChild(h('div', { class: 'field' }, h('label', { text: label + '（' + key + '）' }),
       h('input', { type: 'text', value: cfg.paths[key] || '', oninput: e => { cfg.paths[key] = e.target.value; touch('config'); } })));
   });
   pCard.appendChild(h('div', { class: 'small muted' },
     '数据目录默认是 app/data/，可通过环境变量 NOVELHELPER_DATA 覆盖。改完目录记得重启服务。'));
   main.appendChild(pCard);
+}
+
+// ═══════════════════════════════════════════
+// 首次使用引导
+// ═══════════════════════════════════════════
+function maybeShowOnboarding() {
+  const cfg = state.db.config || {};
+  ensureApiProfiles(cfg);
+  if (!(cfg.onboarding || {}).done) showOnboarding(false);
+}
+
+function showOnboarding(force) {
+  const cfg = state.db.config = state.db.config || {};
+  ensureApiProfiles(cfg);
+  if (!force && (cfg.onboarding || {}).done) return;
+
+  const body = h('div');
+  let dialog = null;
+
+  const finish = async configured => {
+    cfg.onboarding = cfg.onboarding || {};
+    cfg.onboarding.done = true;
+    cfg.onboarding.version = 1;
+    try {
+      if (configured) saveProviderProfile(cfg, cfg.api.provider);
+      await saveNow('config');
+      if (dialog) dialog.close();
+      await refreshFiles();
+      renderNav();
+      renderMain();
+      toast(configured
+        ? '配置已保存，可以开始使用。'
+        : '已跳过引导，可随时在「模型设置」中配置。', 'ok');
+    } catch (e) {
+      toast('保存失败：' + e.message, 'err');
+    }
+  };
+
+  const draw = () => {
+    clear(body);
+    const api = cfg.api;
+    const preset = providerById(api.provider) ||
+      { label: '自定义 / OpenAI 兼容', base_url: '', models: [], key_env: 'CUSTOM_API_KEY' };
+    const models = currentModels();
+    if (models.length && !models.includes(api.default_model)) {
+      api.default_model = models[0];
+    }
+    const customUrl = preset.id === 'custom' ||
+      (api.base_url && preset.base_url &&
+        api.base_url.replace(/\/+$/, '') !== preset.base_url.replace(/\/+$/, ''));
+
+    body.appendChild(h('div', { class: 'notice',
+      text: '先选择接口并填写 API Key。可以跳过；不配置也能浏览和编辑设定，但开始生成前需要模型可用。' }));
+    body.appendChild(h('div', { class: 'field' },
+      h('label', { text: '提供商' }),
+      h('select', {
+        onchange: e => {
+          saveProviderProfile(cfg, api.provider);
+          api.provider = e.target.value;
+          loadProviderProfile(cfg, api.provider);
+          touch('config');
+          draw();
+        }
+      }, (state.providers || []).map(p => h('option', {
+        value: p.id, text: p.label, selected: p.id === api.provider
+      })))));
+    body.appendChild(h('div', { class: 'field' },
+      h('label', { text: '接口 URL（可留空使用预设，也可以自己填）' }),
+      h('input', {
+        type: 'text', value: api.base_url || '',
+        placeholder: preset.base_url || 'https://example.com/v1',
+        oninput: e => { api.base_url = e.target.value; touch('config'); }
+      })));
+    body.appendChild(h('div', { class: 'field' },
+      h('label', { text: 'API Key' }),
+      h('input', {
+        type: 'password', value: api.api_key || '',
+        placeholder: (preset.key_env || 'CUSTOM_API_KEY') + '（可稍后填写）',
+        oninput: e => { api.api_key = e.target.value; touch('config'); }
+      })));
+    body.appendChild(h('div', { class: 'inline', style: { marginBottom: '8px' } },
+      h('button', {
+        text: '从接口获取模型',
+        onclick: async ev => {
+          const btn = ev.target;
+          btn.disabled = true;
+          try {
+            const res = await apiCall('/api/models', { method: 'POST', body: { config: cfg } });
+            api.models = res.models || [];
+            if (!api.models.includes(api.default_model)) api.default_model = api.models[0] || '';
+            touch('config'); draw();
+            toast('已获取 ' + api.models.length + ' 个模型。', 'ok');
+          } catch (e) {
+            toast('获取模型失败：' + e.message, 'err');
+          } finally { btn.disabled = false; }
+        }
+      }),
+      h('button', {
+        text: '测试连接',
+        onclick: async ev => {
+          const btn = ev.target;
+          btn.disabled = true;
+          try {
+            const res = await apiCall('/api/ai/ping', {
+              method: 'POST',
+              body: { config: cfg, model: api.default_model || api.models[0] || '' }
+            });
+            toast('连通成功：' + res.result.model + '（' + res.result.elapsed + 's）', 'ok');
+          } catch (e) {
+            toast('测试失败：' + e.message, 'err');
+          } finally { btn.disabled = false; }
+        }
+      })));
+    if (models.length) {
+      body.appendChild(h('div', { class: 'field' },
+        h('label', { text: '默认模型' }),
+        h('select', {
+          onchange: e => { api.default_model = e.target.value; touch('config'); }
+        }, models.map(m => h('option', {
+          value: m, text: m, selected: m === api.default_model
+        })))));
+    } else {
+      body.appendChild(h('div', { class: 'field' },
+        h('label', { text: '模型名（可手动填写）' }),
+        h('input', {
+          type: 'text', value: api.default_model || '',
+          placeholder: '例如 gpt-4.1-mini / deepseek-chat',
+          oninput: e => { api.default_model = e.target.value; touch('config'); }
+        })));
+    }
+    body.appendChild(h('div', { class: 'field' },
+      h('label', { text: '默认推理强度' }),
+      h('select', {
+        onchange: e => { api.default_effort = e.target.value; touch('config'); }
+      }, effortChoices().map(value => h('option', {
+        value, text: value, selected: value === (api.default_effort || 'medium')
+      })))));
+    body.appendChild(h('div', { class: 'notice' + (customUrl ? ' warn' : ''),
+      text: customUrl
+        ? '当前使用自定义 URL：将使用通用接口提示词。'
+        : '当前使用「' + preset.label + '」预设接口提示词。' }));
+    body.appendChild(h('div', { class: 'small muted',
+      text: 'API Key 只保存在本机 app/data/config.json，不会上传到 NovelHelper 自己的服务。' }));
+  };
+
+  dialog = modal('欢迎使用 NovelHelper v2610.1', body, [
+    h('button', {
+      text: '跳过，稍后设置', dataset: { noclose: '1' },
+      onclick: () => finish(false)
+    }),
+    h('button', {
+      class: 'primary', text: '保存并开始', dataset: { noclose: '1' },
+      onclick: () => finish(true)
+    })
+  ]);
+  draw();
 }
