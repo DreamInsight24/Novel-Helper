@@ -2,17 +2,17 @@
 # -*- coding: utf-8 -*-
 """
 novelhelper/context.py
-把 JSON 数据渲染成 DeepSeek 容易理解的文本，并组装 messages。
+把 JSON 数据渲染成模型容易理解的文本，并组装 messages。
 
 * 只发送"作者需要的"元素：被关掉（on=false）或空值的元素一律不出现；
-* 区块标题与任务说明全部来自 data/prompts.json 的 sections；
+* 区块标题按设定名称自动拼装，不再需要手动配置标题 / 任务说明；
 * 世界地图也会被渲染成文字（表格 + 区域说明），所以设定与地图是同一份数据。
 """
 from __future__ import annotations
 
 from typing import Any, Iterable
 
-from . import elements as el
+from . import elements as el, prompts as prompts_mod, providers
 
 
 # ─────────────────────────────────────────────
@@ -279,72 +279,104 @@ def world_pool(db: dict) -> list:
     return items
 
 
-def assemble(
+def find_mode(db: dict, mode_id: str) -> dict | None:
+    for mode in ((db.get("modes") or {}).get("items") or []):
+        if mode.get("id") == mode_id:
+            return mode
+    return None
+
+
+def section_label(db: dict, key: str) -> str:
+    for section in ((db.get("sections") or {}).get("items") or []):
+        if section.get("key") == key:
+            return section.get("label") or key
+    return key
+
+
+def selected_world_groups(db: dict, ids: Iterable[str] | None) -> list:
+    """按设定栏目分组；标题直接使用栏目 / 设定名称。"""
+    wanted = {item for item in (ids or []) if item}
+    if not wanted:
+        return []
+    groups = []
+    other = [rec for rec in ((db.get("other") or {}).get("items") or [])
+             if rec.get("id") in wanted]
+    if other:
+        groups.append(("其他设定", other))
+    for name, coll in (db or {}).items():
+        if not name.startswith("section_"):
+            continue
+        key = name[len("section_"):]
+        records = [rec for rec in ((coll or {}).get("items") or [])
+                   if rec.get("id") in wanted]
+        if records:
+            groups.append((section_label(db, key), records))
+    return groups
+
+
+def _target_chars(config: dict, selection: dict) -> int:
+    try:
+        value = int(selection.get("target_chars") or 0)
+    except (TypeError, ValueError):
+        value = 0
+    if value > 0:
+        return value
+    try:
+        return int((config.get("writing") or {}).get("target_chars") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _strict_length(config: dict, selection: dict) -> bool:
+    value = selection.get("strict_length")
+    if value is None:
+        value = (config.get("writing") or {}).get("strict_length", True)
+    return bool(value)
+
+
+def build_user_message(
     config: dict,
     db: dict,
-    prompts: dict,
     selection: dict,
+    mode: dict | None = None,
     plan: str = "",
-    mode: str = "reason",
     work_prompt: str = "",
-    work_mode: str = "draft",
-) -> dict:
+    include_prompt: bool = True,
+) -> str:
     """
-    mode:
-        "reason" —— 上下文 + 用户原始指令（产出推理与梗概）
-        "write"  —— 上下文 + 用户指令 + 已确认的推理与梗概
-        "idea"   —— 只给设定 / 当前状态 / 记忆
-        "work"   —— AI 工作站：上下文 + 用户提示词 + 工作提示词
+    user 消息只由「设定名称 + 内容」自动拼装。
+    字数直接作为最后一行，不再生成“字数说明 / 任务说明”区块。
     """
-    sections = prompts.get("sections") or {}
     selection = selection or {}
+    mode = mode or {}
     include = selection.get("include") or {}
     parts: list[str] = []
 
-    def head(key: str, default: str = "") -> str:
-        return sections.get(key) or default
-
-    def target_chars() -> int:
-        """目标字数：优先用「本次」（工作站里每次都能改），再退回 config 的默认值。"""
-        value = selection.get("target_chars")
-        try:
-            value = int(value)
-        except (TypeError, ValueError):
-            value = 0
-        if value > 0:
-            return value
-        try:
-            return int((config.get("writing") or {}).get("target_chars") or 0)
-        except (TypeError, ValueError):
-            return 0
-
-    def strict_length() -> bool:
-        value = selection.get("strict_length")
-        if value is None:
-            value = (config.get("writing") or {}).get("strict_length", True)
-        return bool(value)
-
-    # 项目文件（只读快照）
+    # 附加资料：标题使用文件路径
     for entry in selection.get("project_files") or []:
         content = (entry.get("content") or "").strip()
         if not content:
             continue
-        title = head("files", "## 附加资料（来源：{path}）").format(path=entry.get("path", ""))
-        parts.append(f"{title}\n\n{content}")
+        path = entry.get("path") or "附加资料"
+        parts.append(f"## 附加资料 · {path}\n\n{content}")
 
-    # 世界观 / 其他设定 / 世界地图：三个开关彼此独立。
-    wanted = {i for i in (selection.get("world_ids") or []) if i}
-    world = [rec for rec in world_pool(db) if rec.get("id") in wanted] if include.get("world") else []
-    world_md = "\n\n".join(render_other(rec) for rec in world if rec)
-    map_md = render_worldmap(db.get("worldmap") or {}) if include.get("worldmap") else ""
-    body = "\n\n".join(x for x in (world_md, map_md) if x.strip())
-    if body:
-        parts.append(f"{head('world', '## 世界观设定')}\n\n{body}")
+    # 世界观 / 自定义栏目：按栏目名称分组，条目名由 render_other 自动生成
+    if include.get("world"):
+        for label, records in selected_world_groups(db, selection.get("world_ids")):
+            body = "\n\n".join(render_other(rec) for rec in records if rec)
+            if body.strip():
+                parts.append(f"## {label}\n\n{body}")
+
+    # 世界地图
+    if include.get("worldmap"):
+        map_md = render_worldmap(db.get("worldmap") or {})
+        if map_md.strip():
+            parts.append(f"## 世界地图\n\n{map_md}")
 
     # 当前状态
     state = (selection.get("current_state") or "").strip()
     if include.get("state") and state:
-        parts.append(f"{head('state', '## 当前状态')}\n\n{state}")
+        parts.append(f"## 当前状态\n\n{state}")
 
     # 记忆
     if include.get("memory"):
@@ -354,91 +386,113 @@ def assemble(
             mems = [m for m in mems if (m.get("category") or "") in set(cats)]
         mem_md = "\n\n".join(render_memory(rec) for rec in mems if rec)
         if mem_md.strip():
-            parts.append(f"{head('memory', '## 故事记忆')}\n\n{mem_md}")
+            parts.append(f"## 故事记忆\n\n{mem_md}")
 
     # 人物
     if include.get("characters"):
         chars = _pick(db, "characters", selection.get("character_ids"))
         char_md = "\n\n".join(render_character(rec, db) for rec in chars if rec)
         if char_md.strip():
-            parts.append(f"{head('characters', '## 人物档案')}\n\n{char_md}")
+            parts.append(f"## 人物档案\n\n{char_md}")
 
     # 势力
     if include.get("factions"):
         facs = _pick(db, "factions", selection.get("faction_ids"), default_all=True)
         fac_md = "\n\n".join(render_faction(rec, db) for rec in facs if rec)
         if fac_md.strip():
-            parts.append(f"{head('factions', '## 势力设定')}\n\n{fac_md}")
+            parts.append(f"## 势力设定\n\n{fac_md}")
 
-    # 道具 / 服饰与装备不单独发送：它们跟着人物的背包与穿戴走，
-    # 由 render_character 把条目定义作为「解释」渲染出来（见 loadout）。
+    # 道具 / 服饰与装备不单独发送：它们跟着人物的背包与穿戴走。
 
-    # 用户补充
     extra = (selection.get("extra") or "").strip()
     if extra:
-        parts.append(f"{head('extra', '## 补充说明')}\n\n{extra}")
+        parts.append(f"## 补充说明\n\n{extra}")
 
-    # 已确认的计划
     plan_text = (plan or "").strip()
-    if mode == "write" and plan_text:
-        parts.append(f"{head('plan', '## 已确认的写作方案（必须遵守）')}\n\n{plan_text}")
+    if plan_text:
+        parts.append(f"## 写作方案\n\n{plan_text}")
 
-    # 指令 / 任务
-    if mode == "work":
-        prompt = (selection.get("prompt") or "").strip()
-        if prompt:
-            parts.append(f"{head('instruction', '## 用户提示词')}\n\n{prompt}")
-        custom = (work_prompt or selection.get("work_prompt") or "").strip()
-        if custom:
-            parts.append(f"{head('work_prompt', '## 工作提示词')}\n\n{custom}")
-        target = target_chars()
-        if target and work_mode in ("draft", "polish"):
-            template = head("length_strict", "") if strict_length() else head("length_soft", "")
-            if template:
-                parts.append(f"{head('length', '## 字数要求')}\n\n{template.format(n=target)}")
-        task = head("task_write", "").strip() if work_mode == "draft" else ""
-        if task:
-            parts.append(f"{head('task', '## 任务')}\n\n{task}")
-    elif mode == "reason":
-        prompt = (selection.get("prompt") or "").strip()
-        if not prompt:
-            prompt = "（用户未给出指令，请基于以上信息自行判断本节最合理的推进方向。）"
-        parts.append(f"{head('instruction', '## 用户提示词')}\n\n{prompt}")
-        task = head("task_reason", "").strip()
-        target = target_chars()
-        if target:
-            task += "\n" + head("length_soft", "本次正文建议 {n} 字符左右。").format(n=target)
-        if task.strip():
-            parts.append(f"{head('task', '## 任务')}\n\n{task.strip()}")
-    elif mode == "idea":
-        parts.append(f"{head('task', '## 任务')}\n\n{head('task_idea', '')}")
-    else:
-        prompt = (selection.get("prompt") or "").strip()
-        if prompt:
-            parts.append(f"{head('instruction_write', '## 用户提示词')}\n\n{prompt}")
-        else:
-            parts.append(f"{head('task', '## 任务')}\n\n{head('task_default', '')}")
-        target = target_chars()
-        if target:
-            template = head("length_strict", "") if strict_length() else head("length_soft", "")
-            parts.append(f"{head('length', '## 字数要求')}\n\n{template.format(n=target)}")
-        task = head("task_write", "").strip()
-        if task:
-            parts.append(f"{head('task', '## 任务')}\n\n{task}")
+    prompt = (selection.get("prompt") or "").strip()
+    if include_prompt and prompt:
+        parts.append(f"## 用户提示词\n\n{prompt}")
 
-    user_content = "\n\n---\n\n".join(part for part in parts if part and part.strip())
-    tool = "idea" if mode == "idea" else ("reason" if mode == "reason" else "write")
-    if mode == "work":
-        system = ((prompts.get("work") or {}).get(work_mode)
-                  or (prompts.get("work") or {}).get("draft")
-                  or "")
-        tool = "work"
-    else:
-        system = (prompts.get("tools") or {}).get(tool) or ""
+    custom = (work_prompt or selection.get("work_prompt") or "").strip()
+    if custom:
+        parts.append(f"## 附加要求\n\n{custom}")
+
+    if mode.get("use_target_chars"):
+        target = _target_chars(config, selection)
+        if target:
+            strict = mode.get("length_strict")
+            if strict is None:
+                strict = _strict_length(config, selection)
+            parts.append(f"目标字数：{'不少于' if strict else '约'} {target} 字。")
+
+    return "\n\n---\n\n".join(part for part in parts if part and part.strip())
+
+
+def assemble_mode(
+    config: dict,
+    db: dict,
+    selection: dict,
+    mode: dict,
+    work_prompt: str = "",
+) -> dict:
+    system = (mode.get("system_prompt") or "").strip() + providers.provider_note(config)
+    user = build_user_message(config, db, selection, mode=mode, work_prompt=work_prompt)
     return {
         "system": system,
-        "user": user_content,
+        "user": user,
+        "tool": "mode",
+        "mode_id": mode.get("id") or "",
+        "parts": 1,
+    }
+
+
+def assemble(
+    config: dict,
+    db: dict,
+    prompts: dict | None,
+    selection: dict,
+    plan: str = "",
+    mode: str = "reason",
+    work_prompt: str = "",
+    work_mode: str = "draft",
+) -> dict:
+    """
+    兼容旧版命令行：
+      reason / write / idea 使用内置旧工具 system prompt；
+      新界面统一使用 assemble_mode()。
+    """
+    if mode == "work":
+        mode_obj = find_mode(db, work_mode)
+        if mode_obj is None:
+            modes = (db.get("modes") or {}).get("items") or []
+            mode_obj = modes[0] if modes else {
+                "id": "draft",
+                "system_prompt": prompts_mod.DRAFT_WORK_PROMPT,
+                "use_target_chars": True,
+            }
+        return assemble_mode(config, db, selection, mode_obj, work_prompt=work_prompt)
+
+    prompts = prompts or prompts_mod.default_prompts()
+    tool = "idea" if mode == "idea" else ("reason" if mode == "reason" else "write")
+    system = ((prompts.get("tools") or {}).get(tool) or "") + providers.provider_note(config)
+    mode_obj = {
+        "id": tool,
+        "use_target_chars": tool in ("reason", "write"),
+        "length_strict": tool != "reason",
+    }
+    user = build_user_message(
+        config, db, selection, mode=mode_obj,
+        plan=plan if mode == "write" else "",
+        work_prompt=work_prompt,
+        include_prompt=mode != "idea",
+    )
+    return {
+        "system": system,
+        "user": user,
         "tool": tool,
-        "work_mode": work_mode if mode == "work" else "",
-        "parts": len(parts),
+        "mode_id": "",
+        "parts": 1,
     }

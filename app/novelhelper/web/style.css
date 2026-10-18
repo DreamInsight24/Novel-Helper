@@ -335,6 +335,20 @@ textarea.notepad {
   background: var(--panel-2);
   border-radius: 0 6px 6px 0;
 }
+.mode-settings-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-2);
+}
+.mode-settings-top .field { margin-bottom: 0; }
+@media (max-width: 720px) {
+  .mode-settings-top { grid-template-columns: 1fr; }
+}
 .prompt-area { min-height: 220px; }
 .run-btn { margin-top: 4px; padding: 9px 14px; font-size: 14px; }
 .output-card { min-height: 320px; }

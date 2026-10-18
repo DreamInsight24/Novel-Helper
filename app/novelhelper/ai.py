@@ -2,10 +2,12 @@
 # -*- coding: utf-8 -*-
 """
 novelhelper/ai.py
-DeepSeek 调用封装。
+OpenAI Chat Completions 兼容接口封装。
 
-优先使用项目 .venv 里已装的 openai 库；若不可用则退回标准库 urllib，
-保证应用在零依赖的情况下也能跑。
+* 支持多个常见提供商预设，也支持任意自定义 URL；
+* API Key 优先读取配置，其次读取提供商对应的环境变量；
+* 模型与推理强度由每个工作模式独立配置，并与当前 URL 的模型列表统一；
+* 优先使用 openai SDK，未安装时自动退回标准库 urllib。
 """
 from __future__ import annotations
 
@@ -13,10 +15,13 @@ import json
 import os
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from typing import Any
 
-try:  # 项目 .venv 里已有 openai
+from . import providers
+
+try:
     from openai import OpenAI  # type: ignore
 
     _HAS_OPENAI = True
@@ -29,25 +34,89 @@ class AIError(RuntimeError):
     pass
 
 
+def _env_api_key(provider: dict) -> str:
+    names = []
+    if provider.get("key_env"):
+        names.append(provider["key_env"])
+    else:
+        names.append("OPENAI_API_KEY")
+    for name in names:
+        value = os.environ.get(name)
+        if value:
+            return value
+    return ""
+
+
 def _api_settings(config: dict) -> dict:
     api = (config or {}).get("api") or {}
-    base_url = (api.get("base_url") or "https://api.deepseek.com").rstrip("/")
-    api_key = os.environ.get("DEEPSEEK_API_KEY") or api.get("api_key") or ""
-    timeout = api.get("timeout") or 900
-    return {"base_url": base_url, "api_key": api_key, "timeout": timeout}
+    provider = providers.provider_for_config(config)
+    base_url = providers.normalize_base_url(api.get("base_url") or provider.get("base_url") or "")
+    if not base_url:
+        raise AIError("未配置接口 URL。请在「模型设置」中填写，或选择一个提供商预设。")
+    api_key = (api.get("api_key") or "").strip() or _env_api_key(provider)
+    timeout = api.get("timeout") or 899
+    return {
+        "base_url": base_url,
+        "api_key": api_key,
+        "timeout": timeout,
+        "provider": provider,
+        "provider_id": provider["id"],
+        "provider_label": provider["label"],
+        "max_tokens_field": api.get("max_tokens_field") or provider.get("max_tokens_field") or "max_tokens",
+        "send_reasoning_effort": bool(api.get("send_reasoning_effort")),
+        "send_thinking": bool(api.get("send_thinking")),
+    }
+
+
+def api_settings(config: dict) -> dict:
+    """给模型列表 / 设置页使用的公开版本（不含密钥以外的敏感信息）。"""
+    return _api_settings(config)
+
+
+def _ensure_key(api: dict) -> None:
+    host = (urllib.parse.urlparse(api["base_url"]).hostname or "").lower()
+    local = host in ("127.0.0.1", "localhost", "::1")
+    if api["api_key"] or api["provider"].get("generic") or api["provider_id"] == "custom" or local:
+        return
+    provider = api["provider"]
+    raise AIError(
+        f"未配置 API Key。请到「模型设置」填写，或设置环境变量 "
+        f"{provider.get('key_env') or 'OPENAI_API_KEY'}。"
+    )
+
+
+def mode_settings(config: dict, mode: dict | None) -> dict:
+    """把一个工作模式的模型、推理强度与采样参数整理成调用参数。"""
+    mode = mode or {}
+    models = providers.provider_models(config)
+    model = (mode.get("model") or "").strip() or providers.default_model(config)
+    if models and model and model not in models:
+        model = providers.default_model(config) or models[0]
+    if not model and models:
+        model = models[0]
+    effort = mode.get("effort") or providers.default_effort(config)
+    if effort not in providers.EFFORTS:
+        effort = "medium"
+    return {
+        "model": model,
+        "effort": effort,
+        "max_tokens": int(mode.get("max_tokens") or 32768),
+        "top_p": mode.get("top_p", 0.95),
+        "temperature": mode.get("temperature"),
+        "thinking": bool(mode.get("thinking")),
+    }
 
 
 def tool_settings(config: dict, tool: str, override: dict | None = None) -> dict:
+    """旧版命令行兼容：没有 tools 配置时使用默认模式参数。"""
     tools = (config or {}).get("tools") or {}
     base = dict(tools.get(tool) or {})
     if not base:
-        base = {
-            "model": "deepseek-flash",
-            "effort": "low",
-            "max_tokens": 32768,
-            "top_p": 0.95,
+        base = mode_settings(config, {
+            "effort": "high" if tool in ("reason", "idea", "compress") else "low",
+            "max_tokens": {"write": 100000, "fix": 100000, "restyle": 100000}.get(tool, 32768),
             "thinking": True,
-        }
+        })
     if override:
         for key, value in override.items():
             if value not in (None, ""):
@@ -55,44 +124,48 @@ def tool_settings(config: dict, tool: str, override: dict | None = None) -> dict
     return base
 
 
-def _payload(settings: dict, messages: list) -> dict:
+def _payload(settings: dict, messages: list, api: dict) -> dict:
+    provider = api["provider"]
+    model_name = settings.get("model") or ""
+    model_supports_effort = bool(provider.get("supports_effort"))
+    if provider.get("id") == "openai":
+        model_supports_effort = model_name.lower().startswith(("o1", "o3", "o4", "gpt-5"))
     body: dict[str, Any] = {
-        "model": settings.get("model") or "deepseek-flash",
+        "model": model_name,
         "messages": messages,
         "stream": False,
-        "max_tokens": int(settings.get("max_tokens") or 32768),
+        (api.get("max_tokens_field") or provider.get("max_tokens_field") or "max_tokens"):
+            int(settings.get("max_tokens") or 32768),
     }
     if settings.get("top_p") is not None:
         body["top_p"] = float(settings["top_p"])
-    if settings.get("effort"):
-        body["reasoning_effort"] = settings["effort"]
-    if settings.get("thinking"):
-        body["thinking"] = {"type": "enabled"}
     if settings.get("temperature") is not None:
         body["temperature"] = float(settings["temperature"])
+    effort = settings.get("effort")
+    if effort and effort != "none" and (model_supports_effort or api.get("send_reasoning_effort")):
+        body["reasoning_effort"] = effort
+    if settings.get("thinking") and (provider.get("supports_thinking") or api.get("send_thinking")):
+        body["thinking"] = {"type": "enabled"}
     return body
 
 
 def _post_raw(api: dict, body: dict) -> dict:
-    url = f"{api['base_url']}/chat/completions"
+    url = providers.endpoint(api["base_url"], "chat/completions")
     data = json.dumps(body, ensure_ascii=False).encode("utf-8")
-    req = urllib.request.Request(
-        url,
-        data=data,
-        method="POST",
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {api['api_key']}",
-            "Accept": "application/json",
-        },
-    )
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+    if api.get("api_key"):
+        headers["Authorization"] = f"Bearer {api['api_key']}"
+    req = urllib.request.Request(url, data=data, method="POST", headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=api["timeout"]) as resp:
             raw = resp.read().decode("utf-8", errors="replace")
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")[:1200]
         raise AIError(f"HTTP {exc.code}: {detail}") from exc
-    except Exception as exc:  # noqa: BLE001 - 网络类异常统一转成 AIError
+    except Exception as exc:  # noqa: BLE001
         raise AIError(f"{type(exc).__name__}: {exc}") from exc
     try:
         return json.loads(raw)
@@ -106,7 +179,7 @@ def _extract_content(payload: dict) -> str:
         raise AIError(f"返回中没有 choices: {json.dumps(payload, ensure_ascii=False)[:600]}")
     message = choices[0].get("message") or {}
     content = message.get("content")
-    if isinstance(content, list):  # 少数兼容实现会返回分段数组
+    if isinstance(content, list):
         content = "".join(
             part.get("text", "") for part in content if isinstance(part, dict)
         )
@@ -118,45 +191,44 @@ def _extract_content(payload: dict) -> str:
     return str(content).strip()
 
 
-def chat(
-    config: dict,
-    tool: str,
-    messages: list,
-    override: dict | None = None,
-) -> dict:
-    """
-    执行一次调用。
-
-    返回 {"text": 内容, "model": 模型, "effort": 推理档, "elapsed": 秒数,
-          "usage": {...}, "transport": "openai|urllib"}
-    """
+def chat_settings(config: dict, settings: dict, messages: list) -> dict:
+    """使用显式参数调用模型。工作模式与连通性测试都走这里。"""
     api = _api_settings(config)
-    if not api["api_key"]:
-        raise AIError("未配置 API Key。请到「模型设置」里填写，或设置环境变量 DEEPSEEK_API_KEY。")
-
-    settings = tool_settings(config, tool, override)
-    body = _payload(settings, messages)
+    _ensure_key(api)
+    settings = dict(settings or {})
+    if not settings.get("model"):
+        settings["model"] = providers.default_model(config)
+    if not settings.get("model"):
+        raise AIError("未选择模型。请先在「模型设置」获取模型列表，或手动填写模型名。")
+    body = _payload(settings, messages, api)
     started = time.time()
-
     usage: dict = {}
     transport = "urllib"
     model_name = body["model"]
 
     if _HAS_OPENAI:
         transport = "openai"
-        client = OpenAI(api_key=api["api_key"], base_url=api["base_url"], timeout=api["timeout"])
+        client = OpenAI(api_key=api["api_key"] or "not-needed",
+                        base_url=api["base_url"], timeout=api["timeout"])
         try:
-            # thinking / reasoning_effort 等非标准字段通过 extra_body 透传
             extra = {
                 key: body[key]
                 for key in ("thinking", "reasoning_effort", "top_p", "temperature")
                 if key in body
             }
+            max_field = api.get("max_tokens_field") or "max_tokens"
+            max_value = int(settings.get("max_tokens") or 32768)
+            create_kwargs = {
+                "model": body["model"],
+                "messages": messages,
+                "stream": False,
+            }
+            if max_field == "max_tokens":
+                create_kwargs["max_tokens"] = int(body.get("max_tokens") or max_value)
+            else:
+                extra[max_field] = int(body.get(max_field) or max_value)
             resp = client.chat.completions.create(  # type: ignore[call-overload]
-                model=body["model"],
-                messages=messages,  # type: ignore[arg-type]
-                stream=False,
-                max_tokens=body["max_tokens"],
+                **create_kwargs,  # type: ignore[arg-type]
                 **({"extra_body": extra} if extra else {}),
             )
             raw = resp.model_dump() if hasattr(resp, "model_dump") else json.loads(str(resp))
@@ -187,19 +259,73 @@ def chat(
         "elapsed": round(time.time() - started, 2),
         "usage": usage,
         "transport": transport,
+        "provider": api["provider_id"],
     }
 
 
-def ping(config: dict) -> dict:
-    """轻量连通性测试。"""
-    result = chat(
-        config,
-        "reason",
-        [
-            {"role": "system", "content": "你是连通性测试助手，只回复 OK。"},
-            {"role": "user", "content": "ping"},
-        ],
-        override={"max_tokens": 16, "thinking": False},
-    )
-    return result
+def chat(config: dict, tool: str, messages: list, override: dict | None = None) -> dict:
+    """旧版工具调用入口。"""
+    return chat_settings(config, tool_settings(config, tool, override), messages)
 
+
+def ping(config: dict, model: str = "") -> dict:
+    """轻量连通性测试，不附带 AI 生成声明。"""
+    settings = mode_settings(config, {
+        "effort": "none",
+        "max_tokens": 16,
+        "thinking": False,
+    })
+    if model:
+        settings["model"] = model
+    return chat_settings(config, settings, [
+        {"role": "system", "content": "你是连通性测试助手，只回复 OK。"},
+        {"role": "user", "content": "ping"},
+    ])
+
+
+def list_models(config: dict) -> dict:
+    """通过当前 URL 的 /models 获取可用模型；失败时抛 AIError。"""
+    api = _api_settings(config)
+    _ensure_key(api)
+    url = providers.endpoint(api["base_url"], "models")
+    headers = {"Accept": "application/json"}
+    if api.get("api_key"):
+        headers["Authorization"] = f"Bearer {api['api_key']}"
+    req = urllib.request.Request(url, method="GET", headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=min(int(api["timeout"]), 45)) as resp:
+            raw = resp.read().decode("utf-8", errors="replace")
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")[:800]
+        if exc.code == 401:
+            raise AIError(f"获取模型失败：API Key 无效或无权限（HTTP 401）。{detail}") from exc
+        if exc.code == 404:
+            raise AIError("获取模型失败：该接口没有 /models 端点，请手动填写模型名。") from exc
+        raise AIError(f"获取模型失败（HTTP {exc.code}）：{detail}") from exc
+    except Exception as exc:  # noqa: BLE001
+        raise AIError(f"获取模型失败：{type(exc).__name__}: {exc}") from exc
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise AIError("获取模型失败：接口返回的不是合法 JSON。") from exc
+
+    items = data.get("data") if isinstance(data, dict) else data
+    if not isinstance(items, list):
+        items = data.get("models") if isinstance(data, dict) else []
+    ids = []
+    for item in items or []:
+        if isinstance(item, str):
+            ids.append(item)
+        elif isinstance(item, dict):
+            value = item.get("id") or item.get("name") or item.get("model")
+            if value:
+                ids.append(str(value))
+    models = sorted({value for value in ids if value})
+    if not models:
+        raise AIError("接口返回了模型列表，但没有识别到模型 id；请手动填写。")
+    return {
+        "models": models,
+        "provider": api["provider_id"],
+        "provider_label": api["provider_label"],
+        "endpoint": url,
+    }

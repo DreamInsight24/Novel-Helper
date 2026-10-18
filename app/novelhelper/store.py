@@ -7,9 +7,9 @@ novelhelper/store.py
 目录约定（相对 app/）：
     data/                 所有 JSON 数据（唯一真源）
     data/conversations/   AI 工作站的对话正文（按会话分文件）
-    workspace/io/in/      导入目录
-    workspace/io/out/     导出目录
-    workspace/out/        小说正文与计划
+    workspace/import/     导入目录
+    workspace/export/     导出目录
+    workspace/output/     小说正文与计划
     workspace/text/       纯文本工作站
 """
 from __future__ import annotations
@@ -22,7 +22,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from . import prompts as prompts_mod
+from . import prompts as prompts_mod, providers
 
 STUDIO_DIR = Path(__file__).resolve().parent
 APP_ROOT = STUDIO_DIR.parent
@@ -35,7 +35,7 @@ DATA_DIR = Path(os.environ.get("NOVELHELPER_DATA") or (APP_ROOT / "data"))
 # 集合 = 一份 JSON 文件
 COLLECTIONS = (
     "config",
-    "prompts",
+    "modes",
     "schema",
     "state",
     "sections",
@@ -79,6 +79,8 @@ def data_dir() -> Path:
 
 
 def ensure_dirs() -> None:
+    _migrate_config()
+    _migrate_modes()
     for path in (DATA_DIR, DATA_DIR / "conversations", io_in(), io_out(),
                  out_dir(), plan_dir(), txt_dir(), text_dir()):
         path.mkdir(parents=True, exist_ok=True)
@@ -88,29 +90,96 @@ def ensure_dirs() -> None:
             save(name, default_for(name))
 
 
+def _migrate_config() -> None:
+    """把旧版 config.json 补齐到当前结构，并迁移旧目录。"""
+    path = _path("config")
+    if not path.exists():
+        return
+    try:
+        cfg = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return
+    changed = False
+    if int(cfg.get("version") or 0) < 4:
+        cfg["version"] = 4
+        changed = True
+    defaults = providers.default_api_config()
+    api = cfg.setdefault("api", {})
+    for key, value in defaults.items():
+        if key not in api:
+            api[key] = value
+            changed = True
+    if not api.get("provider"):
+        api["provider"] = "deepseek"
+        changed = True
+    if "efforts" not in cfg:
+        cfg["efforts"] = list(providers.EFFORTS)
+        changed = True
+    paths = cfg.setdefault("paths", {})
+    mapping = {
+        "import_dir": ("workspace/io/in", "workspace/import"),
+        "export_dir": ("workspace/io/out", "workspace/export"),
+        "output_dir": ("workspace/out", "workspace/output"),
+        "plan_dir": ("workspace/out/plan", "workspace/output/plan"),
+        "txt_dir": ("workspace/out/txt", "workspace/output/txt"),
+    }
+    for key, (old, new) in mapping.items():
+        if paths.get(key) == old:
+            paths[key] = new
+            changed = True
+        paths.setdefault(key, new)
+    if "text_dir" not in paths:
+        paths["text_dir"] = "workspace/text"
+        changed = True
+    if "data_dir" not in paths:
+        paths["data_dir"] = "data"
+        changed = True
+    if changed:
+        save("config", cfg)
+
+
+def _migrate_modes() -> None:
+    """没有 modes.json 时，从旧 prompts.json 的 work 段迁移工作提示词。"""
+    if _path("modes").exists():
+        return
+    modes = prompts_mod.default_modes()
+    old_prompts = DATA_DIR / "prompts.json"
+    if old_prompts.exists():
+        try:
+            raw = json.loads(old_prompts.read_text(encoding="utf-8"))
+            work = raw.get("work") or {}
+            for mode in modes:
+                value = work.get(mode["id"])
+                if isinstance(value, str) and value.strip():
+                    mode["system_prompt"] = value
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            pass
+    save("modes", {"items": modes})
+
+
 def _root(rel: str | Path) -> Path:
     path = Path(rel)
     return path if path.is_absolute() else (PROJECT_ROOT / path)
 
 
 def io_in() -> Path:
-    return _root(load("config").get("paths", {}).get("import_dir", "workspace/io/in"))
+    return _root(load("config").get("paths", {}).get("import_dir", "workspace/import"))
 
 
 def io_out() -> Path:
-    return _root(load("config").get("paths", {}).get("export_dir", "workspace/io/out"))
+    return _root(load("config").get("paths", {}).get("export_dir", "workspace/export"))
 
 
 def out_dir() -> Path:
-    return _root(load("config").get("paths", {}).get("output_dir", "workspace/out"))
+    return _root(load("config").get("paths", {}).get("output_dir", "workspace/output"))
 
 
 def plan_dir() -> Path:
-    return _root(load("config").get("paths", {}).get("plan_dir", "workspace/out/plan"))
+    return _root(load("config").get("paths", {}).get("plan_dir", "workspace/output/plan"))
 
 
 def txt_dir() -> Path:
-    return _root(load("config").get("paths", {}).get("txt_dir", "workspace/out/txt"))
+    return _root(load("config").get("paths", {}).get("txt_dir", "workspace/output/txt"))
 
 
 def text_dir() -> Path:
@@ -121,45 +190,22 @@ def text_dir() -> Path:
 # ─────────────────────────────────────────────
 # 默认值
 # ─────────────────────────────────────────────
-DEFAULT_MODELS = ["deepseek-flash", "deepseek-chat", "deepseek-reasoner"]
-
-
 def default_config() -> dict:
     return {
-        "version": 3,
-        "api": {
-            "base_url": "https://api.deepseek.com",
-            "api_key": "",
-            "models": list(DEFAULT_MODELS),
-            "timeout": 899,
-        },
-        "tools": {
-            "reason": {"label": "逻辑推理与梗概", "model": "deepseek-flash", "effort": "high",
-                       "max_tokens": 8192, "top_p": 0.95, "thinking": True},
-            "write": {"label": "正文写作", "model": "deepseek-flash", "effort": "low",
-                      "max_tokens": 100000, "top_p": 0.95, "thinking": True},
-            "summarize": {"label": "章节总结", "model": "deepseek-flash", "effort": "low",
-                          "max_tokens": 8192, "top_p": 0.95, "thinking": True},
-            "compress": {"label": "记忆压缩", "model": "deepseek-flash", "effort": "high",
-                         "max_tokens": 8192, "top_p": 0.95, "thinking": True},
-            "idea": {"label": "灵感方案", "model": "deepseek-flash", "effort": "high",
-                     "max_tokens": 32768, "top_p": 0.95, "thinking": True},
-            "fix": {"label": "定点修复", "model": "deepseek-flash", "effort": "low",
-                    "max_tokens": 200000, "top_p": 0.95, "thinking": True},
-            "restyle": {"label": "格式重排", "model": "deepseek-flash", "effort": "low",
-                        "max_tokens": 200000, "top_p": 0.95, "thinking": True},
-        },
+        "version": 4,
+        "api": providers.default_api_config(),
+        "efforts": list(providers.EFFORTS),
         "writing": {
             "target_chars": 8000,
             "strict_length": True,
         },
         "paths": {
             "data_dir": "data",
-            "import_dir": "workspace/io/in",
-            "export_dir": "workspace/io/out",
-            "output_dir": "workspace/out",
-            "plan_dir": "workspace/out/plan",
-            "txt_dir": "workspace/out/txt",
+            "import_dir": "workspace/import",
+            "export_dir": "workspace/export",
+            "output_dir": "workspace/output",
+            "plan_dir": "workspace/output/plan",
+            "txt_dir": "workspace/output/txt",
             "text_dir": "workspace/text",
         },
     }
@@ -174,7 +220,7 @@ def default_workstation() -> dict:
         "current_state": "",
         "extra": "",
         "output": "",
-        "last_tool": "draft",
+        "last_mode": "draft",
         "current_session": "",
         "viewing_session": "",
         "selection": {
@@ -194,7 +240,7 @@ def default_workstation() -> dict:
 
 def default_state() -> dict:
     state = {
-        "version": 3,
+        "version": 4,
         "workstation": default_workstation(),
         "textPanel": {},
         "updated": now_str(),
@@ -433,8 +479,8 @@ def default_history() -> dict:
 def default_for(name: str) -> Any:
     if name == "config":
         return default_config()
-    if name == "prompts":
-        return prompts_mod.default_prompts()
+    if name == "modes":
+        return {"items": prompts_mod.default_modes()}
     if name == "schema":
         return default_schema()
     if name == "state":
@@ -559,7 +605,7 @@ def known_collection(name: str) -> bool:
 
 
 def backup_all() -> Path:
-    """把 data/ 下的 JSON 快照到 io/out/backup_<ts>/。"""
+    """把 data/ 下的 JSON 快照到导出目录 backup_<ts>/。"""
     target = io_out() / f"backup_{stamp()}"
     target.mkdir(parents=True, exist_ok=True)
     for name in load_all_names():

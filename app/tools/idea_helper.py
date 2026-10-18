@@ -10,7 +10,7 @@ idea_helper.py
     python idea_helper.py --focus 感情     # 聚焦某个方向
     python idea_helper.py --save          # 保存到 out/ideas/（.txt）
 
-数据来自 data/*.json，提示词与模型来自 data/prompts.json（idea 工具）与 data/config.json。
+数据来自 data/*.json；模型与 API Key 来自 data/config.json。
 """
 from __future__ import annotations
 

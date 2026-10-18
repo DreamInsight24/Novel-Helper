@@ -7,7 +7,7 @@
     import common as nh
     nh.setup_console()
     nh.tool("write")         # 读取 data/config.json
-    nh.prompt("write")       # 读取 data/prompts.json
+    nh.prompt("write")       # 旧版命令行兼容提示词
     nh.path("output_dir")    # 解析为绝对路径
 """
 from __future__ import annotations
@@ -56,15 +56,16 @@ def path(key: str) -> Path:
 
 
 def prompts() -> dict:
-    return prompts_mod.load(DATA_DIR)
+    """旧版命令行兼容：返回内置工具提示词。"""
+    return prompts_mod.default_prompts()
 
 
 def prompt(name: str) -> str:
-    return prompts().get("tools", {}).get(name) or prompts_mod.WRITE_SYSTEM_PROMPT
+    return prompts_mod.TOOL_PROMPTS.get(name) or prompts_mod.WRITE_SYSTEM_PROMPT
 
 
 def section(key: str, default: str = "") -> str:
-    return prompts().get("sections", {}).get(key, default)
+    return default
 
 
 def state() -> dict:
@@ -81,7 +82,8 @@ def db() -> dict:
 
 
 def chat(tool_name: str, messages: list, override: dict | None = None) -> str:
-    return ai.chat(config(), tool_name, messages, override=override)["text"]
+    result = ai.chat(config(), tool_name, messages, override=override)
+    return prompts_mod.with_notice(result["text"])
 
 
 __all__ = [

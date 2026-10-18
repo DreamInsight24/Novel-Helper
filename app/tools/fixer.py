@@ -5,15 +5,15 @@ fixer.py
 针对具体问题定点修复正文
 
 用法:
-    python fixer.py                       # 最新 out_*.md + io/in/fix_prompt.txt
+    python fixer.py                       # 最新 out_*.md + workspace/import/fix_prompt.txt
     python fixer.py --file out_xxx.md     # 指定要修复的文件
     python fixer.py --fix my_fix.txt      # 指定修复指令文件
     python fixer.py --text "第3段改成……"   # 直接给修复指令
     python fixer.py -m -s                 # 附带记忆 / 当前状态
     python fixer.py --dry-run             # 只显示会发什么，不调用 API
 
-修复指令默认从 io/in/fix_prompt.txt 读。
-提示词与模型来自 data/prompts.json（fix 工具）与 data/config.json。
+修复指令默认从 workspace/import/fix_prompt.txt 读。
+模型与 API Key 来自 data/config.json；修复提示词使用内置兼容版本。
 """
 from __future__ import annotations
 
@@ -117,7 +117,7 @@ def main() -> int:
 
     fix_prompt = inline_text.strip() or read_fix_prompt(explicit_fix)
     if not fix_prompt:
-        print("[错误] 没有修复指令。可以 --text \"...\" 直接给，或把指令写进 io/in/fix_prompt.txt")
+        print("[错误] 没有修复指令。可以 --text \"...\" 直接给，或把指令写进 workspace/import/fix_prompt.txt")
         return 1
 
     raw = src.read_text(encoding="utf-8", errors="replace")

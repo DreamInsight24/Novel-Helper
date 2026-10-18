@@ -4,18 +4,14 @@
 novelhelper/prompts.py
 内置提示词与拼装文案。
 
-提示词分为三组：
-  tools  旧版工具（推理 / 写作 / 总结 / 压缩 / 灵感 / 修复 / 重排）
-  work   AI 工作站的工作模式（逻辑 / 框架 / 完整 / 润色 / 灵感）
-  sections  user 消息的区块标题与任务说明
-
-运行时的 data/prompts.json 可以覆盖任意一项；界面里的「提示词管理」
-修改的就是这份文件。默认文案保持通用，不包含任何个人设定。
+新版界面的「模式管理」直接编辑 data/modes.json；本文件只提供：
+  · DEFAULT_MODES  首次启动时写入 data/modes.json 的默认工作模式
+  · TOOL_PROMPTS   旧版命令行工具的兼容提示词
+  · AI_NOTICE      所有 AI 输出末尾自动附加的生成声明
 """
 from __future__ import annotations
 
-import json
-from pathlib import Path
+from copy import deepcopy
 
 
 # ─────────────────────────────────────────────
@@ -241,21 +237,48 @@ BRAINSTORM_WORK_PROMPT = """任务：基于用户选择的设定、当前状态�
 不写正文，不写对白，不展示思维链。信息不足时说明缺什么。
 """
 
-WORK_MODES = [
-    {"id": "logic", "label": "逻辑写作", "desc": "核对设定一致性，整理约束、风险与推进节点"},
-    {"id": "outline", "label": "框架写作", "desc": "输出场景框架、节拍与可直接执行的写作提示词"},
-    {"id": "draft", "label": "完整写作", "desc": "根据设定与提示词生成完整正文"},
-    {"id": "polish", "label": "润色修订", "desc": "按指定问题修订文本，保留事实与情节"},
-    {"id": "brainstorm", "label": "灵感方案", "desc": "给出多条有差异的后续方向供选择"},
+DEFAULT_MODES = [
+    {
+        "id": "logic", "label": "逻辑写作",
+        "desc": "核对设定一致性，整理约束、风险与推进节点",
+        "system_prompt": LOGIC_WORK_PROMPT,
+        "model": "", "effort": "high", "max_tokens": 8192,
+        "top_p": 0.95, "temperature": None, "thinking": True, "use_target_chars": False,
+        "builtin": True,
+    },
+    {
+        "id": "outline", "label": "框架写作",
+        "desc": "输出场景框架、节拍与可直接执行的写作提示词",
+        "system_prompt": OUTLINE_WORK_PROMPT,
+        "model": "", "effort": "high", "max_tokens": 32768,
+        "top_p": 0.95, "temperature": None, "thinking": True, "use_target_chars": False,
+        "builtin": True,
+    },
+    {
+        "id": "draft", "label": "完整写作",
+        "desc": "根据设定与提示词生成完整正文",
+        "system_prompt": DRAFT_WORK_PROMPT,
+        "model": "", "effort": "low", "max_tokens": 100000,
+        "top_p": 0.95, "temperature": None, "thinking": True, "use_target_chars": True,
+        "builtin": True,
+    },
+    {
+        "id": "polish", "label": "润色修订",
+        "desc": "按指定问题修订文本，保留事实与情节",
+        "system_prompt": POLISH_WORK_PROMPT,
+        "model": "", "effort": "medium", "max_tokens": 100000,
+        "top_p": 0.95, "temperature": None, "thinking": False, "use_target_chars": True,
+        "builtin": True,
+    },
+    {
+        "id": "brainstorm", "label": "灵感方案",
+        "desc": "给出多条有差异的后续方向供选择",
+        "system_prompt": BRAINSTORM_WORK_PROMPT,
+        "model": "", "effort": "high", "max_tokens": 32768,
+        "top_p": 0.95, "temperature": None, "thinking": False, "use_target_chars": False,
+        "builtin": True,
+    },
 ]
-
-WORK_PROMPTS = {
-    "logic": LOGIC_WORK_PROMPT,
-    "outline": OUTLINE_WORK_PROMPT,
-    "draft": DRAFT_WORK_PROMPT,
-    "polish": POLISH_WORK_PROMPT,
-    "brainstorm": BRAINSTORM_WORK_PROMPT,
-}
 
 
 TOOL_PROMPTS = {
@@ -269,68 +292,22 @@ TOOL_PROMPTS = {
 }
 
 
-# ─────────────────────────────────────────────
-# user 消息的区块标题 / 任务说明
-# ─────────────────────────────────────────────
-DEFAULT_SECTIONS = {
-    "world": "## 世界观设定",
-    "state": "## 当前状态",
-    "memory": "## 故事记忆",
-    "characters": "## 人物档案",
-    "factions": "## 势力设定",
-    "items": "## 道具设定",
-    "equipment": "## 服饰与装备设定",
-    "extra": "## 补充说明",
-    "files": "## 附加资料（来源：{path}）",
-    "plan": "## 已确认的写作方案（必须遵守）",
-    "instruction": "## 用户提示词",
-    "instruction_write": "## 用户提示词",
-    "work_prompt": "## 工作提示词",
-    "length": "## 字数要求",
-    "task_reason": "请先完成逻辑核对，再给出本节剧情梗概与可执行的写作提示词。",
-    "task_idea": "请基于以上信息，提供若干条有差异的后续写作思路。",
-    "task_write": "请根据以上设定、当前状态与故事记忆，完成本次写作。",
-    "task_default": "请根据以上设定、当前状态与故事记忆，继续推进剧情。",
-    "length_strict": "本次正文内容不少于 {n} 字符。",
-    "length_soft": "本次正文建议 {n} 字符左右。",
-    "task": "## 任务",
-}
+AI_NOTICE = "\n\n---\n\n> 本内容由 AI 生成，仅供创作参考，请自行核对与修改后使用。"
+
+
+def with_notice(text: str) -> str:
+    body = str(text or "").rstrip()
+    if body.endswith(AI_NOTICE.strip()):
+        return body
+    return body + AI_NOTICE
+
+
+def default_modes() -> list:
+    return deepcopy(DEFAULT_MODES)
 
 
 def default_prompts() -> dict:
-    return {
-        "tools": dict(TOOL_PROMPTS),
-        "work": dict(WORK_PROMPTS),
-        "sections": dict(DEFAULT_SECTIONS),
-    }
+    """旧版命令行兼容：只保留工具 system prompt，不再用于界面配置。"""
+    return {"tools": dict(TOOL_PROMPTS)}
 
 
-def load(data_dir: Path) -> dict:
-    """读取 data/prompts.json；缺项或空项用内置默认补齐。"""
-    data = default_prompts()
-    path = Path(data_dir) / "prompts.json"
-    if path.exists():
-        try:
-            raw = json.loads(path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, UnicodeDecodeError):
-            raw = {}
-        for group in ("tools", "work", "sections"):
-            values = raw.get(group) or {}
-            for key, value in values.items():
-                if isinstance(value, str) and value.strip():
-                    data[group][key] = value
-    return data
-
-
-def tool_prompt(data_dir: Path, tool: str) -> str:
-    data = load(data_dir)
-    return data["tools"].get(tool) or data["tools"].get("write") or WRITE_SYSTEM_PROMPT
-
-
-def work_prompt(data_dir: Path, mode: str) -> str:
-    data = load(data_dir)
-    return data["work"].get(mode) or data["work"].get("draft") or DRAFT_WORK_PROMPT
-
-
-def section(data_dir: Path, key: str, default: str = "") -> str:
-    return load(data_dir)["sections"].get(key, default)
