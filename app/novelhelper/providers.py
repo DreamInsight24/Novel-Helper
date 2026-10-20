@@ -21,7 +21,7 @@ PROVIDERS = [
         "base_url": "https://api.deepseek.com",
         "models": ["deepseek-flash", "deepseek-v4-pro"],
         "default_model": "deepseek-flash",
-        "default_effort": "high",
+        "default_effort": "low",
         "key_env": "DEEPSEEK_API_KEY",
         "prompt_note": "当前使用 DeepSeek 的 OpenAI 兼容接口。",
         "supports_effort": True,

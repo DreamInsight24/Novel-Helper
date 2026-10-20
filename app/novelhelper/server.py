@@ -23,7 +23,7 @@ MAX_BODY = 128 * 1024 * 1024  # 128 MB，够放整章正文
 # 同一时间只允许一个 AI 生成任务。前端会锁定整个工作站，后端再兜一层，
 # 避免误触、重复点击或另一个标签页同时写入。
 _RUN_LOCK = threading.Lock()
-_RUN_STATE = {"busy": False, "started": "", "mode": "", "transport": ""}
+_RUN_STATE = {"busy": False, "started": "", "mode": "", "surface": "", "transport": ""}
 
 def _compact_selection(selection: dict) -> dict:
     """历史里只保存指针与输入文本，不重复保存设定内容与项目文件正文。"""
@@ -38,6 +38,20 @@ def _compact_selection(selection: dict) -> dict:
             files.append({"path": entry})
     data["project_files"] = files
     return data
+
+
+def _surface_error(mode: dict, surface: str) -> str:
+    """校验模式用途与调用界面是否匹配；返回空字符串表示通过。"""
+    if surface not in ("workstation", "manuscript"):
+        return f"未知的 surface: {surface}"
+    expected = "process" if surface == "manuscript" else "write"
+    actual = context.mode_kind(mode)
+    if actual == expected:
+        return ""
+    label = mode.get("label") or mode.get("id") or "该模式"
+    if expected == "process":
+        return f"「{label}」不是稿件处理模式，不能在稿件处理页使用。"
+    return f"「{label}」是稿件处理模式，不能在 AI 工作站使用。"
 
 
 def _api_ready(config: dict) -> bool:
@@ -330,10 +344,17 @@ class Handler(BaseHTTPRequestHandler):
             if mode is None:
                 self._error(f"模式不存在: {mode_id}")
                 return
+            surface = (body.get("surface") or "").strip()
+            if surface:
+                error = _surface_error(mode, surface)
+                if error:
+                    self._error(error)
+                    return
             assembled = context.assemble_mode(
                 db.get("config") or store.default_config(), db,
-                body.get("selection") or {}, mode,
+                dict(body.get("selection") or {}, prompt=body.get("prompt") or ""), mode,
                 work_prompt=body.get("work_prompt") or "",
+                source_text=body.get("source_text") or "",
             )
             self._json({"ok": True, "system": assembled["system"], "user": assembled["user"]})
             return
@@ -614,19 +635,29 @@ class Handler(BaseHTTPRequestHandler):
         result["tool"] = tool
         self._json(result)
 
-    # ── AI 工作站 ────────────────────────────
+    # ── AI 工作站 / 稿件处理 ──────────────────
     def _workstation_run(self):
         body = self._body()
         mode_id = body.get("mode_id") or body.get("work_mode") or body.get("mode") or "draft"
+        surface = (body.get("surface") or "workstation").strip()
         db = store.load_all()
         mode = context.find_mode(db, mode_id)
         if mode is None:
             self._error(f"模式不存在: {mode_id}")
             return
+        error = _surface_error(mode, surface)
+        if error:
+            self._error(error)
+            return
+        source_text = str(body.get("source_text") or "")
+        if surface == "manuscript" and not source_text.strip():
+            self._error("工作区没有可处理的文本。")
+            return
         if not _RUN_LOCK.acquire(blocking=False):
             self._error("AI 正在生成中，工作站已锁定。请等待本次生成完成。", status=409)
             return
-        _RUN_STATE.update(busy=True, started=store.now_str(), mode=mode_id, transport="")
+        _RUN_STATE.update(busy=True, started=store.now_str(), mode=mode_id,
+                          surface=surface, transport="")
         try:
             config = body.get("config") or db.get("config") or store.default_config()
             selection = body.get("selection") or {}
@@ -636,6 +667,7 @@ class Handler(BaseHTTPRequestHandler):
             assembled = context.assemble_mode(
                 config, db, dict(selection, prompt=user_prompt), mode,
                 work_prompt=work_prompt,
+                source_text=source_text if surface == "manuscript" else "",
             )
             messages = [
                 {"role": "system", "content": assembled["system"]},
@@ -646,93 +678,140 @@ class Handler(BaseHTTPRequestHandler):
                 if value not in (None, ""):
                     settings[key] = value
             logger.log_event(
-                "AI", "request", mode=mode_id, mode_label=mode.get("label") or mode_id,
+                "AI", "request", surface=surface, mode=mode_id,
+                mode_label=mode.get("label") or mode_id,
                 model=settings.get("model"), effort=settings.get("effort"),
                 provider=providers.provider_for_config(config).get("id"),
-                prompt_chars=len(user_prompt), user_message_chars=len(assembled["user"]),
+                prompt_chars=len(user_prompt), source_chars=len(source_text),
+                user_message_chars=len(assembled["user"]),
                 prompt_excerpt=user_prompt[:240],
             )
             result = ai.chat_settings(config, settings, messages)
             result["text"] = prompts_mod.with_notice(result.get("text", ""))
+            clean_text = prompts_mod.without_notice(result.get("text"))
             _RUN_STATE["transport"] = result.get("transport", "")
             logger.log_event(
-                "AI", "response", mode=mode_id, model=result.get("model"),
-                effort=result.get("effort"), elapsed=result.get("elapsed"),
+                "AI", "response", surface=surface, mode=mode_id,
+                model=result.get("model"), effort=result.get("effort"),
+                elapsed=result.get("elapsed"),
                 tokens=(result.get("usage") or {}).get("total_tokens"),
                 output_chars=len(result.get("text") or ""),
                 output_excerpt=(result.get("text") or "")[:320],
             )
 
-            session_id = body.get("session_id") or history.current_session_id()
-            session = history.load_session(session_id) if session_id else None
-            if session is None:
-                session = history.create_session(
-                    history._title_from_prompt(user_prompt, mode_id), mode_id)
-                session_id = session["id"]
+            mode_label = mode.get("label") or mode_id
+            session_id = ""
+            session_payload = None
+            turn_payload = {}
+            ai_result = None
 
-            saved = history.append_turn(
-                session_id,
-                mode=mode_id,
-                user_prompt=user_prompt,
-                output=result["text"],
-                selection=_compact_selection(selection),
-                work_prompt=work_prompt,
-                meta={
-                    "model": result.get("model", ""),
-                    "effort": result.get("effort", ""),
-                    "mode_label": mode.get("label") or mode_id,
-                    "provider": result.get("provider", ""),
-                    "elapsed": result.get("elapsed", 0),
-                    "usage": result.get("usage") or {},
-                    "transport": result.get("transport", ""),
-                    "system_chars": len(assembled["system"]),
-                    "input_chars": len(assembled["user"]),
-                    "output_chars": len(result.get("text") or ""),
-                },
-            )
+            if surface == "workstation":
+                session_id = body.get("session_id") or history.current_session_id()
+                session = history.load_session(session_id) if session_id else None
+                if session is None:
+                    session = history.create_session(
+                        history._title_from_prompt(user_prompt, mode_id), mode_id)
+                    session_id = session["id"]
 
-            # 同步一份到 state，刷新页面后仍能看到最近一次输出与当前会话。
-            # 历史已经落盘；state 写入失败不应让本次生成结果丢失。
-            try:
-                state = store.load("state")
-                ws = state.setdefault("workstation", store.default_workstation())
-                ws.update({
+                saved = history.append_turn(
+                    session_id,
+                    mode=mode_id,
+                    user_prompt=user_prompt,
+                    output=result["text"],
+                    selection=_compact_selection(selection),
+                    work_prompt=work_prompt,
+                    meta={
+                        "model": result.get("model", ""),
+                        "effort": result.get("effort", ""),
+                        "mode_label": mode_label,
+                        "provider": result.get("provider", ""),
+                        "elapsed": result.get("elapsed", 0),
+                        "usage": result.get("usage") or {},
+                        "transport": result.get("transport", ""),
+                        "system_chars": len(assembled["system"]),
+                        "input_chars": len(assembled["user"]),
+                        "output_chars": len(result.get("text") or ""),
+                    },
+                )
+                session_payload = history.session_for_client(saved, db)
+                turn_payload = saved.get("last_turn") or {}
+
+                # 同步一份到 state，刷新页面后仍能看到最近一次输出与当前会话。
+                # 历史已经落盘；state 写入失败不应让本次生成结果丢失。
+                try:
+                    state = store.load("state")
+                    ws = state.setdefault("workstation", store.default_workstation())
+                    ws.update({
+                        "mode": mode_id,
+                        "prompt": user_prompt,
+                        "work_prompt": work_prompt,
+                        "current_state": selection.get("current_state") or "",
+                        "extra": selection.get("extra") or "",
+                        "output": result.get("text") or "",
+                        "last_mode": mode_id,
+                        "current_session": session_id,
+                        "viewing_session": "",
+                        "selection": _compact_selection(selection),
+                    })
+                    state["updated"] = store.now_str()
+                    store.save("state", state)
+                except Exception:
+                    pass
+            else:
+                # 稿件处理：不进写稿对话历史，也不覆盖工作站的最近输出，
+                # 只把结果放进文本面板，刷新页面后仍能在文本下方看到。
+                ai_result = {
+                    "id": store.new_id("ai"),
+                    "text": clean_text,
                     "mode": mode_id,
+                    "mode_label": mode_label,
                     "prompt": user_prompt,
-                    "work_prompt": work_prompt,
-                    "current_state": selection.get("current_state") or "",
-                    "extra": selection.get("extra") or "",
-                    "output": result.get("text") or "",
-                    "last_mode": mode_id,
-                    "current_session": session_id,
-                    "viewing_session": "",
-                    "selection": _compact_selection(selection),
-                })
-                state["updated"] = store.now_str()
-                store.save("state", state)
-            except Exception:
-                pass
+                    "source_chars": len(source_text),
+                    "created": store.now_str(),
+                    "meta": {
+                        "model": result.get("model", ""),
+                        "effort": result.get("effort", ""),
+                        "provider": result.get("provider", ""),
+                        "elapsed": result.get("elapsed", 0),
+                        "usage": result.get("usage") or {},
+                        "transport": result.get("transport", ""),
+                        "output_chars": len(clean_text),
+                    },
+                }
+                try:
+                    state = store.load("state")
+                    panel = state.setdefault("textPanel", {})
+                    panel["aiResult"] = ai_result
+                    state["updated"] = store.now_str()
+                    store.save("state", state)
+                except Exception:
+                    pass
 
             payload = dict(result)
             payload.update({
                 "ok": True,
+                "surface": surface,
                 "mode_id": mode_id,
-                "mode_label": mode.get("label") or mode_id,
+                "mode_label": mode_label,
+                "mode_kind": context.mode_kind(mode),
                 "work_mode": mode_id,
+                "clean_text": clean_text,
                 "session_id": session_id,
-                "session": history.session_for_client(saved, db),
-                "turn": saved.get("last_turn") or {},
+                "session": session_payload,
+                "turn": turn_payload,
                 "request": {
                     "system_chars": len(assembled["system"]),
                     "user_chars": len(assembled["user"]),
                 },
             })
+            if ai_result is not None:
+                payload["ai_result"] = ai_result
             self._json(payload)
         except Exception as exc:
-            logger.log_exception("AI", "workstation failed", exc, mode=mode_id)
+            logger.log_exception("AI", "workstation failed", exc, mode=mode_id, surface=surface)
             raise
         finally:
-            _RUN_STATE.update(busy=False, started="", mode="", transport="")
+            _RUN_STATE.update(busy=False, started="", mode="", surface="", transport="")
             _RUN_LOCK.release()
 
 

@@ -286,6 +286,11 @@ def find_mode(db: dict, mode_id: str) -> dict | None:
     return None
 
 
+def mode_kind(mode: dict | None) -> str:
+    """模式用途：write = 写稿，process = 稿件处理。旧数据缺省按写稿处理。"""
+    return "process" if (mode or {}).get("kind") == "process" else "write"
+
+
 def section_label(db: dict, key: str) -> str:
     for section in ((db.get("sections") or {}).get("items") or []):
         if section.get("key") == key:
@@ -342,9 +347,11 @@ def build_user_message(
     plan: str = "",
     work_prompt: str = "",
     include_prompt: bool = True,
+    source_text: str = "",
 ) -> str:
     """
     user 消息只由「设定名称 + 内容」自动拼装。
+    稿件处理模式额外把待处理原文放在「待处理文本」区块。
     字数直接作为最后一行，不再生成“字数说明 / 任务说明”区块。
     """
     selection = selection or {}
@@ -412,6 +419,10 @@ def build_user_message(
     if plan_text:
         parts.append(f"## 写作方案\n\n{plan_text}")
 
+    source = (source_text or "").strip()
+    if source:
+        parts.append(f"## 待处理文本\n\n{source}")
+
     prompt = (selection.get("prompt") or "").strip()
     if include_prompt and prompt:
         parts.append(f"## 用户提示词\n\n{prompt}")
@@ -420,7 +431,7 @@ def build_user_message(
     if custom:
         parts.append(f"## 附加要求\n\n{custom}")
 
-    if mode.get("use_target_chars"):
+    if mode.get("use_target_chars") and mode_kind(mode) != "process":
         target = _target_chars(config, selection)
         if target:
             strict = mode.get("length_strict")
@@ -437,9 +448,12 @@ def assemble_mode(
     selection: dict,
     mode: dict,
     work_prompt: str = "",
+    source_text: str = "",
 ) -> dict:
     system = (mode.get("system_prompt") or "").strip() + providers.provider_note(config)
-    user = build_user_message(config, db, selection, mode=mode, work_prompt=work_prompt)
+    user = build_user_message(
+        config, db, selection, mode=mode, work_prompt=work_prompt, source_text=source_text,
+    )
     return {
         "system": system,
         "user": user,

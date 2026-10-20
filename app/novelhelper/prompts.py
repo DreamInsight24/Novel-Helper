@@ -220,7 +220,7 @@ DRAFT_WORK_PROMPT = """任务：根据用户提供的设定、当前状态、记
 内容边界：遵守适用法律法规与平台内容规范；亲密关系点到为止，不生成色情、过度暴力或仇恨内容。
 """
 
-POLISH_WORK_PROMPT = """任务：根据用户提示词与本次补充要求，对用户提供的文本进行润色或修订。
+POLISH_WORK_PROMPT = """任务：根据用户提示词与本次补充要求，对「待处理文本」进行润色或修订。
 
 要求：
 1. 只修改用户指定的问题与范围，保留原有事实、人物、设定与情节。
@@ -239,7 +239,7 @@ BRAINSTORM_WORK_PROMPT = """任务：基于用户选择的设定、当前状态�
 
 DEFAULT_MODES = [
     {
-        "id": "logic", "label": "逻辑写作",
+        "id": "logic", "label": "逻辑写作", "kind": "write",
         "desc": "核对设定一致性，整理约束、风险与推进节点",
         "system_prompt": LOGIC_WORK_PROMPT,
         "model": "", "effort": "high", "max_tokens": 8192,
@@ -247,7 +247,7 @@ DEFAULT_MODES = [
         "builtin": True,
     },
     {
-        "id": "outline", "label": "框架写作",
+        "id": "outline", "label": "框架写作", "kind": "write",
         "desc": "输出场景框架、节拍与可直接执行的写作提示词",
         "system_prompt": OUTLINE_WORK_PROMPT,
         "model": "", "effort": "high", "max_tokens": 32768,
@@ -255,7 +255,7 @@ DEFAULT_MODES = [
         "builtin": True,
     },
     {
-        "id": "draft", "label": "完整写作",
+        "id": "draft", "label": "完整写作", "kind": "write",
         "desc": "根据设定与提示词生成完整正文",
         "system_prompt": DRAFT_WORK_PROMPT,
         "model": "", "effort": "low", "max_tokens": 100000,
@@ -263,15 +263,15 @@ DEFAULT_MODES = [
         "builtin": True,
     },
     {
-        "id": "polish", "label": "润色修订",
+        "id": "polish", "label": "润色修订", "kind": "process",
         "desc": "按指定问题修订文本，保留事实与情节",
         "system_prompt": POLISH_WORK_PROMPT,
         "model": "", "effort": "medium", "max_tokens": 100000,
-        "top_p": 0.95, "temperature": None, "thinking": False, "use_target_chars": True,
+        "top_p": 0.95, "temperature": None, "thinking": False, "use_target_chars": False,
         "builtin": True,
     },
     {
-        "id": "brainstorm", "label": "灵感方案",
+        "id": "brainstorm", "label": "灵感方案", "kind": "write",
         "desc": "给出多条有差异的后续方向供选择",
         "system_prompt": BRAINSTORM_WORK_PROMPT,
         "model": "", "effort": "high", "max_tokens": 32768,
@@ -300,6 +300,15 @@ def with_notice(text: str) -> str:
     if body.endswith(AI_NOTICE.strip()):
         return body
     return body + AI_NOTICE
+
+
+def without_notice(text: str) -> str:
+    """去掉末尾的 AI 生成声明，供稿件处理结果直接使用。"""
+    body = str(text or "").strip()
+    notice = AI_NOTICE.strip()
+    if body.endswith(notice):
+        return body[: -len(notice)].rstrip()
+    return body
 
 
 def default_modes() -> list:

@@ -228,6 +228,22 @@ function collItems(name) {
   return state.db[name].items || [];
 }
 
+// ─────────────────────────────────────────────
+// 模式用途：write = 写稿模式（AI 工作站）
+//           process = 稿件处理模式（稿件处理页）
+// ─────────────────────────────────────────────
+function allModes() {
+  return ((state.db || {}).modes || {}).items || [];
+}
+
+function modeKind(mode) {
+  return mode && mode.kind === 'process' ? 'process' : 'write';
+}
+
+function modesOfKind(kind) {
+  return allModes().filter(mode => modeKind(mode) === kind);
+}
+
 function findById(name, id) { return collItems(name).find(r => r.id === id) || null; }
 
 function presetsOf(name) {
@@ -330,7 +346,7 @@ async function saveNow(coll) {
   status('已保存 ' + new Date().toLocaleTimeString(), 'ok');
 }
 
-/** 把一段文本追加到纯文本工作站（不清空已有内容）。 */
+/** 把一段文本追加到稿件处理工作区（不清空已有内容）。 */
 function appendToTextPanel(content, quiet) {
   const text = String(content || '');
   if (!text.trim()) return;
@@ -347,7 +363,7 @@ function appendToTextPanel(content, quiet) {
   saved.dirty = true;
   saved.updated = new Date().toISOString();
   touch('state', true);
-  if (!quiet) toast('已追加到纯文本工作站。', 'ok');
+  if (!quiet) toast('已追加到稿件处理工作区。', 'ok');
 }
 
 // 浏览器端异常也写入本地日志，便于排查界面问题。
@@ -376,7 +392,7 @@ const NAV = [
   { group: '写作' },
   { id: 'writer', label: 'AI 工作站' },
   { id: 'chapters', label: '章节与导出' },
-  { id: 'text', label: '纯文本工作站' },
+  { id: 'text', label: '稿件处理' },
   { group: '基础设定' },
   { id: 'characters', label: '人物档案', coll: 'characters' },
   { id: 'inventory', label: '人物背包' },
@@ -424,7 +440,7 @@ function renderNav() {
 }
 
 function go(view) {
-  // 有些页（如纯文本工作站）需要在离开前把手上的内容落盘，各自注册 leave 钩子。
+  // 有些页（如稿件处理）需要在离开前把手上的内容落盘，各自注册 leave 钩子。
   const leave = state.ui.leave;
   if (leave && leave.view === state.view && leave.view !== view) {
     state.ui.leave = null;
@@ -444,7 +460,7 @@ function renderMain() {
       text: 'DEBUG 模式 · 当前数据、输出与日志与正式版本隔离' }));
   }
   const map = {
-    writer: viewWorkstation, chapters: viewChapters, text: viewText,
+    writer: viewWorkstation, chapters: viewChapters, text: viewManuscript,
     inventory: viewInventory, memories: viewMemories, world: viewWorld,
     elements: viewElements, sections: viewSections, modes: viewModes, ai: viewAI
   };

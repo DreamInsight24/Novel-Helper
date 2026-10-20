@@ -561,3 +561,38 @@ textarea.notepad {
   .workbench-output { position: static; }
   .history-cols { grid-template-columns: 1fr; }
 }
+
+/* ── 稿件处理页 ─────────────────────── */
+.manuscript-toolbar {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  padding-bottom: 10px; margin-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+.toolbar-sep { width: 1px; height: 22px; background: var(--line); margin: 0 4px; }
+textarea.notepad.manuscript-area { min-height: 58vh; }
+.ai-result-card { border-color: #c9d8ff; }
+textarea.notepad.ai-result-area { min-height: 220px; }
+.ai-question { font-size: 18px; font-weight: 700; margin: 2px 0 6px; }
+.ai-mode-list {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px; margin: 4px 0 6px;
+}
+.ai-mode-card {
+  border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px;
+  background: #fff; cursor: pointer; transition: border-color .12s, background .12s;
+}
+.ai-mode-card:hover { border-color: var(--accent); background: var(--panel-2); }
+.ai-mode-name { font-weight: 600; margin-bottom: 4px; }
+
+/* ── 模式管理的两类分组 ─────────────── */
+.mode-tabs { display: inline-flex; margin-bottom: 14px; border: 1px solid var(--line-strong); border-radius: 10px; overflow: hidden; background: #fff; }
+.mode-tabs .mode-tab { border: 0; border-radius: 0; background: transparent; padding: 8px 16px; display: inline-flex; align-items: center; gap: 6px; }
+.mode-tabs .mode-tab.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.mode-tabs .mode-tab .count { font-size: 11px; color: var(--muted); }
+.mode-tabs .mode-tab.on .count { color: var(--accent); }
+
+@media (max-width: 720px) {
+  textarea.notepad.manuscript-area { min-height: 46vh; }
+  .manuscript-toolbar { gap: 6px; }
+  .toolbar-sep { display: none; }
+}

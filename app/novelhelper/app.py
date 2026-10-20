@@ -42,7 +42,7 @@ def _prepare_console() -> None:
 
 def _check_install() -> int:
     """检查打包后的网页资源与数据目录是否可读写，供 CI 和故障排查使用。"""
-    required = ("index.html", "core.js", "style.css", "workstation.js")
+    required = ("index.html", "core.js", "style.css", "workstation.js", "manuscript.js")
     missing = [name for name in required if not (store.WEB_DIR / name).is_file()]
     if missing:
         print(f"[错误] 安装不完整，缺少网页资源：{', '.join(missing)}")

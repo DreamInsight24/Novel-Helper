@@ -10,7 +10,7 @@ novelhelper/store.py
     workspace/import/     导入目录
     workspace/export/     导出目录
     workspace/output/     小说正文与计划
-    workspace/text/       纯文本工作站
+    workspace/text/       稿件处理工作区
 """
 from __future__ import annotations
 
@@ -92,6 +92,7 @@ def data_dir() -> Path:
 def ensure_dirs() -> None:
     _migrate_config()
     _migrate_modes()
+    _migrate_mode_kinds()
     for path in (DATA_DIR, DATA_DIR / "conversations", io_in(), io_out(),
                  out_dir(), plan_dir(), txt_dir(), text_dir(), log_dir()):
         path.mkdir(parents=True, exist_ok=True)
@@ -207,6 +208,38 @@ def _migrate_modes() -> None:
     save("modes", {"items": modes})
 
 
+def _migrate_mode_kinds() -> None:
+    """
+    给旧版模式补上用途分组（kind）。
+
+    · write   = 写稿模式，用在 AI 工作站；
+    · process = 稿件处理模式，用在稿件处理页。
+
+    旧版没有这个字段：内置「润色修订」归入稿件处理，其余归入写稿。
+    只补齐缺失项，用户自己改过的用途不会被覆盖。
+    """
+    path = _path("modes")
+    if not path.exists():
+        return
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return
+    if not isinstance(data, dict):
+        return
+    items = data.get("items") or []
+    if not isinstance(items, list):
+        return
+    changed = False
+    for mode in items:
+        if not isinstance(mode, dict) or mode.get("kind") in ("write", "process"):
+            continue
+        mode["kind"] = "process" if mode.get("id") == "polish" else "write"
+        changed = True
+    if changed:
+        save("modes", data)
+
+
 def _root(rel: str | Path) -> Path:
     path = Path(rel)
     target = path if path.is_absolute() else (PROJECT_ROOT / path)
@@ -239,7 +272,7 @@ def txt_dir() -> Path:
 
 
 def text_dir() -> Path:
-    """纯文本工作站的独立文件夹。"""
+    """稿件处理工作区的独立文件夹。"""
     return _root(load("config").get("paths", {}).get("text_dir", "workspace/text"))
 
 
