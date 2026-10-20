@@ -834,7 +834,7 @@ def list_io(dir_rel: str = "") -> dict:
 
 
 def list_text() -> dict:
-    """纯文本工作站的独立文件夹（默认 workspace/text/，可在「模型设置」页改）。"""
+    """稿件处理工作区的独立文件夹（默认 workspace/text/，可在「模型设置」页改）。"""
     return _list_files(text_dir())
 
 

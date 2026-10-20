@@ -5,17 +5,19 @@ const WORK_FALLBACK = [
   { id: 'logic', label: '逻辑写作', desc: '核对设定一致性，整理约束、风险与推进节点' },
   { id: 'outline', label: '框架写作', desc: '输出场景框架、节拍与可直接执行的写作提示词' },
   { id: 'draft', label: '完整写作', desc: '根据设定与提示词生成完整正文' },
-  { id: 'polish', label: '润色修订', desc: '按指定问题修订文本，保留事实与情节' },
   { id: 'brainstorm', label: '灵感方案', desc: '给出多条有差异的后续方向供选择' }
 ];
 
+/** AI 工作站只使用写稿模式；稿件处理模式在「稿件处理」页使用。 */
 function workModes() {
-  const items = (state.db && state.db.modes && state.db.modes.items) || [];
-  return items.length ? items : WORK_FALLBACK;
+  const items = modesOfKind('write');
+  if (items.length) return items;
+  return allModes().length ? [] : WORK_FALLBACK;
 }
 
 function workModeLabel(id) {
-  const mode = workModes().find(m => m.id === id);
+  const mode = allModes().find(m => m.id === id) ||
+    WORK_FALLBACK.find(m => m.id === id);
   return mode ? mode.label : (id || '完整写作');
 }
 
@@ -34,7 +36,8 @@ function wsState() {
     .map(item => typeof item === 'string' ? item : (item && item.path) || '')
     .filter(Boolean);
   ws.mode = ws.mode || 'draft';
-  if (!workModes().some(m => m.id === ws.mode)) ws.mode = workModes()[0].id;
+  const writes = workModes();
+  if (!writes.some(m => m.id === ws.mode)) ws.mode = writes.length ? writes[0].id : '';
   ws.prompt = ws.prompt || '';
   ws.work_prompt = ws.work_prompt || '';
   ws.current_state = ws.current_state || '';
@@ -148,10 +151,10 @@ function viewWorkstation(main) {
   const turn = shownTurn();
   const output = currentOutput();
   const modes = workModes();
-  const mode = modes.find(m => m.id === ws.mode) || modes[0];
+  const mode = modes.find(m => m.id === ws.mode) || modes[0] || null;
 
   main.appendChild(pageHead('AI 工作站',
-    '左侧选择设定、撰写用户提示词并选择工作模式；右侧只显示本次 AI 输出。生成期间工作站会完全锁定。',
+    '使用写稿模式生成新内容。左侧选择设定、撰写用户提示词；处理已有稿件请到「稿件处理」页。生成期间工作站会完全锁定。',
     h('div', { class: 'inline' },
       h('button', { text: '对话历史', onclick: () => openHistoryDialog() }),
       h('button', { text: '当前对话', onclick: () => returnToCurrent() }),
@@ -173,28 +176,37 @@ function viewWorkstation(main) {
   row.appendChild(right);
   main.appendChild(row);
 
-  // ── 左侧：工作模式 ───────────────────────
+  // ── 左侧：写稿模式 ───────────────────────
   const modeCard = h('div', { class: 'card' });
-  modeCard.appendChild(h('h2', null, '工作模式',
-    h('span', { class: 'hint', text: '先选择要 AI 做哪一类工作' })));
-  modeCard.appendChild(h('div', { class: 'field' },
-    h('select', {
-      onchange: e => { ws.mode = e.target.value; touch('state', true); renderMain(); }
-    }, modes.map(m => h('option', {
-      value: m.id, text: m.label, selected: m.id === ws.mode
-    })))));
-  modeCard.appendChild(h('div', { class: 'mode-desc', text: mode.desc || '' }));
-  const api = (state.db.config || {}).api || {};
-  modeCard.appendChild(h('div', { class: 'small muted', style: { marginTop: '6px' } },
-    '模型：' + (mode.model || api.default_model || '跟随默认') +
-    ' · 推理强度：' + (mode.effort || api.default_effort || 'medium')));
-  modeCard.appendChild(h('div', { class: 'field', style: { marginTop: '10px' } },
-    h('label', { text: '本次补充要求（可选，会与工作模式一起发送）' }),
-    h('textarea', {
-      rows: 4, value: ws.work_prompt || '',
-      placeholder: '例如：先列 3 个方案，再选一个展开；或“只写 1500 字，收在悬念处”。',
-      oninput: e => { ws.work_prompt = e.target.value; touch('state', true); }
-    })));
+  modeCard.appendChild(h('h2', null, '写稿模式',
+    h('span', { class: 'hint', text: 'AI 工作站只显示写稿模式' })));
+  if (!modes.length) {
+    modeCard.appendChild(h('div', { class: 'notice warn' },
+      h('span', { text: '还没有写稿模式。请到「模式管理」新增，或把某个模式的用途改为写稿。' }),
+      h('button', {
+        class: 'mini', text: '前往模式管理',
+        onclick: () => { state.ui.modes = { kind: 'write', sel: '' }; go('modes'); }
+      })));
+  } else {
+    modeCard.appendChild(h('div', { class: 'field' },
+      h('select', {
+        onchange: e => { ws.mode = e.target.value; touch('state', true); renderMain(); }
+      }, modes.map(m => h('option', {
+        value: m.id, text: m.label, selected: m.id === ws.mode
+      })))));
+    modeCard.appendChild(h('div', { class: 'mode-desc', text: mode ? (mode.desc || '') : '' }));
+    const api = (state.db.config || {}).api || {};
+    modeCard.appendChild(h('div', { class: 'small muted', style: { marginTop: '6px' } },
+      '模型：' + (mode.model || api.default_model || '跟随默认') +
+      ' · 推理强度：' + (mode.effort || api.default_effort || 'medium')));
+    modeCard.appendChild(h('div', { class: 'field', style: { marginTop: '10px' } },
+      h('label', { text: '本次补充要求（可选，会与写稿模式一起发送）' }),
+      h('textarea', {
+        rows: 4, value: ws.work_prompt || '',
+        placeholder: '例如：先列 3 个方案，再选一个展开；或“只写 1500 字，收在悬念处”。',
+        oninput: e => { ws.work_prompt = e.target.value; touch('state', true); }
+      })));
+  }
   left.appendChild(modeCard);
 
   // ── 左侧：输入设定 ───────────────────────
@@ -353,11 +365,11 @@ function viewWorkstation(main) {
 
   const runBtn = h('button', {
     class: 'primary wide run-btn', text: busy ? 'AI 正在生成…' : '开始生成',
-    disabled: busy, onclick: () => runWorkstation()
+    disabled: busy || !mode, onclick: () => runWorkstation()
   });
   inputCard.appendChild(runBtn);
   inputCard.appendChild(h('div', { class: 'inline', style: { marginTop: '8px' } },
-    h('button', { text: '预览将发送的内容', onclick: () => previewWorkstation() }),
+    h('button', { text: '预览将发送的内容', disabled: !mode, onclick: () => previewWorkstation() }),
     h('button', {
       text: '清空输入',
       onclick: () => {
@@ -386,7 +398,7 @@ function viewWorkstation(main) {
   } else {
     outputCard.appendChild(h('div', { class: 'empty-output' },
       h('div', { class: 'empty-icon', text: '✎' }),
-      h('div', { text: '在左侧写好输入，选择工作模式，然后点「开始生成」。' }),
+      h('div', { text: '在左侧写好输入，选择写稿模式，然后点「开始生成」。' }),
       h('div', { class: 'small muted', text: '生成结果会显示在这里，并自动保存到对话历史。' })));
   }
 
@@ -403,7 +415,7 @@ function viewWorkstation(main) {
     h('button', { class: 'primary', text: '追加到用户提示词', disabled: !output.trim(), onclick: () => appendOutput() }),
     h('button', { text: '另存为 TXT', disabled: !output.trim(), onclick: () => saveOutputDialog('txt') }),
     h('button', { text: '另存为 MD', disabled: !output.trim(), onclick: () => saveOutputDialog('md') }),
-    h('button', { text: '转到纯文本工作站', disabled: !output.trim(), onclick: () => sendOutputToText() }),
+    h('button', { text: '转到稿件处理', disabled: !output.trim(), onclick: () => sendOutputToText() }),
     h('button', { text: '复制', disabled: !output.trim(), onclick: () => copyOutput() }),
     h('button', { text: '查看原文', disabled: !output.trim(), onclick: () => showRawOutput() })));
   right.appendChild(outputCard);
@@ -462,6 +474,7 @@ function viewWorkstation(main) {
 async function runWorkstation() {
   if (state.ui.busy) return;
   const ws = wsState();
+  if (!ws.mode) { toast('还没有可用的写稿模式，请先到「模式管理」新增。', 'err'); return; }
   state.ui.busy = true;
   state.ui.historySession = null;
   state.ui.historyTurn = null;
@@ -474,6 +487,7 @@ async function runWorkstation() {
     const res = await api('/api/workstation/run', {
       method: 'POST',
       body: {
+        surface: 'workstation',
         mode_id: ws.mode,
         prompt: ws.prompt,
         work_prompt: ws.work_prompt,
@@ -531,6 +545,7 @@ function previewWorkstation() {
       const res = await api('/api/ai/preview', {
         method: 'POST',
         body: {
+          surface: 'workstation',
           mode_id: ws.mode, work_prompt: ws.work_prompt,
           selection
         }

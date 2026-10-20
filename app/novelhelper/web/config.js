@@ -242,21 +242,35 @@ function modeModelOptions(mode) {
   return options;
 }
 
+const MODE_KINDS = [
+  { id: 'write', label: '写稿模式', desc: 'AI 工作站使用' },
+  { id: 'process', label: '稿件处理模式', desc: '稿件处理页使用' }
+];
+
+function modeKindLabel(kind) {
+  const item = MODE_KINDS.find(k => k.id === kind);
+  return item ? item.label : '写稿模式';
+}
+
 function viewModes(main) {
   const modes = dbModes();
   if (!modes.length && state.default_modes && state.default_modes.length) {
     state.default_modes.forEach(m => modes.push(JSON.parse(JSON.stringify(m))));
     touch('modes');
   }
-  state.ui.modes = state.ui.modes || { sel: modes[0] ? modes[0].id : '' };
+  state.ui.modes = state.ui.modes || {};
   const ui = state.ui.modes;
-  if (!modes.some(m => m.id === ui.sel)) ui.sel = modes[0] ? modes[0].id : '';
+  ui.kind = ui.kind === 'process' ? 'process' : 'write';
+  const listModes = () => modes.filter(m => modeKind(m) === ui.kind);
+  if (!listModes().some(m => m.id === ui.sel)) {
+    ui.sel = listModes().length ? listModes()[0].id : '';
+  }
 
   const models = currentModels();
   const stale = modes.filter(m => m.model && models.length && !models.includes(m.model));
 
   main.appendChild(pageHead('模式管理',
-    '每个模式就是一套独立的系统提示词，并拥有自己的模型与推理强度。模式可以自由新增、删除和排序。',
+    '两类模式分开管理：写稿模式只出现在 AI 工作站，稿件处理模式只出现在稿件处理页。每个模式都是一套独立的系统提示词，并拥有自己的模型与推理强度。',
     h('div', { class: 'inline' },
       h('button', {
         text: '同步到当前接口',
@@ -272,9 +286,22 @@ function viewModes(main) {
         }
       }),
       h('button', {
-        class: 'primary', text: '＋ 新增模式',
-        onclick: () => addModeDialog()
+        class: 'primary', text: '＋ 新增' + modeKindLabel(ui.kind),
+        onclick: () => addModeDialog(ui.kind)
       }))));
+
+  const tabs = h('div', { class: 'mode-tabs' },
+    MODE_KINDS.map(kind => h('button', {
+      class: 'mode-tab' + (ui.kind === kind.id ? ' on' : ''),
+      title: kind.desc,
+      onclick: () => {
+        if (ui.kind === kind.id) return;
+        ui.kind = kind.id;
+        ui.sel = '';
+        renderMain();
+      }
+    }, kind.label, h('span', { class: 'count', text: String(modes.filter(m => modeKind(m) === kind.id).length) }))));
+  main.appendChild(tabs);
 
   if (stale.length) {
     main.appendChild(h('div', { class: 'notice warn' },
@@ -298,18 +325,28 @@ function viewModes(main) {
 
   const drawList = () => {
     clear(left);
+    const visible = listModes();
     const card = h('div', { class: 'card' },
-      h('h2', null, '模式列表', h('span', { class: 'hint', text: modes.length + ' 个' })));
-    const list = h('div', { class: 'list' });
-    modes.forEach((mode, index) => {
-      list.appendChild(h('div', {
-        class: 'list-item' + (mode.id === ui.sel ? ' active' : ''),
-        onclick: () => { ui.sel = mode.id; drawList(); drawEditor(); }
-      },
-        h('div', { class: 'name', text: mode.label || mode.id }),
-        h('div', { class: 'meta', text: (mode.model || '默认模型') + ' · ' + (mode.effort || 'medium') })));
-    });
-    card.appendChild(list);
+      h('h2', null, modeKindLabel(ui.kind) + '列表', h('span', { class: 'hint', text: visible.length + ' 个' })));
+    if (!visible.length) {
+      card.appendChild(h('div', { class: 'muted small', style: { marginBottom: '10px' } },
+        '这一组还没有模式。可以新增一个，或把另一组的模式用途改到这里。'));
+      card.appendChild(h('button', {
+        class: 'primary', text: '＋ 新增' + modeKindLabel(ui.kind),
+        onclick: () => addModeDialog(ui.kind)
+      }));
+    } else {
+      const list = h('div', { class: 'list' });
+      visible.forEach(mode => {
+        list.appendChild(h('div', {
+          class: 'list-item' + (mode.id === ui.sel ? ' active' : ''),
+          onclick: () => { ui.sel = mode.id; drawList(); drawEditor(); }
+        },
+          h('div', { class: 'name', text: mode.label || mode.id }),
+          h('div', { class: 'meta', text: (mode.model || '默认模型') + ' · ' + (mode.effort || 'medium') })));
+      });
+      card.appendChild(list);
+    }
     left.appendChild(card);
   };
 
@@ -348,6 +385,23 @@ function viewModes(main) {
       h('label', { text: '模式名称' }),
       h('input', { type: 'text', value: mode.label || '', oninput: e => { mode.label = e.target.value; touch('modes'); drawList(); } })));
     card.appendChild(h('div', { class: 'field' },
+      h('label', { text: '用途' }),
+      h('select', {
+        onchange: e => {
+          mode.kind = e.target.value === 'process' ? 'process' : 'write';
+          if (mode.kind === 'process') mode.use_target_chars = false;
+          ui.kind = mode.kind;
+          ui.sel = mode.id;
+          touch('modes');
+          renderMain();
+        }
+      }, MODE_KINDS.map(kind => h('option', {
+        value: kind.id, text: kind.label + '（' + kind.desc + '）',
+        selected: modeKind(mode) === kind.id
+      })))));
+    card.appendChild(h('div', { class: 'small muted', style: { marginBottom: '10px' } },
+      '写稿模式只出现在 AI 工作站；稿件处理模式只出现在稿件处理页。切换用途后，模式会立刻移到对应分组。'));
+    card.appendChild(h('div', { class: 'field' },
       h('label', { text: '一句话说明' }),
       h('input', { type: 'text', value: mode.desc || '', oninput: e => { mode.desc = e.target.value; touch('modes'); } })));
 
@@ -372,13 +426,17 @@ function viewModes(main) {
       h('label', { class: 'check' },
         h('input', { type: 'checkbox', checked: !!mode.thinking, onchange: e => { mode.thinking = e.target.checked; touch('modes'); } }),
         '发送 thinking 参数（仅部分接口支持）'),
-      h('label', { class: 'check' },
+      modeKind(mode) === 'write' ? h('label', { class: 'check' },
         h('input', {
           type: 'checkbox', checked: mode.use_target_chars !== false,
           onchange: e => { mode.use_target_chars = e.target.checked; touch('modes'); }
         }),
-        '拼装目标字数')));
+        '拼装目标字数') : null));
     card.appendChild(advanced);
+    card.appendChild(h('div', { class: 'small muted', style: { marginBottom: '10px' } },
+      modeKind(mode) === 'process'
+        ? '稿件处理模式不拼装目标字数；如需要长度约束，请写进「处理要求」。'
+        : '字数设置只对写稿模式生效；稿件处理模式不拼装目标字数。'));
 
     card.appendChild(h('div', { class: 'field', style: { marginTop: '10px' } },
       h('label', { text: '系统提示词（这个模式的核心内容）' }),
@@ -395,6 +453,7 @@ function viewModes(main) {
           const def = defaultModeFor(mode.id);
           if (!def) { toast('这是自定义模式，没有内置版本。', 'err'); return; }
           if (!confirm('恢复「' + (def.label || def.id) + '」的内置系统提示词与默认参数？')) return;
+          mode.kind = modeKind(def);
           mode.system_prompt = def.system_prompt;
           mode.effort = def.effort;
           mode.max_tokens = def.max_tokens;
@@ -402,6 +461,8 @@ function viewModes(main) {
           mode.temperature = def.temperature;
           mode.thinking = def.thinking;
           mode.use_target_chars = def.use_target_chars;
+          ui.kind = mode.kind;
+          ui.sel = mode.id;
           touch('modes'); renderMain(); toast('已恢复内置设置', 'ok');
         }
       }),
@@ -426,7 +487,8 @@ function viewModes(main) {
           if (modes.length <= 1) { toast('至少保留一个模式。', 'err'); return; }
           if (!confirm('删除模式「' + (mode.label || mode.id) + '」？')) return;
           modes.splice(modes.indexOf(mode), 1);
-          ui.sel = modes[0] ? modes[0].id : '';
+          const remaining = listModes();
+          ui.sel = remaining.length ? remaining[0].id : '';
           touch('modes'); renderMain(); toast('已删除模式', 'ok');
         }
       })));
@@ -436,24 +498,32 @@ function viewModes(main) {
   drawList(); drawEditor();
 }
 
-function addModeDialog() {
-  askDialog('新增模式', '模式名称', '新工作模式', name => {
-    const label = (name || '').trim() || '新工作模式';
+function addModeDialog(kind) {
+  const kindId = kind === 'process' ? 'process' : 'write';
+  const defaultLabel = kindId === 'process' ? '新稿件处理模式' : '新写稿模式';
+  const prompt = kindId === 'process'
+    ? '任务：对用户提供的「待处理文本」进行处理。\n\n' +
+      '要求：\n1. 严格按用户选择的处理方式与处理要求执行。\n' +
+      '2. 保留原文的事实、人物、设定与情节，不擅自新增。\n' +
+      '3. 直接输出处理后的完整文本，不写前言后语。'
+    : '任务：根据用户提供的设定、当前状态、记忆与提示词完成本次工作。\n\n' +
+      '要求：\n1. 严格遵循用户提供的设定与提示词。\n2. 不擅自新增未授权的设定、人物或情节。\n' +
+      '3. 直接输出本次工作结果，不写与任务无关的前言后语。';
+  askDialog('新增' + modeKindLabel(kindId), '模式名称', defaultLabel, name => {
+    const label = (name || '').trim() || defaultLabel;
     const modes = dbModes();
     const api = apiCfg();
     const id = 'mode_' + Math.random().toString(36).slice(2, 8);
     modes.push({
-      id, label, desc: '',
-      system_prompt: '任务：根据用户提供的设定、当前状态、记忆与提示词完成本次工作。\n\n' +
-        '要求：\n1. 严格遵循用户提供的设定与提示词。\n2. 不擅自新增未授权的设定、人物或情节。\n' +
-        '3. 直接输出本次工作结果，不写与任务无关的前言后语。',
+      id, label, kind: kindId, desc: '',
+      system_prompt: prompt,
       model: '', effort: api.default_effort || 'medium',
       max_tokens: 32768, top_p: 0.95, temperature: null, thinking: false,
       use_target_chars: false, builtin: false
     });
-    state.ui.modes = { sel: id };
+    state.ui.modes = { kind: kindId, sel: id };
     touch('modes'); renderMain();
-    toast('已新增模式，可以开始编辑提示词。', 'ok');
+    toast('已新增' + modeKindLabel(kindId) + '，可以开始编辑提示词。', 'ok');
   });
 }
 
@@ -735,7 +805,7 @@ function viewAI(main) {
   pCard.appendChild(h('h2', null, '目录设置',
     h('span', { class: 'hint', text: '相对于 app/ 目录 ' + (state.paths.root || '') })));
   [['import_dir', '导入目录'], ['export_dir', '导出目录'],
-   ['output_dir', '正文输出目录'], ['text_dir', '纯文本工作站'],
+   ['output_dir', '正文输出目录'], ['text_dir', '稿件处理工作区'],
    ['log_dir', '日志目录']].forEach(([key, label]) => {
     pCard.appendChild(h('div', { class: 'field' }, h('label', { text: label + '（' + key + '）' }),
       h('input', { type: 'text', value: cfg.paths[key] || '', oninput: e => { cfg.paths[key] = e.target.value; touch('config'); } })));

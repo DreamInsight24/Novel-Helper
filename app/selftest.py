@@ -107,8 +107,22 @@ def main() -> int:
     modes = store.load("modes")["items"]
     check("默认五种工作模式",
           {m["id"] for m in modes} == {"logic", "outline", "draft", "polish", "brainstorm"})
+    check("默认模式区分写稿与稿件处理",
+          next(m for m in modes if m["id"] == "polish")["kind"] == "process"
+          and all(m["kind"] == "write" for m in modes if m["id"] != "polish"))
     check("每个模式都有模型与推理强度字段",
           all("model" in m and "effort" in m and "system_prompt" in m for m in modes))
+    # 旧版模式没有 kind：迁移应按 id 补齐，且可重复执行。
+    store.save("modes", {"items": [
+        {"id": "polish", "label": "润色修订", "system_prompt": "x"},
+        {"id": "draft", "label": "完整写作", "system_prompt": "y"},
+    ]})
+    store._migrate_mode_kinds()
+    migrated = {m["id"]: m for m in store.load("modes")["items"]}
+    check("旧模式数据自动补齐用途",
+          migrated["polish"]["kind"] == "process" and migrated["draft"]["kind"] == "write")
+    store.save("modes", store.default_for("modes"))
+    modes = store.load("modes")["items"]
     starts = [m["system_prompt"].lstrip()[:6] for m in modes]
     check("默认提示词不再以「你是一位/你是一个」开头",
           not any(s.startswith("你是一位") or s.startswith("你是一个") for s in starts))
@@ -171,6 +185,16 @@ def main() -> int:
           and "## 用户提示词" in user)
     check("不再生成任务说明 / 字数说明标题",
           "## 任务" not in user and "## 字数要求" not in user)
+    polish_mode = next(m for m in db["modes"]["items"] if m["id"] == "polish")
+    proc = context.assemble_mode(
+        db["config"], db, {"prompt": "只改标点。", "target_chars": 1200},
+        polish_mode, source_text="雨夜入城，灯火摇晃。")
+    check("稿件处理把原文放进待处理文本区块",
+          "## 待处理文本" in proc["user"] and "雨夜入城，灯火摇晃。" in proc["user"]
+          and "只改标点。" in proc["user"])
+    check("稿件处理不拼装目标字数",
+          "目标字数" not in proc["user"] and context.mode_kind(polish_mode) == "process"
+          and context.mode_kind(draft_mode) == "write")
     map_db = store.load_all()
     map_db["worldmap"] = {
         "name": "测试地图", "cols": ["中部"], "rows": ["中部"],
@@ -354,6 +378,58 @@ def main() -> int:
               captured["settings"]["model"] == "deepseek-flash"
               and captured["settings"]["effort"] == "low")
 
+        # ── 稿件处理：不进写稿历史、不覆盖工作站输出 ──
+        hist_before = get("/api/history")
+        current_before = get("/api/history/" + hist_before["current"]) if hist_before.get("current") else {}
+        turns_before = len((current_before.get("session") or {}).get("turns") or [])
+        ws_before = store.load("state")["workstation"]["output"]
+
+        wrong_surface = post("/api/workstation/run", {
+            "surface": "workstation", "mode_id": "polish",
+            "prompt": "只改标点。", "source_text": "雨夜入城。"
+        }, expect_error=True)
+        check("稿件处理模式不能用于 AI 工作站",
+              wrong_surface.get("ok") is False and "稿件处理模式" in (wrong_surface.get("error") or ""))
+        empty_source = post("/api/workstation/run", {
+            "surface": "manuscript", "mode_id": "polish", "prompt": "只改标点。"
+        }, expect_error=True)
+        check("稿件处理缺少原文时返回明确错误",
+              empty_source.get("ok") is False and "没有可处理的文本" in (empty_source.get("error") or ""))
+
+        proc_prev = post("/api/ai/preview", {
+            "surface": "manuscript", "mode_id": "polish",
+            "prompt": "只改标点。", "source_text": "雨夜入城。"
+        })
+        check("稿件处理预览包含待处理文本与处理要求",
+              proc_prev.get("ok") and "## 待处理文本" in proc_prev.get("user", "")
+              and "雨夜入城。" in proc_prev.get("user", "")
+              and "只改标点。" in proc_prev.get("user", ""))
+
+        proc = post("/api/workstation/run", {
+            "surface": "manuscript", "mode_id": "polish",
+            "prompt": "只改标点。", "source_text": "雨夜入城，灯火摇晃。"
+        })
+        check("稿件处理成功返回干净结果",
+              proc.get("ok") and proc.get("clean_text", "").startswith("## 测试输出")
+              and "本内容由 AI 生成" not in proc.get("clean_text", "")
+              and proc.get("text", "").find("本内容由 AI 生成") >= 0)
+        check("稿件处理不创建写稿会话",
+              proc.get("session") is None and proc.get("session_id") == "")
+        saved_proc = store.load("state")
+        check("稿件处理结果写入文本面板",
+              saved_proc["textPanel"]["aiResult"]["text"] == proc.get("clean_text")
+              and saved_proc["textPanel"]["aiResult"]["mode"] == "polish")
+        check("稿件处理不覆盖工作站最近输出",
+              saved_proc["workstation"]["output"] == ws_before)
+        hist_after = get("/api/history")
+        current_after = get("/api/history/" + hist_after["current"]) if hist_after.get("current") else {}
+        check("稿件处理不追加写稿历史",
+              len((current_after.get("session") or {}).get("turns") or []) == turns_before)
+        user_msg = captured["messages"][1]["content"]
+        check("稿件处理请求把原文与要求一起发送",
+              "## 待处理文本" in user_msg and "雨夜入城，灯火摇晃。" in user_msg
+              and "只改标点。" in user_msg)
+
         import_ok = post("/api/import", {"kind": "md", "source": str(sample), "target": "other"})
         check("Markdown 可导入其他设定", import_ok.get("ok") and "其他设定" in import_ok.get("message", ""))
         import_bad = post("/api/import", {"kind": "memories", "source": str(sample), "target": "memories"},
@@ -396,6 +472,11 @@ def main() -> int:
         with urllib.request.urlopen(base + "/workstation.js", timeout=20) as resp:
             js = resp.read().decode("utf-8")
         check("前端工作站静态资源可访问", "AI 工作站" in js and "work-lock" in js)
+        with urllib.request.urlopen(base + "/manuscript.js", timeout=20) as resp:
+            manuscript_js = resp.read().decode("utf-8")
+        check("稿件处理前端静态资源可访问",
+              "稿件处理" in manuscript_js and "AI 辅助" in manuscript_js
+              and "覆盖原工作区" in manuscript_js)
 
         deleted = delete("/api/history/" + hist["items"][0]["id"])
         check("DELETE /api/history/<id>", deleted.get("ok") is True)
