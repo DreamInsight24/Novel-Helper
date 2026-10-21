@@ -14,6 +14,7 @@ docs/
   api/
     <package>.md               # 各软件包接口文档，与 __all__/docstring 一致
   i18n-inventory.md            # 界面文案盘点清单
+  restructure/                 # v2610.2 结构迁移基线与路径映射
 CHANGELOG.md                   # 仓库根目录，版本变更日志
 scripts/
   smoke_test.py                # 最小冒烟回归脚本
@@ -29,6 +30,7 @@ scripts/
 | `docs/requirements/` | 各版本需求归档，只增不改 | 否，归档后冻结 |
 | `docs/api/` | 各包公共接口说明 | 是，随代码更新 |
 | `docs/i18n-inventory.md` | 界面文案盘点 | 是，文案变动时更新 |
+| `docs/restructure/` | 结构迁移前的符号基线、粒度复核、迁移映射和历史追踪抽查 | v2610.2 重构期间维护；后续架构以 `architecture.md` 为准 |
 | `CHANGELOG.md` | 面向用户与贡献者的版本变更 | 是 |
 | `scripts/smoke_test.py` | 冒烟回归，作为合并前基线 | 是 |
 
