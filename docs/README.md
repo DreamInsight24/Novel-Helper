@@ -9,12 +9,18 @@ docs/
   README.md                    # 本文档：文档规范
   architecture.md              # 包结构、边界、豁免清单、迁移记录
   localization.md              # 本地化规范：key、yml、回退策略、新增语言 SOP
+  localization/                # 本地化实现说明与开发记录
+    README.md                   # 本地化文档导航与实现范围
+    runtime-flow.md             # 资源加载、请求语言与渲染流程
+    usage.md                    # 代码接入与语言预览
+    maintenance.md              # 翻译维护、校验与打包
+    i18n-inventory.md            # 界面文案盘点
+    validation.md               # 自测结果与验收边界
   requirements/
     v2610.2.md                 # 版本需求归档，一个版本一个文件
   api/
     README.md                   # Python 公共 API 总索引
     <package>.md               # 各软件包接口文档，与 __all__/docstring 一致
-  i18n-inventory.md            # 界面文案盘点清单
   restructure/                 # v2610.2 结构迁移基线与路径映射
     final-validation.md         # P4 集成验收结果与待确认项
 CHANGELOG.md                   # 仓库根目录，版本变更日志
@@ -31,9 +37,10 @@ scripts/
 | `docs/README.md` | 文档规范本身 | 是 |
 | `docs/architecture.md` | 代码结构、包边界、行为不变约束、迁移记录 | 是 |
 | `docs/localization.md` | 本地化规范与接口用法 | 是 |
+| `docs/localization/` | 本地化实现说明、盘点与验证记录 | 随实现维护 |
 | `docs/requirements/` | 各版本需求归档，只增不改 | 否，归档后冻结 |
 | `docs/api/` | 公共 API 总索引及各包接口说明 | 是，随代码更新 |
-| `docs/i18n-inventory.md` | 界面文案盘点 | 是，文案变动时更新 |
+| `docs/localization/i18n-inventory.md` | 界面文案盘点 | 是，文案变动时更新 |
 | `docs/restructure/` | 结构迁移基线、粒度复核、迁移映射、历史追踪与最终验收记录 | v2610.2 重构期间维护；后续架构以 `architecture.md` 为准 |
 | `CHANGELOG.md` | 面向用户与贡献者的版本变更 | 是 |
 | `scripts/smoke_test.py` | 冒烟回归，作为合并前基线 | 是 |
@@ -51,7 +58,7 @@ scripts/
 
 ## 3. 各类文档的生命周期
 
-**长期文档**（`README.md`、`architecture.md`、`localization.md`、`api/`、`i18n-inventory.md`）
+**长期文档**（`README.md`、`architecture.md`、`localization.md`、`api/`、`localization/i18n-inventory.md`）
 随代码演进持续更新，内容过期即为缺陷。修改相关代码的 PR 必须同步更新对应文档，否则不予合并。
 
 **版本归档文档**（`requirements/v*.md`）

@@ -117,8 +117,7 @@ function elementTree(nodes, coll, opts) {
   const box = h('div', { class: 'tree' });
 
   const addNode = (path, prefix) => {
-    const input = prompt('新元素名称' + (prefix ? '（加到「' + prefix + '」下面）' : '') +
-      '\n名称末尾加 / 表示这是分组，可以继续往下分');
+    const input = prompt(i18n.t(prefix ? 'elements.new_group_prompt' : 'elements.new_prompt', {group: prefix}));
     if (input === null) return;
     const isGroup = /[\/／]\s*$/.test(input);
     const key = input.replace(/[\/／]\s*$/, '').trim();
@@ -152,7 +151,7 @@ function elementTree(nodes, coll, opts) {
       });
       if (isGroup) {
         row.appendChild(h('button', {
-          class: 'ghost mini caret', text: open ? '▾' : '▸', title: '展开 / 收起这一组',
+          class: 'ghost mini caret', text: open ? '▾' : '▸', title: i18n.t('elements.toggle_group'),
           onclick: () => {
             if (expandedNodes.has(item)) expandedNodes.delete(item);
             else expandedNodes.add(item);
@@ -164,7 +163,7 @@ function elementTree(nodes, coll, opts) {
       }
       row.appendChild(h('input', {
         type: 'checkbox', class: 'tree-toggle', checked: !off,
-        title: '是否需要这个元素（取消勾选＝导出与发送时忽略它）',
+        title: i18n.t('elements.need_hint'),
         onchange: e => {
           if (e.target.checked) delete item.on; else item.on = false;
           touch(coll);
@@ -183,7 +182,7 @@ function elementTree(nodes, coll, opts) {
         // 值编辑器放在同一行：比另起一行省掉一半高度
         const area = h('textarea', {
           class: 'tree-value', rows: valueRows(item.value),
-          placeholder: '内容（可多行）',
+          placeholder: i18n.t('elements.value_placeholder'),
           oninput: e => { item.value = e.target.value; touch(coll); autoGrow(e.target); }
         });
         area.value = item.value || '';
@@ -191,21 +190,21 @@ function elementTree(nodes, coll, opts) {
       }
       row.appendChild(h('span', { style: { flex: '1' } }));
       row.appendChild(h('button', {
-        class: 'ghost mini', title: '在这个元素下面加子元素', text: '＋',
+        class: 'ghost mini', title: i18n.t('elements.add_child'), text: '＋',
         onclick: () => addNode(p, item.key)
       }));
       row.appendChild(h('button', {
-        class: 'ghost mini', title: '上移', text: '↑',
+        class: 'ghost mini', title: i18n.t('common.move_up'), text: '↑',
         onclick: () => swap(nodes, p, -1)
       }));
       row.appendChild(h('button', {
-        class: 'ghost mini', title: '下移', text: '↓',
+        class: 'ghost mini', title: i18n.t('common.move_down'), text: '↓',
         onclick: () => swap(nodes, p, 1)
       }));
       row.appendChild(h('button', {
-        class: 'ghost mini', title: '删除这个元素', text: '✕',
+        class: 'ghost mini', title: i18n.t('elements.delete_title'), text: '✕',
         onclick: () => {
-          if (!confirm('删除元素「' + (item.key || '') + '」？子元素会一起删除。')) return;
+          if (!confirm(i18n.t('elements.delete_confirm', { key: item.key || '' }))) return;
           const container = containerOf(nodes, p);
           if (container) container.splice(p[p.length - 1], 1);
           touch(coll);
@@ -221,7 +220,7 @@ function elementTree(nodes, coll, opts) {
         } else if (!item.children.length) {
           box.appendChild(h('div', {
             class: 'muted small', style: { marginLeft: ((depth + 1) * 20) + 'px' }
-          }, '（空分组）'));
+          }, i18n.t('elements.empty_group')));
         }
         if (open) drawNodes(item.children, p, depth + 1);
       }
@@ -234,21 +233,21 @@ function elementTree(nodes, coll, opts) {
     box.appendChild(h('div', { class: 'tree-toolbar' },
       h('span', { class: 'seg' },
         h('button', {
-          class: 'mini' + (mode === 'doc' ? ' seg-on' : ''), text: '总览',
-          title: '文档式：一次看完所有元素，只改需要改的地方',
+          class: 'mini' + (mode === 'doc' ? ' seg-on' : ''), text: i18n.t('elements.doc_mode'),
+          title: i18n.t('elements.doc_mode_title'),
           onclick: () => { state.ui.elemMode = 'doc'; draw(); }
         }),
         h('button', {
-          class: 'mini' + (mode === 'tree' ? ' seg-on' : ''), text: '树状',
-          title: '结构化：折叠分组、加子元素、上下移动、改元素名',
+          class: 'mini' + (mode === 'tree' ? ' seg-on' : ''), text: i18n.t('elements.tree_mode'),
+          title: i18n.t('elements.tree_mode_title'),
           onclick: () => { state.ui.elemMode = 'tree'; draw(); }
         })),
-      h('button', { class: 'mini', text: '＋ 顶层元素', onclick: () => addNode([], '') }),
-      mode === 'tree' ? h('button', { class: 'mini', text: '全部展开', onclick: () => { setAll(nodes, true); draw(); } }) : null,
-      mode === 'tree' ? h('button', { class: 'mini', text: '全部折叠', onclick: () => { setAll(nodes, false); draw(); } }) : null,
+      h('button', { class: 'mini', text: i18n.t('elements.add_top'), onclick: () => addNode([], '') }),
+      mode === 'tree' ? h('button', { class: 'mini', text: i18n.t('elements.expand_all'), onclick: () => { setAll(nodes, true); draw(); } }) : null,
+      mode === 'tree' ? h('button', { class: 'mini', text: i18n.t('elements.collapse_all'), onclick: () => { setAll(nodes, false); draw(); } }) : null,
       h('span', { class: 'small muted', style: { marginLeft: '4px' } },
-        mode === 'tree' ? '点 ▸ 展开分组；元素名可直接改' : '文档总览；加 / 删 / 改名请切到「树状」')));
-    if (!nodes.length) box.appendChild(h('div', { class: 'muted small', text: '（还没有元素，点「＋ 顶层元素」添加）' }));
+        mode === 'tree' ? i18n.t('elements.tree_hint') : i18n.t('elements.doc_hint'))));
+    if (!nodes.length) box.appendChild(h('div', { class: 'muted small', text: i18n.t('elements.empty') }));
     if (mode === 'doc') drawDoc(nodes, [], 0); else drawNodes(nodes, [], 0);
   };
 
@@ -264,19 +263,19 @@ function elementTree(nodes, coll, opts) {
       });
       line.appendChild(h('input', {
         type: 'checkbox', class: 'tree-toggle', checked: !off,
-        title: '是否需要这个元素（取消勾选＝导出与发送时忽略它）',
+        title: i18n.t('elements.need_hint'),
         onchange: e => {
           if (e.target.checked) delete item.on; else item.on = false;
           touch(coll); draw(); if (opts.onChange) opts.onChange();
         }
       }));
       line.appendChild(h('span', { class: 'doc-mark', text: isGroup ? '▾' : '–' }));
-      line.appendChild(h('span', { class: 'doc-key', text: (item.key || '（未命名）') + (isGroup ? '' : '：') }));
+      line.appendChild(h('span', { class: 'doc-key', text: (item.key || i18n.t('common.unnamed_paren')) + (isGroup ? '' : '：') }));
       if (isGroup) {
-        if (!item.children.length) line.appendChild(h('span', { class: 'small muted', text: '（空分组）' }));
+        if (!item.children.length) line.appendChild(h('span', { class: 'small muted', text: i18n.t('elements.empty_group') }));
       } else if (!opts.hideValues) {
         const area = h('textarea', {
-          class: 'doc-value', rows: valueRows(item.value), placeholder: '（空）',
+          class: 'doc-value', rows: valueRows(item.value), placeholder: i18n.t('common.empty_paren'),
           oninput: e => { item.value = e.target.value; touch(coll); autoGrow(e.target); }
         });
         area.value = item.value || '';
@@ -284,13 +283,13 @@ function elementTree(nodes, coll, opts) {
       }
       const tools = h('span', { class: 'doc-tools' });
       tools.appendChild(h('button', {
-        class: 'ghost mini', title: '在这个元素下面加子元素', text: '＋',
+        class: 'ghost mini', title: i18n.t('elements.add_child'), text: '＋',
         onclick: () => addNode(p, item.key)
       }));
       tools.appendChild(h('button', {
-        class: 'ghost mini', title: '删除这个元素', text: '✕',
+        class: 'ghost mini', title: i18n.t('elements.delete_title'), text: '✕',
         onclick: () => {
-          if (!confirm('删除元素「' + (item.key || '') + '」？子元素会一起删除。')) return;
+          if (!confirm(i18n.t('elements.delete_confirm', { key: item.key || '' }))) return;
           const container = containerOf(nodes, p);
           if (container) container.splice(p[p.length - 1], 1);
           touch(coll); draw(); if (opts.onChange) opts.onChange();
@@ -343,7 +342,7 @@ function subtreeStat(item) {
     }
   });
   walk(item.children || []);
-  return total + ' 项' + (filled ? ' · 已填 ' + filled : '');
+  return i18n.t(filled ? 'elements.stat_line' : 'elements.stat_empty', {total, filled});
 }
 
 // ═══════════════════════════════════════════
@@ -365,7 +364,7 @@ function newRecord(def) {
 
 function viewRecords(main, key) {
   const def = defFor(key);
-  if (!def) { main.appendChild(h('div', { class: 'card muted', text: '未知集合：' + key })); return; }
+  if (!def) { main.appendChild(h('div', { class: 'card muted', text: i18n.t('errors.unknown_collection', { name: key }) })); return; }
   if (!state.db[def.coll]) state.db[def.coll] = { items: [], categories: [] };
   const bucket = state.db[def.coll];
   bucket.items = bucket.items || [];
@@ -378,13 +377,13 @@ function viewRecords(main, key) {
     h('div', { class: 'inline' },
       exportButtons(def.coll),
       h('button', {
-        class: 'primary', text: '＋ 新建' + def.singular,
+        class: 'primary', text: i18n.t('records.new', { singular: def.singular }),
         onclick: () => { const rec = newRecord(def); bucket.items.unshift(rec); ui.sel = rec.id; touch(def.coll); renderMain(); }
       }))));
 
   main.appendChild(importPanel(key === 'other' ? 'md' : 'json', key === 'other'
-    ? { title: '导入 Markdown / JSON 到其他设定', kinds: ['md', 'json'], target: 'other' }
-    : { title: '导入 JSON 到' + def.label, kinds: ['json'], target: def.coll }));
+    ? { title: i18n.t('records.import_title_other'), kinds: ['md', 'json'], target: 'other' }
+    : { title: i18n.t('records.import_title', { label: def.label }), kinds: ['json'], target: def.coll }));
   if (key === 'other') main.appendChild(moveBar(def.coll, key));
 
   const row = h('div', { class: 'row' });
@@ -400,8 +399,9 @@ function viewRecords(main, key) {
   const countLine = h('div', { class: 'small muted', style: { marginBottom: '6px' } });
 
   const updateCount = () => {
-    countLine.textContent = '共 ' + bucket.items.length + ' 条' +
-      (key === 'other' && state.sel[key] && state.sel[key].size ? '，已选 ' + state.sel[key].size + ' 条' : '');
+    countLine.textContent = key === 'other' && state.sel[key] && state.sel[key].size
+      ? i18n.t('records.count_selected', {total: bucket.items.length, selected: state.sel[key].size})
+      : i18n.t('records.total', {count: bucket.items.length});
   };
   const setActive = id => rowEls.forEach((el, rid) => el.classList.toggle('active', rid === id));
 
@@ -409,7 +409,7 @@ function viewRecords(main, key) {
     const keepTop = listScroll.scrollTop;
     clear(listBox);
     rowEls.clear();
-    const search = h('input', { type: 'text', placeholder: '搜索…', value: ui.q, oninput: e => { ui.q = e.target.value; drawList(); } });
+    const search = h('input', { type: 'text', placeholder: i18n.t('common.search'), value: ui.q, oninput: e => { ui.q = e.target.value; drawList(); } });
     const q = ui.q.toLowerCase();
     const items = bucket.items.filter(r => !q || JSON.stringify(r).toLowerCase().includes(q));
     clear(listScroll);
@@ -430,13 +430,13 @@ function viewRecords(main, key) {
       }
       rowEl.appendChild(h('div', { class: 'name', text: recordName(rec) }));
       const filled = countFilled(rec.elements);
-      const meta = [rec.category, filled ? filled + '项' : ''].filter(Boolean).join(' · ');
+      const meta = [rec.category, filled ? i18n.t('records.filled_suffix', { count: filled }) : ''].filter(Boolean).join(' · ');
       rowEl.appendChild(h('div', { class: 'meta', text: meta }));
       rowEls.set(rec.id, rowEl);
       listScroll.appendChild(rowEl);
     });
     if (!items.length) {
-      listScroll.appendChild(h('div', { class: 'muted small', style: { padding: '10px' } }, '没有匹配的条目'));
+      listScroll.appendChild(h('div', { class: 'muted small', style: { padding: '10px' } }, i18n.t('records.no_match')));
     }
     updateCount();
     listBox.appendChild(h('div', { class: 'card' },
@@ -449,7 +449,7 @@ function viewRecords(main, key) {
   const drawEditor = () => {
     clear(editBox);
     const rec = bucket.items.find(r => r.id === ui.sel);
-    if (!rec) { editBox.appendChild(h('div', { class: 'card muted', text: '左侧选一条记录，或新建一条。' })); return; }
+    if (!rec) { editBox.appendChild(h('div', { class: 'card muted', text: i18n.t('records.pick_hint') })); return; }
     editBox.appendChild(recordEditor(def, rec, drawList, drawEditor));
   };
 
@@ -462,11 +462,11 @@ function recordEditor(def, rec, onListChange, onEditorChange) {
   if (def.hasInventory) { rec.inventory = rec.inventory || []; rec.equipment = rec.equipment || []; }
   if (def.hasMembers) rec.members = rec.members || [];
   const card = h('div', { class: 'card' });
-  const title = h('h2', null, recordName(rec), h('span', { class: 'hint', text: '编辑后自动保存' }));
+  const title = h('h2', null, recordName(rec), h('span', { class: 'hint', text: i18n.t('records.autosave_hint') }));
   card.appendChild(title);
 
   card.appendChild(h('div', { class: 'field' },
-    h('label', { text: '名称' }),
+    h('label', { text: i18n.t('common.name') }),
     h('input', { type: 'text', value: rec.name || '', oninput: e => { rec.name = e.target.value; touch(coll); } })));
 
   if (def.tagLabel) {
@@ -477,7 +477,7 @@ function recordEditor(def, rec, onListChange, onEditorChange) {
 
   if (def.hasSlot) {
     card.appendChild(h('div', { class: 'field' },
-      h('label', { text: '穿戴部位' }),
+      h('label', { text: i18n.t('records.slot_label') }),
       h('select', { onchange: e => { rec.slot = e.target.value; touch(coll); } },
         (state.db.equipment.slots || []).map(s => h('option', { value: s, selected: s === rec.slot, text: s })))));
   }
@@ -485,14 +485,14 @@ function recordEditor(def, rec, onListChange, onEditorChange) {
   if (def.hasCategory) {
     const store = state.db[coll];
     store.categories = store.categories || [];
-    card.appendChild(h('div', { class: 'field' }, h('label', { text: '类别' }),
+    card.appendChild(h('div', { class: 'field' }, h('label', { text: i18n.t('common.category') }),
       h('div', { class: 'inline' },
         h('select', { onchange: e => { rec.category = e.target.value; touch(coll); } },
           store.categories.map(c => h('option', { value: c, selected: c === rec.category, text: c }))),
         h('button', {
-          class: 'mini', text: '添加类别',
+          class: 'mini', text: i18n.t('records.add_category'),
           onclick: () => {
-            const v = prompt('新类别名称');
+            const v = prompt(i18n.t('records.new_category_prompt'));
             if (!v) return;
             store.categories.push(v); rec.category = v; touch(coll); onEditorChange();
           }
@@ -501,28 +501,28 @@ function recordEditor(def, rec, onListChange, onEditorChange) {
 
   card.appendChild(h('div', { class: 'sep' }));
   const stat = h('span', { class: 'hint' });
-  const refreshStat = () => { stat.textContent = '共 ' + countAll(rec.elements) + ' 个元素，已填 ' + countFilled(rec.elements) + ' 项'; };
+  const refreshStat = () => { stat.textContent = i18n.t('records.elem_stat', { total: countAll(rec.elements), filled: countFilled(rec.elements) }); };
   refreshStat();
   card.appendChild(h('div', { class: 'inline' },
-    h('label', { text: '元素', style: { flex: '1' } }),
+    h('label', { text: i18n.t('records.elements_label'), style: { flex: '1' } }),
     stat,
     h('button', {
-      class: 'mini', text: '套用模板补齐',
-      title: '按「元素模板」页的模板补上缺的元素（不覆盖已填内容）',
+      class: 'mini', text: i18n.t('records.apply_template'),
+      title: i18n.t('records.apply_template_title'),
       onclick: () => {
         const added = applyPreset(rec.elements, presetsOf(coll));
         touch(coll); refreshStat(); onEditorChange();
-        toast(added ? '补充了 ' + added + ' 个元素' : '模板元素都已存在', 'ok');
+        toast(added ? i18n.t('records.template_added', { count: added }) : i18n.t('records.template_exists'), 'ok');
       }
     }),
     h('button', {
-      class: 'mini', text: '预览输出',
+      class: 'mini', text: i18n.t('records.preview'),
       onclick: () => {
         const lines = ['### ' + recordName(rec)].concat(renderElementsMd(rec.elements, 0));
         if (rec.content) lines.push('', rec.content);
         if (rec.notes) lines.push('', rec.notes);
-        modal(recordName(rec) + ' · 将发送 / 导出的内容',
-          h('div', { class: 'md', html: md(lines.join('\n') || '（空）') }), [h('button', { text: '关闭' })]);
+        modal(i18n.t('records.preview_title', { name: recordName(rec) }),
+          h('div', { class: 'md', html: md(lines.join('\n') || i18n.t('common.empty_paren')) }), [h('button', { text: i18n.t('common.close') })]);
       }
     })));
   card.appendChild(elementTree(rec.elements, coll, {
@@ -531,7 +531,7 @@ function recordEditor(def, rec, onListChange, onEditorChange) {
 
   if (def.hasContent) {
     card.appendChild(h('div', { class: 'field', style: { marginTop: '10px' } },
-      h('label', { text: '内容（原文 / 长文本）' }),
+      h('label', { text: i18n.t('records.content_label') }),
       h('textarea', {
         rows: (rec.content || '').length > 400 ? 14 : 6, value: rec.content || '',
         oninput: e => { rec.content = e.target.value; touch(coll); autoGrow(e.target); }
@@ -540,31 +540,31 @@ function recordEditor(def, rec, onListChange, onEditorChange) {
 
   if (rec.notes !== undefined) {
     card.appendChild(h('div', { class: 'field' },
-      h('label', { text: def.notesLabel || '补充说明' }),
+      h('label', { text: def.notesLabel || i18n.t('collections.notes') }),
       h('textarea', { rows: 3, value: rec.notes || '', oninput: e => { rec.notes = e.target.value; touch(coll); autoGrow(e.target); } })));
   }
 
   if (def.hasMembers) {
     card.appendChild(h('div', { class: 'sep' }));
-    card.appendChild(h('div', { class: 'field' }, h('label', { text: '成员（指针 → 人物档案）' })));
+    card.appendChild(h('div', { class: 'field' }, h('label', { text: i18n.t('records.members_label') })));
     card.appendChild(pointerList(rec, 'members', coll, 'characters', 'id', onListChange));
   }
 
   if (def.hasInventory) {
     card.appendChild(h('div', { class: 'sep' }));
     card.appendChild(h('div', { class: 'small muted', text:
-      '随身物品与穿戴不在这里编辑：请到左侧「人物背包」页，选中人物后入包 / 穿戴（两处共用同一份数据，这里不再重复）。' }));
+      i18n.t('records.inventory_hint') }));
   }
 
   card.appendChild(h('div', { class: 'sep' }));
   card.appendChild(h('div', { class: 'inline' },
-    rec.source ? h('span', { class: 'tag', text: '来源：' + rec.source }) : null,
+    rec.source ? h('span', { class: 'tag', text: i18n.t('common.source_prefix', { source: rec.source }) }) : null,
     h('span', { style: { flex: '1' } }),
-    h('button', { text: '搬运到…', onclick: () => moveDialog(coll, [rec.id], () => { onListChange(); onEditorChange(); }) }),
+    h('button', { text: i18n.t('records.move'), onclick: () => moveDialog(coll, [rec.id], () => { onListChange(); onEditorChange(); }) }),
     h('button', {
-      class: 'danger', text: '删除',
+      class: 'danger', text: i18n.t('common.delete'),
       onclick: () => {
-        if (!confirm('确定删除「' + recordName(rec) + '」？')) return;
+        if (!confirm(i18n.t('common.delete_confirm', { name: recordName(rec) }))) return;
         const list = state.db[coll].items;
         const idx = list.indexOf(rec);
         if (idx >= 0) list.splice(idx, 1);
@@ -583,19 +583,19 @@ function pointerList(rec, listKey, coll, targetColl, idKey, onChange, opts) {
   const draw = () => {
     clear(box);
     const entries = rec[listKey] = rec[listKey] || [];
-    if (!entries.length) box.appendChild(h('div', { class: 'muted small', text: '（空）' }));
+    if (!entries.length) box.appendChild(h('div', { class: 'muted small', text: i18n.t('common.empty_paren') }));
     entries.forEach((entry, idx) => {
       const target = findById(targetColl, entry[idKey]);
       const row = h('div', { class: 'inline', style: { marginBottom: '6px' } });
-      row.appendChild(h('span', { class: 'tag', text: target ? recordName(target) : '⚠ 指针失效' }));
+      row.appendChild(h('span', { class: 'tag', text: target ? recordName(target) : i18n.t('records.broken_pointer') }));
       if (opts.qty) {
         row.appendChild(h('input', {
-          type: 'number', value: entry.qty == null ? 1 : entry.qty, style: { width: '72px' }, title: '数量',
+          type: 'number', value: entry.qty == null ? 1 : entry.qty, style: { width: '72px' }, title: i18n.t('records.qty'),
           oninput: e => { entry.qty = e.target.value === '' ? 1 : Number(e.target.value); touch(coll); }
         }));
       }
       row.appendChild(h('input', {
-        type: 'text', value: entry.note || '', placeholder: '备注', style: { flex: '1' },
+        type: 'text', value: entry.note || '', placeholder: i18n.t('common.note'), style: { flex: '1' },
         oninput: e => { entry.note = e.target.value; touch(coll); }
       }));
       row.appendChild(h('button', {
@@ -605,11 +605,11 @@ function pointerList(rec, listKey, coll, targetColl, idKey, onChange, opts) {
       box.appendChild(row);
     });
     box.appendChild(h('button', {
-      class: 'mini', text: '＋ 从' + (opts.pickLabel || '列表') + '中添加',
+      class: 'mini', text: i18n.t('records.add_from', { list: opts.pickLabel || i18n.t('common.list') }),
       onclick: () => {
         const options = collItems(targetColl).map(t => ({ value: t.id, label: recordName(t), meta: t.category || '' }));
-        if (!options.length) { toast('目标集合还是空的。', 'err'); return; }
-        pickDialog('选择要添加的条目', options, id => {
+        if (!options.length) { toast(i18n.t('records.target_empty'), 'err'); return; }
+        pickDialog(i18n.t('records.pick_title'), options, id => {
           const entry = { note: '' };
           entry[idKey] = id;
           if (opts.qty) entry.qty = 1;
@@ -629,8 +629,8 @@ function pointerList(rec, listKey, coll, targetColl, idKey, onChange, opts) {
 function importPanel(defaultKind, opts) {
   opts = opts || {};
   const labels = {
-    md: 'Markdown（.md）→ 当前设定',
-    json: 'JSON → 当前设定'
+    md: i18n.t('records.md_to_current'),
+    json: i18n.t('records.json_to_current')
   };
   const kinds = (opts.kinds || [defaultKind || 'json']).map(id => ({ id, label: labels[id] || id }));
   const target = opts.target || 'other';
@@ -650,7 +650,7 @@ function importPanel(defaultKind, opts) {
     });
     clear(sourceSel);
     if (!sources.length) {
-      sourceSel.appendChild(h('option', { value: '', text: '（' + (state.paths.import || 'workspace/import') + ' 里没有可导入的文件）' }));
+      sourceSel.appendChild(h('option', { value: '', text: i18n.t('records.no_import_files', { path: state.paths.import || 'workspace/import' }) }));
     } else {
       sources.forEach(s => sourceSel.appendChild(h('option', {
         value: s.path, text: s.path + '（' + Math.max(1, Math.round((s.size || 0) / 1024)) + ' KB）'
@@ -659,11 +659,11 @@ function importPanel(defaultKind, opts) {
   };
   drawSources();
 
-  const btn = h('button', { class: 'primary', text: '导入' });
+  const btn = h('button', { class: 'primary', text: i18n.t('common.import') });
   btn.onclick = async () => {
-    if (!sourceSel.value) { toast('请先选择要导入的文件。', 'err'); return; }
+    if (!sourceSel.value) { toast(i18n.t('records.choose_file_first'), 'err'); return; }
     btn.disabled = true;
-    status('导入中…', 'busy');
+    status(i18n.t('common.importing'), 'busy');
     try {
       const res = await api('/api/import', {
         method: 'POST',
@@ -671,80 +671,80 @@ function importPanel(defaultKind, opts) {
       });
       setDb(res.collections);
       toast(res.message, 'ok');
-      status('导入完成', 'ok');
+      status(i18n.t('records.import_done'), 'ok');
       renderNav(); renderMain();
     } catch (e) {
-      toast('导入失败：' + e.message, 'err');
-      status('导入失败', 'err');
+      toast(i18n.t('records.import_failed_reason', { reason: e.message }), 'err');
+      status(i18n.t('records.import_failed'), 'err');
     } finally { btn.disabled = false; }
   };
 
   return h('details', { class: 'card' },
-    h('summary', null, (opts.title || '导入') + '　（' + (state.paths.import || 'workspace/import') + ' 里的文件）'),
+    h('summary', null, i18n.t('records.import_panel_title', { title: opts.title || i18n.t('common.import'), path: state.paths.import || 'workspace/import' })),
     h('div', { class: 'field', style: { marginTop: '10px' } },
       kindSel,
       sourceSel),
     h('div', { class: 'inline', style: { marginTop: '8px' } }, btn),
     h('div', { class: 'small muted', style: { marginTop: '8px' } },
       target === 'worldmap'
-        ? '地图 JSON 必须包含 rows、cols、cells、regions 四个字段；字段缺失或区域引用错误会给出提示。'
-        : '支持 NovelHelper 导出的 JSON、{"items": [...]}，或 {"名称": {...}} 结构；格式错误会提示。'));
+        ? i18n.t('records.map_json_hint')
+        : i18n.t('records.json_format_hint')));
 }
 
 function exportButtons(coll) {
   return h('div', { class: 'inline' },
     h('button', {
-      text: '导出 JSON',
-      title: '只包含开启且已填的元素，没有的元素不会出现',
+      text: i18n.t('records.export_json'),
+      title: i18n.t('records.export_json_title'),
       onclick: async () => {
         try {
           const res = await api('/api/export', { method: 'POST', body: { collection: coll, format: 'json' } });
-          toast('已导出：' + res.rel, 'ok');
-        } catch (e) { toast('导出失败：' + e.message, 'err'); }
+          toast(i18n.t('common.exported_to', { path: res.rel }), 'ok');
+        } catch (e) { toast(i18n.t('common.export_failed_reason', { reason: e.message }), 'err'); }
       }
     }),
     h('button', {
-      text: '导出 TXT',
+      text: i18n.t('records.export_txt'),
       onclick: async () => {
         try {
           const res = await api('/api/export', { method: 'POST', body: { collection: coll, format: 'txt' } });
-          toast('已导出：' + res.rel, 'ok');
-        } catch (e) { toast('导出失败：' + e.message, 'err'); }
+          toast(i18n.t('common.exported_to', { path: res.rel }), 'ok');
+        } catch (e) { toast(i18n.t('common.export_failed_reason', { reason: e.message }), 'err'); }
       }
     }));
 }
 
 function moveBar(coll, key) {
   return h('div', { class: 'card' },
-    h('h2', null, '整理导入的内容',
-      h('span', { class: 'hint', text: '勾选后一键搬到人物 / 势力 / 道具 / 装备 / 记忆，或转为任意自定义栏目的条目' })),
+    h('h2', null, i18n.t('records.tidy_title'),
+      h('span', { class: 'hint', text: i18n.t('records.tidy_hint') })),
     h('div', { class: 'inline' },
       h('button', {
-        class: 'primary', text: '搬运选中的条目到…',
+        class: 'primary', text: i18n.t('records.move_selected'),
         onclick: () => {
           const ids = Array.from(state.sel[key] || []);
-          if (!ids.length) { toast('先在左侧勾选要搬运的条目。', 'err'); return; }
+          if (!ids.length) { toast(i18n.t('records.select_first'), 'err'); return; }
           moveDialog(coll, ids, () => { state.sel[key].clear(); renderMain(); });
         }
       }),
       h('button', {
-        text: '全选（当前列表）',
+        text: i18n.t('records.select_all'),
         onclick: () => { collItems('other').forEach(r => state.sel[key].add(r.id)); renderMain(); }
       }),
-      h('button', { text: '清空选择', onclick: () => { state.sel[key].clear(); renderMain(); } })));
+      h('button', { text: i18n.t('records.clear_selection'), onclick: () => { state.sel[key].clear(); renderMain(); } })));
 }
 
 function moveDialog(fromColl, ids, done) {
   const builtins = [
-    ['characters', '人物档案'], ['factions', '势力设定'], ['items', '道具设定'],
-    ['equipment', '服饰与装备'], ['memories', '记忆库'], ['other', '其他设定']
+    ['characters', i18n.t('nav.characters')], ['factions', i18n.t('nav.factions')], ['items', i18n.t('nav.items')],
+    ['equipment', i18n.t('nav.equipment')], ['memories', i18n.t('nav.memories')], ['other', i18n.t('nav.other')]
   ].filter(t => t[0] !== fromColl);
-  const custom = sectionDefs().map(sec => ['section_' + sec.key, '自定义：' + (sec.label || sec.key)]);
+  const custom = sectionDefs().map(sec => ['section_' + sec.key, i18n.t('records.custom_prefix', { label: sec.label || sec.key })]);
   const targets = builtins.concat(custom);
   const keepBox = h('input', { type: 'checkbox' });
   const body = h('div', null,
-    h('div', { class: 'small muted', text: '共 ' + ids.length + ' 条。搬运会按目标集合的模板建立新条目，原文放进「补充说明」；自定义栏目会出现在下方。' }),
-    h('label', { class: 'check', style: { marginTop: '8px' } }, keepBox, '保留原条目（复制而不是移动）'));
+    h('div', { class: 'small muted', text: i18n.t('records.move_desc', { count: ids.length }) }),
+    h('label', { class: 'check', style: { marginTop: '8px' } }, keepBox, i18n.t('records.keep_original')));
   const foot = targets.map(t => h('button', {
     text: t[1], dataset: { noclose: '1' },
     onclick: async () => {
@@ -755,9 +755,9 @@ function moveDialog(fromColl, ids, done) {
         m.close();
         renderNav();
         if (done) done(); else renderMain();
-      } catch (e) { toast('搬运失败：' + e.message, 'err'); }
+      } catch (e) { toast(i18n.t('records.move_failed_reason', { reason: e.message }), 'err'); }
     }
   }));
-  foot.unshift(h('button', { text: '取消', onclick: () => m.close() }));
-  const m = modal('搬运到…', body, foot);
+  foot.unshift(h('button', { text: i18n.t('common.cancel'), onclick: () => m.close() }));
+  const m = modal(i18n.t('records.move'), body, foot);
 }

@@ -1,6 +1,8 @@
 """Workspace import, export, and file browsing operations."""
 from __future__ import annotations
 
+from ..localization import t
+
 from datetime import datetime
 from pathlib import Path
 
@@ -65,10 +67,10 @@ def browse(path: str = "") -> dict:
             if root.exists():
                 drives.append({"name": f"{letter}:\\", "path": str(root)})
         home = Path.home()
-        return {"path": "", "parent": "", "dirs": drives, "files": [], "shortcut": {"name": "用户目录", "path": str(home)}}
+        return {"path": "", "parent": "", "dirs": drives, "files": [], "shortcut": {"name": t("browse.user_dir"), "path": str(home)}}
     target = Path(path)
     if not target.exists() or not target.is_dir():
-        raise FileNotFoundError(f"目录不存在: {path}")
+        raise FileNotFoundError(t('errors.dir_missing', path=path))
     dirs, files = [], []
     try:
         for child in sorted(target.iterdir(), key=lambda p: p.name.lower()):
@@ -90,6 +92,6 @@ def write_external(path: str, content: str, encoding: str = "utf-8") -> Path:
     if target.is_dir():
         raise IsADirectoryError(str(target))
     if not target.parent.exists():
-        raise FileNotFoundError(f"目录不存在：{target.parent}")
+        raise FileNotFoundError(t("errors.dir_missing", path=target.parent))
     target.write_text(content, encoding=encoding, errors="replace")
     return target

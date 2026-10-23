@@ -1,6 +1,8 @@
 """JSON collection persistence and record cleanup."""
 from __future__ import annotations
 
+from ..localization import t
+
 import json
 import os
 import threading
@@ -15,7 +17,7 @@ _LOCK = threading.RLock()
 
 def _path(name: str) -> Path:
     if name not in COLLECTIONS and not is_section(name):
-        raise KeyError(f"未知集合: {name}")
+        raise KeyError(t('errors.unknown_collection', name=name))
     return DATA_DIR / f"{name}.json"
 
 def _deep_default(name: str) -> Any:
@@ -29,13 +31,13 @@ def load(name: str) -> Any:
         try:
             raw = path.read_text(encoding="utf-8")
         except UnicodeDecodeError as exc:
-            raise RuntimeError(f"{path.name} 不是 UTF-8 编码") from exc
+            raise RuntimeError(t('errors.not_utf8', file=path.name)) from exc
     if not raw.strip():
         return _deep_default(name)
     try:
         return json.loads(raw)
     except json.JSONDecodeError as exc:
-        raise RuntimeError(f"{path.name} 解析失败: {exc}") from exc
+        raise RuntimeError(t('errors.parse_failed_reason', file=path.name, detail=exc)) from exc
 
 def save(name: str, data: Any) -> Path:
     """原子写入；空值 / 关闭的元素在写盘前统一裁剪，保证 JSON 干净。"""

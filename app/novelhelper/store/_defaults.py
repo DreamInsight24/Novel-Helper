@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import Any
 
 from .. import prompts as prompts_mod, providers
+from ..localization import t
 from ._names import is_section, new_id, now_str
 from ._paths import DEBUG_MODE, DEFAULT_LOG_DIR
 
@@ -289,4 +290,4 @@ def default_for(name: str) -> Any:
         return default_meta()
     if name == "history":
         return default_history()
-    raise KeyError(f"未知集合: {name}")
+    raise KeyError(t("errors.unknown_collection", name=name))

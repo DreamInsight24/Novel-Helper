@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from ..localization import t
+from .. import localization
+from .. import APP_VERSION
+
 import re
 
 from .. import ai, context, history, logger, project, prompts as prompts_mod, providers, store
@@ -9,6 +13,13 @@ from ._state import _RUN_STATE
 
 class _ApiMixin:
     def _api(self, method: str, path: str, query: dict):
+        if method == "GET" and path == "/api/i18n":
+            self._json({**localization.get_languages(), "version": APP_VERSION})
+            return
+        if method == "GET" and path.startswith("/api/i18n/"):
+            lang = localization.resolve_language(path[len("/api/i18n/"):])
+            self._json({"lang": lang, "messages": localization.get_translations(lang)})
+            return
         if method == "GET" and path == "/api/state":
             self._json({
                 "ok": True,
@@ -48,7 +59,7 @@ class _ApiMixin:
         if history_match and method == "GET":
             session = history.load_session(history_match.group(1))
             if session is None:
-                self._error("对话不存在或已被删除", status=404)
+                self._error(t('errors.session_missing'), status=404)
                 return
             self._json({"ok": True, "session": history.session_for_client(session, store.load_all())})
             return
@@ -78,7 +89,7 @@ class _ApiMixin:
             body = self._body()
             coll = body.get("collection") or ""
             if not store.known_collection(coll):
-                self._error(f"未知集合: {coll}")
+                self._error(t('errors.unknown_collection', name=coll))
                 return
             db = store.load_all()
             fmt = (body.get("format") or "txt").lower()
@@ -108,7 +119,7 @@ class _ApiMixin:
             body = self._body()
             content = body.get("content") or ""
             if not content.strip():
-                self._error("内容为空，未保存")
+                self._error(t('errors.empty_not_saved'))
                 return
             target = project.write_output(content, body.get("mode") or "AI 工作站生成", (body.get("name") or "").strip())
             logger.log_event("DATA", "output", path=str(target), chars=len(content))
@@ -181,7 +192,7 @@ class _ApiMixin:
             mode_id = body.get("mode_id") or body.get("work_mode") or "draft"
             mode = context.find_mode(db, mode_id)
             if mode is None:
-                self._error(f"模式不存在: {mode_id}")
+                self._error(t('errors.mode_missing', id=mode_id))
                 return
             surface = (body.get("surface") or "").strip()
             if surface:
@@ -231,4 +242,4 @@ class _ApiMixin:
             self._json({"ok": ok, "current": history.current_session_id()})
             return
 
-        self._error(f"未知接口: {path}", status=404)
+        self._error(t('errors.unknown_api', path=path), status=404)

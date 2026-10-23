@@ -1,6 +1,8 @@
 """Import conversion and record validation."""
 from __future__ import annotations
 
+from ..localization import t
+
 import json
 
 from ..store import new_id, now_str
@@ -117,7 +119,7 @@ def import_json(text: str, target: str) -> list:
 def validate_import_records(records: list, target: str) -> list:
     """校验并补齐 JSON 导入的记录，错误时给出可读的提示。"""
     if not isinstance(records, list) or not records:
-        raise ValueError("JSON 中没有可导入的记录（需要数组，或 {\"items\": [...]}）")
+        raise ValueError(t('errors.json_no_records'))
     prefix = {
         "characters": "ch", "factions": "fa", "items": "it",
         "equipment": "eq", "other": "ot", "memories": "mm",
@@ -125,22 +127,22 @@ def validate_import_records(records: list, target: str) -> list:
     normalized = []
     for index, rec in enumerate(records, 1):
         if not isinstance(rec, dict):
-            raise ValueError(f"第 {index} 条记录不是 JSON 对象")
+            raise ValueError(t('errors.record_not_object', index=index))
         if target == "memories":
             if not (rec.get("title") or rec.get("content")):
-                raise ValueError(f"第 {index} 条记忆缺少 title 或 content")
+                raise ValueError(t('errors.memory_missing_fields', index=index))
             rec.setdefault("title", rec.get("content", "")[:30] or "未命名记忆")
             rec.setdefault("category", "短期记忆")
             rec.setdefault("chapter", "")
             rec.setdefault("content", "")
         else:
             if not (rec.get("name") or rec.get("title")):
-                raise ValueError(f"第 {index} 条设定缺少 name 或 title")
+                raise ValueError(t('errors.record_missing_name', index=index))
             rec.setdefault("name", rec.get("title") or "未命名")
             rec.setdefault("elements", [])
             rec.setdefault("content", "")
         if not isinstance(rec.get("elements"), list):
-            raise ValueError(f"第 {index} 条记录的 elements 必须是数组")
+            raise ValueError(t('errors.elements_not_array', index=index))
         rec.setdefault("id", new_id(prefix))
         rec.setdefault("tags", [])
         rec.setdefault("created", now_str())
@@ -155,35 +157,34 @@ def import_worldmap_json(text: str, name: str = "") -> dict:
     if isinstance(data, dict) and isinstance(data.get("worldmap"), dict):
         data = data["worldmap"]
     if not isinstance(data, dict):
-        raise ValueError("地图 JSON 必须是一个对象")
+        raise ValueError(t('errors.map_not_object'))
     missing = [key for key in ("rows", "cols", "cells", "regions") if key not in data]
     if missing:
-        raise ValueError("地图 JSON 缺少字段：" + "、".join(missing) +
-                         "（需要 rows、cols、cells、regions）")
+        raise ValueError(t("errors.map_missing_fields", fields=", ".join(missing)))
     rows, cols = data.get("rows"), data.get("cols")
     cells, regions = data.get("cells"), data.get("regions")
     if not isinstance(rows, list) or not rows or not all(isinstance(x, str) and x.strip() for x in rows):
-        raise ValueError("地图的 rows 必须是非空字符串数组")
+        raise ValueError(t('errors.map_rows_invalid'))
     if not isinstance(cols, list) or not cols or not all(isinstance(x, str) and x.strip() for x in cols):
-        raise ValueError("地图的 cols 必须是非空字符串数组")
+        raise ValueError(t('errors.map_cols_invalid'))
     if not isinstance(cells, dict):
-        raise ValueError("地图的 cells 必须是对象")
+        raise ValueError(t('errors.map_cells_invalid'))
     if not isinstance(regions, dict):
-        raise ValueError("地图的 regions 必须是对象")
+        raise ValueError(t('errors.map_regions_invalid'))
 
     normalized_regions = {}
     for raw_id, region in regions.items():
         if not isinstance(region, dict):
-            raise ValueError(f"区域 {raw_id} 必须是对象")
+            raise ValueError(t('errors.region_not_object', id=raw_id))
         rid = str(region.get("id") or raw_id)
         if not rid:
-            raise ValueError("区域缺少 id")
+            raise ValueError(t('errors.region_missing_id'))
         elements = region.get("elements") or []
         if not isinstance(elements, list):
-            raise ValueError(f"区域 {rid} 的 elements 必须是数组")
+            raise ValueError(t('errors.region_elements_invalid', id=rid))
         board = region.get("board") or {}
         if not isinstance(board, dict):
-            raise ValueError(f"区域 {rid} 的 board 必须是对象")
+            raise ValueError(t('errors.region_board_invalid', id=rid))
         normalized_regions[rid] = {
             "id": rid,
             "name": region.get("name") or rid,
@@ -199,11 +200,11 @@ def import_worldmap_json(text: str, name: str = "") -> dict:
     normalized_cells = {}
     for key, rid in cells.items():
         if not isinstance(key, str):
-            raise ValueError("地图 cells 的键必须是「行|列」字符串")
+            raise ValueError(t("errors.cells_key_invalid"))
         if rid in (None, ""):
             continue
         if rid not in normalized_regions:
-            raise ValueError(f"cells 引用了不存在的区域 id：{rid}")
+            raise ValueError(t('errors.cells_bad_ref', id=rid))
         normalized_cells[key] = rid
     return {
         "name": name or data.get("name") or "世界地图",
