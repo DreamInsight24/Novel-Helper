@@ -5,28 +5,66 @@
 ## 1. 设计原则
 
 - **职责单一**：每个软件包只承担一类职责，包名即职责。
-- **边界清晰**：包之间只通过对方 `__init__.py` 暴露的公共 API 交互，不直接 import 内部模块。
-- **对外最小暴露**：公共 API 由 `__all__` 显式声明，内部实现以 `_` 前缀标识私有。
+- **边界清晰**：包之间原则上只通过对方 `__init__.py` 暴露的公共 API 交互，不直接 import 内部模块；已知例外见本文件第 3 节。
+- **对外最小暴露**：包级公共 API 由 `__all__` 显式声明；独立保留模块使用不以下划线开头的名称提供公开符号，内部实现以 `_` 前缀标识私有。
 - **行为稳定**：结构重构只搬移与重组，不改变对外行为、数据格式与接口签名。
 - **无循环依赖**：包依赖关系为有向无环图，新增依赖需在本文档记录。
 
 ## 2. 目标包结构
 
-以下为 v2610.2 的目标结构示意，最终以任务 1 评审通过的迁移计划为准。
+以下为 v2610.2 任务 1 的目标结构；P0 基线以及 P1 `store`、P2 `project`、P3 `server` 包迁移和 P4 收尾均已实施。历史标题公共别名已按计划落实，最终源码与 EXE 回归结果见验收记录。基线、拆分粒度、迁移映射和最终验收记录见 `docs/restructure/`。
 
 ```
 app/novelhelper/
-  __init__.py          # 仅 re-export 公共 API 与 __all__
-  core/                # 领域模型与核心逻辑
-  storage/             # JSON 存储与处理
-  services/            # 业务服务
-  routes/ 或 api/      # 路由与接口层
-  utils/               # 通用工具
-  localization/        # 本地化（任务 2 新增）
-  web/                 # 前端资源（HTML/CSS/JS），不参与 Python 包化
+  __init__.py          # 版本/模块公开入口（兼容导出）
+  _version.py          # 集中定义包版本常量
+  store/               # JSON 数据、默认值、迁移、工作区路径与备份
+    __init__.py        # 保持 novelhelper.store 公共 API
+    _paths.py          # 路径锚点与集合常量
+    _names.py          # ID/栏目名称助手
+    _defaults.py       # 默认配置与集合
+    _repository.py     # JSON 读写与记录清理
+    _directories.py   # 从配置解析工作区/日志目录
+    _bootstrap.py      # 初始化与既有配置迁移
+    _collections.py    # 集合枚举/schema 查询
+    _backup.py         # 数据备份
+  project/             # 导入导出、文本处理、稿件与文件操作
+    __init__.py        # 保持 novelhelper.project 公共 API
+    _paths.py          # 项目内路径约束与基础文本读写
+    _parsers.py        # Markdown、记忆与地图解析
+    _imports.py        # 导入转换、校验与记录合并
+    _exports.py        # JSON/文本清理与导出
+    _text.py           # 正文处理与纯文本操作
+    _outputs.py        # 正文、计划、转换文件与章节列表
+    _browse.py         # 导入源、工作区列表与磁盘浏览
+  server/              # HTTP 生命周期、API 路由与请求编排
+    __init__.py        # 保持 novelhelper.server 公共 API
+    _state.py          # 请求体上限、生成锁与共享状态
+    _helpers.py        # API 就绪、surface 校验、选择与 JSON 助手
+    _base.py           # HTTP 基础响应、分派、异常边界和静态资源
+    _api.py            # API 路由 mixin
+    _records.py        # 导入、自动归类和集合搬运 mixin
+    _generation.py     # AI 与工作站生成 mixin
+    _handler.py        # Handler 组合及 serve 生命周期
+  ai.py                # 模型 API 适配，保持独立模块
+  context.py           # 模型上下文组装，保持独立模块
+  elements.py          # 设定元素树，保持独立模块
+  history.py           # 会话与历史，保持独立模块
+  logger.py            # 日志，保持独立模块
+  prompts.py           # 默认模式与提示词，保持独立模块
+  providers.py         # 提供商目录，保持独立模块
+  app.py               # 应用入口，保持原位置
+  web/                 # 前端资源（HTML/CSS/JS），任务 1 不改
 ```
 
-## 3. 包职责
+### 现状与配置交接（P0）
+
+- 当前 `store`、`project` 与 `server` 均已拆成同名包，并保留旧包级导入入口。
+- 当前本地用户配置文件为 `store.DATA_DIR / "config.json"`；默认源码路径为 `app/data/config.json`，`app/run.py --debug` 默认路径为 `app/debug/data/config.json`。运行时环境变量可改变数据目录，详见 P0 计划中的路径矩阵。
+- 读写入口分别是 `store.load("config")` 和 `store.save("config", config)`；缺失/空白文件返回默认配置。非法 JSON 或非 UTF-8 目前会引发 `RuntimeError`。任务 1 保持该行为；任务 2 按 K2 处理损坏配置的备份和日志，不另建语言配置文件。
+- `config.paths.data_dir` 当前未参与 `DATA_DIR` 路径计算；不应将其误当成用户数据迁移开关。
+
+## 3. 计划职责
 
 <!-- 任务 1 完成后补全：每个包的职责、公共 API 清单、依赖关系。格式示例：
 
@@ -38,7 +76,54 @@ app/novelhelper/
 - 被依赖：services、routes。
 -->
 
-任务 1 完成后填写。
+| 包/模块 | 计划职责 | 主要依赖 | 状态 |
+|---|---|---|---|
+| `store` | JSON 读写、默认数据、旧数据迁移、路径和备份 | `prompts`、`providers`、`elements`；包内按私有模块分层 | P1 已实施；接口见 `docs/api/store.md` |
+| `project` | 工作区文件、导入/导出与文本处理 | `store`、`elements`、`context`；包内按私有模块分层 | P2 已实施；接口见 `docs/api/project.md` |
+| `server` | HTTP 服务、静态资源和 API 编排 | `ai`、`context`、`history`、`logger`、`project`、`store` 等 | P3 已实施；接口见 `docs/api/server.md` |
+| `ai`、`context`、`elements`、`history`、`logger`、`prompts`、`providers` | 保留职责相对单一的模块，作为根包公开模块 | 依具体模块而定；依赖方向以迁移计划为准 | 已保留；符号基线见 `docs/restructure/public-api-baseline.md` |
+
+`store`、`project` 与 `server` 均有接口说明。P1-P3 包内依赖如下；私有实现不反向导入所属包的 `__init__`：
+
+| 模块 | 依赖 |
+|---|---|
+| `_paths` | 无 |
+| `_names` | `_paths` |
+| `_defaults` | `_names`、`_paths`、`prompts`、`providers` |
+| `_repository` | `_defaults`、`_names`、`_paths`、`elements` |
+| `_directories` | `_paths`、`_repository` |
+| `_collections` | `_names`、`_paths`、`_repository` |
+| `_bootstrap` | `_defaults`、`_directories`、`_paths`、`_repository`、`prompts`、`providers` |
+| `_backup` | `_collections`、`_directories`、`_names`、`_repository` |
+| `__init__` | 汇总导出，不承载业务实现 |
+
+`project` 内部依赖：
+
+| 模块 | 依赖 |
+|---|---|
+| `_paths` | `store` |
+| `_parsers` | `store` |
+| `_imports` | `_parsers`、`store` |
+| `_exports` | `context`、`elements`、`store` |
+| `_text` | 无 |
+| `_outputs` | `_paths`、`_text`、`store` |
+| `_browse` | `_paths`、`store` |
+| `__init__` | 汇总导出，不承载业务实现 |
+
+`server` 内部依赖：
+
+| 模块 | 依赖 |
+|---|---|
+| `_state` | `threading` |
+| `_helpers` | `ai`、`context` |
+| `_base` | `_helpers`、`_state`、`ai`、`logger`、`store` |
+| `_api` | `_helpers`、`_state`、`ai`、`context`、`history`、`logger`、`project`、`prompts`、`providers`、`store` |
+| `_records` | `elements`、`logger`、`project`、`store` |
+| `_generation` | `_helpers`、`_state`、`ai`、`context`、`history`、`logger`、`project`、`prompts`、`providers`、`store` |
+| `_handler` | `_api`、`_base`、`_generation`、`_records`、`store` |
+| `__init__` | `_handler`、`_state`；保留 `ai` 模块属性兼容 |
+
+`server/_generation.py` 通过公开的 `history.title_from_prompt` 生成会话标题。该名称是原 `_title_from_prompt` 的公开别名，保留原签名与算法；`history` 内部调用仍可使用私有实现。API 索引记录了此模块级接口。`store._migrate_mode_kinds` 继续作为既有自检的兼容出口，不属于 `store.__all__`。
 
 ## 4. 豁免清单
 
@@ -81,7 +166,7 @@ app/novelhelper/
 | `app/novelhelper/storage.py` | `app/novelhelper/storage/__init__.py` | JSON 存储拆分为包 | #12 |
 -->
 
-任务 1 执行时按批次补充。
+P1 将 `app/novelhelper/store.py` 拆分为 `store/` 包，原公共接口由 `store/__init__.py` re-export；P2 将 `app/novelhelper/project.py` 拆分为 `project/` 包，原公共接口由 `project/__init__.py` re-export；P3 将 `app/novelhelper/server.py` 拆分为 `server/` 包，保留 `MAX_BODY`、`Handler`、`serve` 与 `server.ai` 兼容属性；P4 将版本常量集中到 `_version.py`，由根 `__init__.py` 兼容导出。以上阶段仅调整代码组织和包内依赖边界，没有修改原业务处理流程；详细映射见 `docs/restructure/migration-map.md`。
 
 ## 8. 变更流程
 

@@ -31,7 +31,9 @@ TEMP_DATA = Path(tempfile.mkdtemp(prefix="novelhelper_data_"))
 TEMP_WORK = Path(tempfile.mkdtemp(prefix="novelhelper_work_"))
 os.environ["NOVELHELPER_DATA"] = str(TEMP_DATA)
 
+import novelhelper  # noqa: E402
 from novelhelper import ai, context, history, logger, project, prompts as prompts_mod, server, store  # noqa: E402
+from novelhelper import _version  # noqa: E402
 
 PASS: list[str] = []
 FAIL: list[str] = []
@@ -53,6 +55,11 @@ def main() -> int:
     print("=" * 64)
     print(f"临时数据: {TEMP_DATA}")
     print(f"临时产出: {TEMP_WORK}")
+
+    check("根包版本入口与版本模块保持兼容",
+          novelhelper.__version__ == _version.__version__
+          and novelhelper.APP_VERSION == _version.APP_VERSION
+          and "__version__" not in novelhelper.__all__)
 
     # ── 0. 默认值 ─────────────────────────────
     cfg = store.default_config()
@@ -211,6 +218,8 @@ def main() -> int:
           "测试地图" in map_user and "测试城" in map_user and "临海城市" not in map_user)
 
     # ── 2. 历史指针 ───────────────────────────
+    check("历史标题公共入口保留原生成规则",
+          history.title_from_prompt("  测试   标题 ", "outline") == "测试 标题")
     session = history.create_session("测试会话", "outline")
     compact = {
         "include": selection["include"],
