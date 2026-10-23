@@ -40,6 +40,7 @@ scripts/
 - 需求文档按版本命名：`v<主版本><年份><序号>.md`，与分支/发布版本号一致，例如 `v2610.2.md`。
 - 接口文档与软件包同名：`docs/api/store.md` 对应 `app/novelhelper/store/`。
 - 项目 API 文档：`docs/api/project.md` 对应 `app/novelhelper/project/`。
+- 服务端 API 文档：`docs/api/server.md` 对应 `app/novelhelper/server/`。
 - 文档标题与文件名语义一致，避免“杂项”“其他”“temp”这类命名。
 - 不使用个人化或团队内部缩写命名（如 `requirements2gm`），文档面向所有贡献者。
 

@@ -92,7 +92,7 @@
 | `store/_collections.py` | 37 | 5 函数 | 集合查询 |
 | `store/_backup.py` | 19 | 1 函数 | 跨仓库/目录/集合的备份编排，小文件有真实依赖边界 |
 
-P1 仅调整 Python 代码组织与导出；默认内容、路径结果、签名和持久化行为通过基线对照/自检核对。P2 仅调整 project 代码组织与导出；此后仅 `server` 尚未迁移。
+P1 仅调整 Python 代码组织与导出；默认内容、路径结果、签名和持久化行为通过基线对照/自检核对。P2 仅调整 project 代码组织与导出；P3 仅调整 server 代码组织与导出，三个大模块的包化迁移现已完成。
 
 ## 7. P2 `project` 实施后的实测规模
 
@@ -108,3 +108,18 @@ P1 仅调整 Python 代码组织与导出；默认内容、路径结果、签名
 | `project/_browse.py` | 95 | 5 个公共函数 + 1 私有函数 | 导入源、工作区列表与磁盘浏览 |
 
 P2 的 43 个顶层定义/常量与 `pre-refactor-store` AST 对照一致；比较时仅忽略为适配包内位置而将两个函数内 `context` 相对导入层级从一级改为二级的差异。运行期 `project.__all__` 与基线 37 个公开名称一致，7 个私有模块无循环依赖；`app/selftest.py` 67 项通过，`scripts/smoke_test.py` 15 项通过。
+
+## 8. P3 `server` 实施后的实测规模
+
+| 实际文件 | 实测行数 | 顶层定义/常量 | 对应职责 |
+|---|---:|---|---|
+| `server/__init__.py` | 7 | `MAX_BODY`、`Handler`、`serve` re-export；兼容 `ai` 属性 | 公共 API 入口 |
+| `server/_state.py` | 9 | 3 个常量/状态 | 请求体上限、生成锁与运行状态 |
+| `server/_helpers.py` | 49 | 4 个函数 | 选择裁剪、surface 校验、API 就绪和 JSON 序列化 |
+| `server/_base.py` | 104 | 1 个类、12 个方法 | HTTP 基础响应、请求分派、异常边界和静态资源 |
+| `server/_api.py` | 234 | 1 个 mixin 类、1 个方法 | API 路由分支 |
+| `server/_records.py` | 204 | 1 个 mixin 类、3 个方法 | 导入、自动归类和集合搬运 |
+| `server/_generation.py` | 226 | 1 个 mixin 类、2 个方法 | 旧式 AI 请求与工作站/稿件生成 |
+| `server/_handler.py` | 22 | `Handler` 组合类 + `serve`；2 个类属性 | 组合 18 个继承方法并创建 HTTP server |
+
+P3 将原 `Handler` 的 18 个方法按 AST 原样移入基础类与三个 mixin，`serve` 函数体保持不变；公开入口仍导出 `MAX_BODY`、`Handler`、`serve`，并将 `server.ai` 指向同一个 `novelhelper.ai` 模块以兼容现有 monkeypatch。`app/selftest.py` 67 项和 `scripts/smoke_test.py` 15 项均通过。

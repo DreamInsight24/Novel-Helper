@@ -12,7 +12,7 @@
 
 ## 2. 目标包结构
 
-以下为 v2610.2 任务 1 的结构；P0 基线、P1 `store` 包迁移和 P2 `project` 包迁移已完成并通过本地回归，P3 `server` 包迁移尚未开始。A 的详细计划暂存于项目外；基线、拆分粒度、迁移映射和历史追踪证据见 `docs/restructure/`。
+以下为 v2610.2 任务 1 的结构；P0 基线以及 P1 `store`、P2 `project`、P3 `server` 包迁移均已完成并通过本地回归。A 的详细计划暂存于项目外；基线、拆分粒度、迁移映射和历史追踪证据见 `docs/restructure/`。
 
 ```
 app/novelhelper/
@@ -37,6 +37,14 @@ app/novelhelper/
     _outputs.py        # 正文、计划、转换文件与章节列表
     _browse.py         # 导入源、工作区列表与磁盘浏览
   server/              # HTTP 生命周期、API 路由与请求编排
+    __init__.py        # 保持 novelhelper.server 公共 API
+    _state.py          # 请求体上限、生成锁与共享状态
+    _helpers.py        # API 就绪、surface 校验、选择与 JSON 助手
+    _base.py           # HTTP 基础响应、分派、异常边界和静态资源
+    _api.py            # API 路由 mixin
+    _records.py        # 导入、自动归类和集合搬运 mixin
+    _generation.py     # AI 与工作站生成 mixin
+    _handler.py        # Handler 组合及 serve 生命周期
   ai.py                # 模型 API 适配，保持独立模块
   context.py           # 模型上下文组装，保持独立模块
   elements.py          # 设定元素树，保持独立模块
@@ -50,7 +58,7 @@ app/novelhelper/
 
 ### 现状与配置交接（P0）
 
-- 当前 `store` 与 `project` 已拆成同名包；`server.py` 仍为单文件，尚未迁移。
+- 当前 `store`、`project` 与 `server` 均已拆成同名包，并保留旧包级导入入口。
 - 当前本地用户配置文件为 `store.DATA_DIR / "config.json"`；默认源码路径为 `app/data/config.json`，`app/run.py --debug` 默认路径为 `app/debug/data/config.json`。运行时环境变量可改变数据目录，详见 P0 计划中的路径矩阵。
 - 读写入口分别是 `store.load("config")` 和 `store.save("config", config)`；缺失/空白文件返回默认配置。非法 JSON 或非 UTF-8 目前会引发 `RuntimeError`。任务 1 保持该行为；任务 2 按 K2 处理损坏配置的备份和日志，不另建语言配置文件。
 - `config.paths.data_dir` 当前未参与 `DATA_DIR` 路径计算；不应将其误当成用户数据迁移开关。
@@ -71,10 +79,10 @@ app/novelhelper/
 |---|---|---|---|
 | `store` | JSON 读写、默认数据、旧数据迁移、路径和备份 | `prompts`、`providers`、`elements`；包内按私有模块分层 | P1 已实施；接口见 `docs/api/store.md` |
 | `project` | 工作区文件、导入/导出与文本处理 | `store`、`elements`、`context`；包内按私有模块分层 | P2 已实施；接口见 `docs/api/project.md` |
-| `server` | HTTP 服务、静态资源和 API 编排 | `ai`、`context`、`history`、`logger`、`project`、`store` 等 | P3 待实施 |
+| `server` | HTTP 服务、静态资源和 API 编排 | `ai`、`context`、`history`、`logger`、`project`、`store` 等 | P3 已实施；接口见 `docs/api/server.md` |
 | `ai`、`context`、`elements`、`history`、`logger`、`prompts`、`providers` | 保留职责相对单一的模块，作为根包公开模块 | 依具体模块而定；依赖方向以迁移计划为准 | 计划保留 |
 
-`store` 与 `project` 已有接口说明；`server` 仍为计划态，不得标成完成态。P1/P2 包内依赖如下；私有实现不反向导入所属包的 `__init__`：
+`store`、`project` 与 `server` 均有接口说明。P1-P3 包内依赖如下；私有实现不反向导入所属包的 `__init__`：
 
 | 模块 | 依赖 |
 |---|---|
@@ -100,6 +108,19 @@ app/novelhelper/
 | `_outputs` | `_paths`、`_text`、`store` |
 | `_browse` | `_paths`、`store` |
 | `__init__` | 汇总导出，不承载业务实现 |
+
+`server` 内部依赖：
+
+| 模块 | 依赖 |
+|---|---|
+| `_state` | `threading` |
+| `_helpers` | `ai`、`context` |
+| `_base` | `_helpers`、`_state`、`ai`、`logger`、`store` |
+| `_api` | `_helpers`、`_state`、`ai`、`context`、`history`、`logger`、`project`、`prompts`、`providers`、`store` |
+| `_records` | `elements`、`logger`、`project`、`store` |
+| `_generation` | `_helpers`、`_state`、`ai`、`context`、`history`、`logger`、`project`、`prompts`、`providers`、`store` |
+| `_handler` | `_api`、`_base`、`_generation`、`_records`、`store` |
+| `__init__` | `_handler`、`_state`；保留 `ai` 模块属性兼容 |
 
 ## 4. 豁免清单
 
@@ -142,7 +163,7 @@ app/novelhelper/
 | `app/novelhelper/storage.py` | `app/novelhelper/storage/__init__.py` | JSON 存储拆分为包 | #12 |
 -->
 
-P1 将 `app/novelhelper/store.py` 拆分为 `store/` 包，原公共接口由 `store/__init__.py` re-export；P2 将 `app/novelhelper/project.py` 拆分为 `project/` 包，原公共接口由 `project/__init__.py` re-export。两阶段只调整代码组织与包内相对导入层级，没有修改持久化或项目文件操作逻辑；详细映射见 `docs/restructure/migration-map.md`。P3 server 完成后再追加记录。
+P1 将 `app/novelhelper/store.py` 拆分为 `store/` 包，原公共接口由 `store/__init__.py` re-export；P2 将 `app/novelhelper/project.py` 拆分为 `project/` 包，原公共接口由 `project/__init__.py` re-export；P3 将 `app/novelhelper/server.py` 拆分为 `server/` 包，保留 `MAX_BODY`、`Handler`、`serve` 与 `server.ai` 兼容属性。三阶段仅调整代码组织和包内依赖边界，没有修改原业务处理流程；详细映射见 `docs/restructure/migration-map.md`。
 
 ## 8. 变更流程
 
