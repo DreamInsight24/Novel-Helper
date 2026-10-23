@@ -12,12 +12,21 @@
 
 ## 2. 目标包结构
 
-以下为 v2610.2 任务 1 的计划结构；负责人已批准进入 P0。P0 review 通过前不迁移 `store` 或其他业务代码。A 的本地详细计划暂存于项目外；P0 的符号、拆分粒度、迁移映射和历史追踪证据见 `docs/restructure/`。
+以下为 v2610.2 任务 1 的结构；P0 基线已完成，P1 `store` 包迁移已实施并通过本地回归。`project` 与 `server` 仍按后续阶段处理。A 的详细计划暂存于项目外；基线、拆分粒度、迁移映射和历史追踪证据见 `docs/restructure/`。
 
 ```
 app/novelhelper/
   __init__.py          # 版本/模块公开入口
   store/               # JSON 数据、默认值、迁移、工作区路径与备份
+    __init__.py        # 保持 novelhelper.store 公共 API
+    _paths.py          # 路径锚点与集合常量
+    _names.py          # ID/栏目名称助手
+    _defaults.py       # 默认配置与集合
+    _repository.py     # JSON 读写与记录清理
+    _directories.py   # 从配置解析工作区/日志目录
+    _bootstrap.py      # 初始化与既有配置迁移
+    _collections.py    # 集合枚举/schema 查询
+    _backup.py         # 数据备份
   project/             # 导入导出、文本处理、稿件与文件操作
   server/              # HTTP 生命周期、API 路由与请求编排
   ai.py                # 模型 API 适配，保持独立模块
@@ -33,7 +42,7 @@ app/novelhelper/
 
 ### 现状与配置交接（P0）
 
-- 当前源码仍使用 `store.py`、`project.py`、`server.py` 单文件；上述包结构仅为计划，不表示代码迁移已完成。
+- 当前 `store` 已拆成同名包；`project.py`、`server.py` 仍为单文件，尚未迁移。
 - 当前本地用户配置文件为 `store.DATA_DIR / "config.json"`；默认源码路径为 `app/data/config.json`，`app/run.py --debug` 默认路径为 `app/debug/data/config.json`。运行时环境变量可改变数据目录，详见 P0 计划中的路径矩阵。
 - 读写入口分别是 `store.load("config")` 和 `store.save("config", config)`；缺失/空白文件返回默认配置。非法 JSON 或非 UTF-8 目前会引发 `RuntimeError`。任务 1 保持该行为；任务 2 按 K2 处理损坏配置的备份和日志，不另建语言配置文件。
 - `config.paths.data_dir` 当前未参与 `DATA_DIR` 路径计算；不应将其误当成用户数据迁移开关。
@@ -52,12 +61,24 @@ app/novelhelper/
 
 | 包/模块 | 计划职责 | 主要依赖 | 状态 |
 |---|---|---|---|
-| `store` | JSON 读写、默认数据、旧数据迁移、路径和备份 | `prompts`、`providers`、`elements`；包内按私有模块拆分 | 计划中，待 P0 review |
+| `store` | JSON 读写、默认数据、旧数据迁移、路径和备份 | `prompts`、`providers`、`elements`；包内按私有模块分层 | P1 已实施；接口见 `docs/api/store.md` |
 | `project` | 工作区文件、导入/导出与文本处理 | `store`、`elements`、`context` | 计划中，待 P0 review |
 | `server` | HTTP 服务、静态资源和 API 编排 | `ai`、`context`、`history`、`logger`、`project`、`store` 等 | 计划中，待 P0 review |
 | `ai`、`context`、`elements`、`history`、`logger`、`prompts`、`providers` | 保留职责相对单一的模块，作为根包公开模块 | 依具体模块而定；依赖方向以迁移计划为准 | 计划保留 |
 
-正式迁移完成后，在本表补充实际 `__all__` 接口文档与依赖检查结果；不得把计划态标成完成态。
+`store` 已有接口说明；`project`、`server` 仍为计划态，不得标成完成态。P1 包内依赖如下；私有实现不反向导入 `store.__init__`：
+
+| 模块 | 依赖 |
+|---|---|
+| `_paths` | 无 |
+| `_names` | `_paths` |
+| `_defaults` | `_names`、`_paths`、`prompts`、`providers` |
+| `_repository` | `_defaults`、`_names`、`_paths`、`elements` |
+| `_directories` | `_paths`、`_repository` |
+| `_collections` | `_names`、`_paths`、`_repository` |
+| `_bootstrap` | `_defaults`、`_directories`、`_paths`、`_repository`、`prompts`、`providers` |
+| `_backup` | `_collections`、`_directories`、`_names`、`_repository` |
+| `__init__` | 汇总导出，不承载业务实现 |
 
 ## 4. 豁免清单
 
@@ -100,7 +121,7 @@ app/novelhelper/
 | `app/novelhelper/storage.py` | `app/novelhelper/storage/__init__.py` | JSON 存储拆分为包 | #12 |
 -->
 
-任务 1 执行时按批次补充。P0 当前冻结的总体映射与待评审粒度见 `docs/restructure/`；代码实际迁移完成后，在此记录每批旧路径 → 新路径及 PR。
+P1 将 `app/novelhelper/store.py` 拆分为 `store/` 包：路径/名称、默认值、JSON 仓库、配置目录、初始化迁移、集合查询和备份分别位于对应私有模块，原公共接口由 `store/__init__.py` re-export；详细映射见 `docs/restructure/migration-map.md`。该阶段尚未合并，PR 编号待定。后续 P2/P3 完成后再分别追加记录。
 
 ## 8. 变更流程
 
