@@ -218,6 +218,8 @@ def main() -> int:
           "测试地图" in map_user and "测试城" in map_user and "临海城市" not in map_user)
 
     # ── 2. 历史指针 ───────────────────────────
+    check("历史标题公共入口保留原生成规则",
+          history.title_from_prompt("  测试   标题 ", "outline") == "测试 标题")
     session = history.create_session("测试会话", "outline")
     compact = {
         "include": selection["include"],
