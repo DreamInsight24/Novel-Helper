@@ -123,3 +123,12 @@ P2 的 43 个顶层定义/常量与 `pre-refactor-store` AST 对照一致；比�
 | `server/_handler.py` | 22 | `Handler` 组合类 + `serve`；2 个类属性 | 组合 18 个继承方法并创建 HTTP server |
 
 P3 将原 `Handler` 的 18 个方法按 AST 原样移入基础类与三个 mixin，`serve` 函数体保持不变；公开入口仍导出 `MAX_BODY`、`Handler`、`serve`，并将 `server.ai` 指向同一个 `novelhelper.ai` 模块以兼容现有 monkeypatch。`app/selftest.py` 67 项和 `scripts/smoke_test.py` 15 项均通过。
+
+## 9. P4 版本入口迁移后的实测规模
+
+| 实际文件 | 实测行数 | 顶层定义/常量 | 对应职责 |
+|---|---:|---|---|
+| `novelhelper/__init__.py` | 11 | `__version__`、`APP_VERSION` re-export；原 `__all__` | 根包兼容入口 |
+| `novelhelper/_version.py` | 4 | 2 个版本常量 | 集中定义包版本值 |
+
+P4 保持 `__version__ == "2610.1"`、`APP_VERSION == "v2610.1"` 及 `novelhelper.__all__` 原值；新增自检验证根包别名与版本模块一致。
