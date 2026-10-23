@@ -12,11 +12,12 @@
 
 ## 2. 目标包结构
 
-以下为 v2610.2 任务 1 的结构；P0 基线以及 P1 `store`、P2 `project`、P3 `server` 包迁移均已完成并通过本地回归。A 的详细计划暂存于项目外；基线、拆分粒度、迁移映射和历史追踪证据见 `docs/restructure/`。
+以下为 v2610.2 任务 1 的结构；P0 基线以及 P1 `store`、P2 `project`、P3 `server` 包迁移和 P4 版本常量提取均已完成并通过本地回归。A 的详细计划暂存于项目外；基线、拆分粒度、迁移映射和历史追踪证据见 `docs/restructure/`。
 
 ```
 app/novelhelper/
-  __init__.py          # 版本/模块公开入口
+  __init__.py          # 版本/模块公开入口（兼容导出）
+  _version.py          # 集中定义包版本常量
   store/               # JSON 数据、默认值、迁移、工作区路径与备份
     __init__.py        # 保持 novelhelper.store 公共 API
     _paths.py          # 路径锚点与集合常量
@@ -163,7 +164,7 @@ app/novelhelper/
 | `app/novelhelper/storage.py` | `app/novelhelper/storage/__init__.py` | JSON 存储拆分为包 | #12 |
 -->
 
-P1 将 `app/novelhelper/store.py` 拆分为 `store/` 包，原公共接口由 `store/__init__.py` re-export；P2 将 `app/novelhelper/project.py` 拆分为 `project/` 包，原公共接口由 `project/__init__.py` re-export；P3 将 `app/novelhelper/server.py` 拆分为 `server/` 包，保留 `MAX_BODY`、`Handler`、`serve` 与 `server.ai` 兼容属性。三阶段仅调整代码组织和包内依赖边界，没有修改原业务处理流程；详细映射见 `docs/restructure/migration-map.md`。
+P1 将 `app/novelhelper/store.py` 拆分为 `store/` 包，原公共接口由 `store/__init__.py` re-export；P2 将 `app/novelhelper/project.py` 拆分为 `project/` 包，原公共接口由 `project/__init__.py` re-export；P3 将 `app/novelhelper/server.py` 拆分为 `server/` 包，保留 `MAX_BODY`、`Handler`、`serve` 与 `server.ai` 兼容属性；P4 将版本常量集中到 `_version.py`，由根 `__init__.py` 兼容导出。以上阶段仅调整代码组织和包内依赖边界，没有修改原业务处理流程；详细映射见 `docs/restructure/migration-map.md`。
 
 ## 8. 变更流程
 
