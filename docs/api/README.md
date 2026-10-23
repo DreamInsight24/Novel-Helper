@@ -9,8 +9,9 @@
 | `novelhelper.store` | 本地 JSON 数据、默认值、运行路径、初始化迁移与备份 | [store API](store.md) |
 | `novelhelper.project` | 工作区路径、导入导出、稿件输出、文本处理与文件浏览 | [project API](project.md) |
 | `novelhelper.server` | 本地 HTTP 服务、请求处理器与服务生命周期 | [server API](server.md) |
+| `novelhelper.localization` | 配置驱动的翻译表、取词、语言上下文与校验 | [localization API](i18n.md) |
 
-以上三个包在 `__init__.py` 中显式声明 `__all__`。`server.ai` 仍作为兼容属性指向 `novelhelper.ai`，但不属于 `server.__all__`。
+以上包在 `__init__.py` 中显式声明 `__all__`。`server.ai` 仍作为兼容属性指向 `novelhelper.ai`，但不属于 `server.__all__`。
 
 ## 根包入口与保留模块
 

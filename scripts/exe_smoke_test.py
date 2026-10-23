@@ -162,9 +162,16 @@ def run(exe: Path) -> None:
 
                 status, home = request(app_base, "/")
                 check(f"EXE launch {launch} serves homepage", status == 200 and b"<!doctype html>" in home.lower())
-                for asset in ("/core.js", "/workstation.js", "/style.css"):
+                for asset in ("/core.js", "/workstation.js", "/style.css", "/i18n/i18n.js",
+                              "/i18n/bootstrap.js", "/i18n/example.html"):
                     asset_status, asset_body = request(app_base, asset)
                     check(f"EXE launch {launch} serves {asset}", asset_status == 200 and bool(asset_body))
+
+                status, languages = json_request(app_base, "/api/i18n")
+                check("EXE language configuration", status == 200 and bool(languages.get("languages")))
+                for lang, expected in (("zh-CN", "保存"), ("en-US", "Save")):
+                    status, catalog = json_request(app_base, "/api/i18n/" + lang)
+                    check("EXE catalog " + lang, status == 200 and catalog["messages"]["common.save"] == expected)
 
                 status, state = json_request(app_base, "/api/state")
                 check(f"EXE launch {launch} API reports EXE-local data directory",

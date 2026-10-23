@@ -5,17 +5,17 @@
 // 元素模板
 // ═══════════════════════════════════════════
 const SCHEMA_KEYS = [
-  ['characters', '人物档案'],
-  ['factions', '势力设定'],
-  ['items', '道具设定'],
-  ['equipment', '服饰与装备'],
-  ['other', '其他设定']
+  ['characters', i18n.t('nav.characters')],
+  ['factions', i18n.t('nav.factions')],
+  ['items', i18n.t('nav.items')],
+  ['equipment', i18n.t('nav.equipment')],
+  ['other', i18n.t('nav.other')]
 ];
 
 /** 元素模板页的可选集合 = 内置 5 个 + 所有自定义栏目。 */
 function schemaKeyChoices() {
   return SCHEMA_KEYS.concat(sectionDefs(true).map(sec =>
-    ['section_' + sec.key, (sec.label || sec.key) + (sec.on === false ? '（已停用）' : '')]));
+    ['section_' + sec.key, sec.on === false ? i18n.t('common.disabled_name', {name: sec.label || sec.key}) : (sec.label || sec.key)]));
 }
 
 function viewElements(main) {
@@ -25,25 +25,24 @@ function viewElements(main) {
   const entry = state.db.schema[ui.key] = state.db.schema[ui.key] || { label: '', elements: [] };
   entry.elements = entry.elements || [];
 
-  main.appendChild(pageHead('元素模板',
-    '定义每类设定「默认包含哪些元素」。新建条目时会按模板生成；已有条目可以点「套用模板补齐」。' +
-    '取消勾选表示默认不需要这个元素，导出与发送时会忽略。',
+  main.appendChild(pageHead(i18n.t('nav.elements'),
+    i18n.t('elements.page_desc'),
     h('div', { class: 'inline' },
       h('button', {
-        text: '应用到全部记录',
+        text: i18n.t('elements.apply_to_all'),
         onclick: () => {
           const coll = ui.key;
           const items = collItems(coll);
-          if (!items.length) { toast('该集合还没有记录。', 'err'); return; }
-          if (!confirm('给「' + coll + '」的 ' + items.length + ' 条记录补齐模板元素？（不覆盖已填内容）')) return;
+          if (!items.length) { toast(i18n.t('elements.no_records'), 'err'); return; }
+          if (!confirm(i18n.t('elements.apply_confirm', { collection: coll, count: items.length }))) return;
           let total = 0;
           items.forEach(rec => { rec.elements = rec.elements || []; total += applyPreset(rec.elements, entry.elements); });
           touch(coll);
-          toast('共补充 ' + total + ' 个元素', 'ok');
+          toast(i18n.t('elements.applied_count', { count: total }), 'ok');
         }
       }),
       h('button', {
-        text: '导出模板 JSON',
+        text: i18n.t('elements.export_json'),
         onclick: async () => {
           try {
             await saveNow('schema');
@@ -52,21 +51,21 @@ function viewElements(main) {
               method: 'POST',
               body: { path: (state.paths.export || 'workspace/export') + '\\schema_' + ui.key + '.json', content: blob }
             });
-            toast('已导出：' + res.path, 'ok');
-          } catch (e) { toast('导出失败：' + e.message, 'err'); }
+            toast(i18n.t('common.exported_to', { path: res.path }), 'ok');
+          } catch (e) { toast(i18n.t('common.export_failed_reason', { reason: e.message }), 'err'); }
         }
       }))));
 
   const card = h('div', { class: 'card' });
   card.appendChild(h('div', { class: 'field' },
-    h('label', { text: '编辑哪个集合的模板' }),
+    h('label', { text: i18n.t('elements.edit_which') }),
     h('select', {
       onchange: e => { ui.key = e.target.value; renderMain(); }
     }, schemaKeyChoices().map(([v, l]) => h('option', { value: v, selected: v === ui.key, text: l })))));
 
   card.appendChild(h('div', { class: 'sep' }));
   card.appendChild(h('div', { class: 'small muted', style: { marginBottom: '8px' } },
-    '提示：在名称末尾加 / 可以建立「分组」，分组可以继续往下分（子集的子集）。'));
+    i18n.t('elements.group_hint')));
   card.appendChild(elementTree(entry.elements, 'schema', {
     hideValues: true,
     onChange: () => { entry.label = entry.label || ''; }
@@ -74,12 +73,9 @@ function viewElements(main) {
   main.appendChild(card);
 
   const help = h('div', { class: 'card' });
-  help.appendChild(h('h2', null, '元素是怎么影响输出与 JSON 的'));
+  help.appendChild(h('h2', null, i18n.t('elements.help_title')));
   help.appendChild(h('div', { class: 'md', html: md(
-    '- 勾选的元素 + 有内容的元素 → 才会出现在**发送给模型**的提示词和**导出的 JSON / TXT**里。\n' +
-    '- 取消勾选（或留空）的元素不会出现，导出的 JSON 里不会有这个键，也不会留下空行。\n' +
-    '- 元素名称随便改：改成「外貌」「战斗能力」都行，改动只影响之后导出与发送的标题。\n' +
-    '- 想让所有人物都自带某组元素：在这里加好，然后点「应用到全部记录」。'
+    i18n.t('elements.help')
   ) }));
   main.appendChild(help);
 }
@@ -95,43 +91,43 @@ function viewSections(main) {
   state.db.sections = state.db.sections || { items: [] };
   const defs = state.db.sections.items = state.db.sections.items || [];
 
-  main.appendChild(pageHead('自定义栏目',
-    '把设定拆成若干栏目（世界观、物种、魔法与技能……）。新增栏目会在侧栏多一个页面，并在 data/ 下生成独立 JSON。',
+  main.appendChild(pageHead(i18n.t('nav.sections'),
+    i18n.t('sections.page_desc'),
     h('div', { class: 'inline' },
       h('button', {
-        class: 'primary', text: '＋ 新增栏目',
+        class: 'primary', text: i18n.t('sections.add'),
         onclick: () => {
-          const label = prompt('栏目名称（例如：政治格局 / 军事 / 民俗）');
+          const label = prompt(i18n.t('sections.name_prompt'));
           if (!label) return;
-          let key = (prompt('英文 key（用于文件名，字母数字下划线，例如 politics）') || '').trim().toLowerCase();
+          let key = (prompt(i18n.t('sections.key_prompt')) || '').trim().toLowerCase();
           if (!/^[a-z][a-z0-9_]*$/.test(key)) {
             key = 'sec' + Math.random().toString(36).slice(2, 6);
-            toast('key 不合法，已自动用 ' + key, 'err');
+            toast(i18n.t('sections.key_invalid', { key: key }), 'err');
           }
-          if (defs.some(s => s.key === key)) { toast('这个 key 已经存在。', 'err'); return; }
+          if (defs.some(s => s.key === key)) { toast(i18n.t('sections.key_exists'), 'err'); return; }
           defs.push({ key, label, desc: '', auto_from: [], on: true });
           touch('sections'); renderNav(); renderMain();
         }
       }),
       h('button', {
-        text: '按分类一键归类',
-        title: '把「其他设定」里的内容按下面的「归类依据」搬进对应栏目',
+        text: i18n.t('sections.auto_sort'),
+        title: i18n.t('sections.auto_sort_title'),
         onclick: async ev => {
           ev.target.disabled = true;
-          status('归类中…', 'busy');
+          status(i18n.t('common.sorting'), 'busy');
           try {
             const res = await api('/api/sections/auto-sort', { method: 'POST', body: {} });
             setDb(res.collections);
             toast(res.message, 'ok');
             renderNav(); renderMain();
-          } catch (e) { toast('归类失败：' + e.message, 'err'); }
+          } catch (e) { toast(i18n.t('sections.sort_failed_reason', { reason: e.message }), 'err'); }
           finally { ev.target.disabled = false; }
         }
       }))));
 
   const card = h('div', { class: 'card' });
-  card.appendChild(h('h2', null, '栏目列表', h('span', { class: 'hint', text: '取消勾选＝暂时隐藏（数据不删）' })));
-  if (!defs.length) card.appendChild(h('div', { class: 'muted small', text: '（还没有栏目）' }));
+  card.appendChild(h('h2', null, i18n.t('sections.list_title'), h('span', { class: 'hint', text: i18n.t('sections.hide_hint') })));
+  if (!defs.length) card.appendChild(h('div', { class: 'muted small', text: i18n.t('sections.empty') }));
   defs.forEach((sec, i) => {
     const view = 'section_' + sec.key;
     const count = collItems(view).length;
@@ -141,28 +137,28 @@ function viewSections(main) {
           h('input', {
             type: 'checkbox', checked: sec.on !== false,
             onchange: e => { sec.on = e.target.checked; touch('sections'); renderNav(); renderMain(); }
-          }), '启用'),
+          }), i18n.t('sections.enable')),
         h('div', { class: 'field', style: { marginTop: '6px' } },
-          h('input', { type: 'text', value: sec.label || '', placeholder: '栏目名称', oninput: e => { sec.label = e.target.value; touch('sections'); renderNav(); } })),
-        h('div', { class: 'small muted', text: 'key: ' + sec.key + ' · ' + count + ' 条' })), 
+          h('input', { type: 'text', value: sec.label || '', placeholder: i18n.t('sections.name_placeholder'), oninput: e => { sec.label = e.target.value; touch('sections'); renderNav(); } })),
+        h('div', { class: 'small muted', text: i18n.t('sections.key_count', { key: sec.key, count: count }) })),
       h('div', { class: 'col' },
-        h('div', { class: 'field' }, h('label', { text: '一句话说明（显示在页面标题下）' }),
+        h('div', { class: 'field' }, h('label', { text: i18n.t('sections.desc_label') }),
           h('input', { type: 'text', value: sec.desc || '', oninput: e => { sec.desc = e.target.value; touch('sections'); } })),
-        h('div', { class: 'field' }, h('label', { text: '归类依据（「其他设定」里出现的「原分类」名，用逗号分隔）' }),
+        h('div', { class: 'field' }, h('label', { text: i18n.t('sections.auto_from_label') }),
           h('input', {
             type: 'text', value: (sec.auto_from || []).join('，'),
             oninput: e => { sec.auto_from = e.target.value.split(/[，,、]/).map(s => s.trim()).filter(Boolean); touch('sections'); }
           })),
         h('div', { class: 'inline' },
-          h('button', { class: 'mini', text: '↑', title: '上移', onclick: () => { if (i > 0) { [defs[i - 1], defs[i]] = [defs[i], defs[i - 1]]; touch('sections'); renderNav(); renderMain(); } } }),
-          h('button', { class: 'mini', text: '↓', title: '下移', onclick: () => { if (i < defs.length - 1) { [defs[i + 1], defs[i]] = [defs[i], defs[i + 1]]; touch('sections'); renderNav(); renderMain(); } } }),
+          h('button', { class: 'mini', text: '↑', title: i18n.t('common.move_up'), onclick: () => { if (i > 0) { [defs[i - 1], defs[i]] = [defs[i], defs[i - 1]]; touch('sections'); renderNav(); renderMain(); } } }),
+          h('button', { class: 'mini', text: '↓', title: i18n.t('common.move_down'), onclick: () => { if (i < defs.length - 1) { [defs[i + 1], defs[i]] = [defs[i], defs[i + 1]]; touch('sections'); renderNav(); renderMain(); } } }),
           h('button', {
-            text: '打开这一栏', onclick: () => go(view)
+            text: i18n.t('sections.open'), onclick: () => go(view)
           }),
           h('button', {
-            class: 'danger', text: '删除栏目',
+            class: 'danger', text: i18n.t('sections.delete'),
             onclick: () => {
-              if (!confirm('删除栏目「' + (sec.label || sec.key) + '」？\n界面上的入口会消失，data/section_' + sec.key + '.json 会留在磁盘上（不会删文件）。')) return;
+              if (!confirm(i18n.t('sections.delete_confirm', {label: sec.label || sec.key, key: sec.key}))) return;
               defs.splice(i, 1);
               touch('sections'); renderNav(); renderMain();
             }
@@ -171,12 +167,9 @@ function viewSections(main) {
   main.appendChild(card);
 
   const tip = h('div', { class: 'card' });
-  tip.appendChild(h('h2', null, '说明'));
+  tip.appendChild(h('h2', null, i18n.t('common.help')));
   tip.appendChild(h('div', { class: 'md', html: md(
-    '- 每个栏目就是一个普通设定集合：和「其他设定」一样可以放条目、写元素树、导出 JSON / TXT。\n' +
-    '- 想给栏目配一套默认元素模板：到「元素模板」页，在下拉框里选中这个栏目即可。\n' +
-    '- 「按分类一键归类」会把「其他设定」里分类名匹配的条目搬进对应栏目，原文与来源都保留。\n' +
-    '- 删除栏目只删入口，不动文件；想彻底清掉可以自己删 `data/section_<key>.json`。'
+    i18n.t('sections.help')
   ) }));
   main.appendChild(tip);
 }
@@ -234,22 +227,22 @@ function effortChoices() {
 
 function modeModelOptions(mode) {
   const models = currentModels();
-  const options = [{ value: '', label: '跟随默认模型' + (defaultModelName() ? '（' + defaultModelName() + '）' : '') }];
+  const options = [{ value: '', label: defaultModelName() ? i18n.t('modes.follow_default', {name: defaultModelName()}) : i18n.t('modes.follow_default_empty') }];
   models.forEach(m => options.push({ value: m, label: m }));
   if (mode.model && !models.includes(mode.model)) {
-    options.push({ value: mode.model, label: mode.model + '（不在当前模型列表）' });
+    options.push({ value: mode.model, label: i18n.t('modes.not_in_list', { model: mode.model }) });
   }
   return options;
 }
 
 const MODE_KINDS = [
-  { id: 'write', label: '写稿模式', desc: 'AI 工作站使用' },
-  { id: 'process', label: '稿件处理模式', desc: '稿件处理页使用' }
+  { id: 'write', label: i18n.t('modes.kind_write'), desc: i18n.t('modes.kind_write_desc') },
+  { id: 'process', label: i18n.t('modes.kind_process'), desc: i18n.t('modes.kind_process_desc') }
 ];
 
 function modeKindLabel(kind) {
   const item = MODE_KINDS.find(k => k.id === kind);
-  return item ? item.label : '写稿模式';
+  return item ? item.label : i18n.t('modes.kind_write');
 }
 
 function viewModes(main) {
@@ -269,12 +262,12 @@ function viewModes(main) {
   const models = currentModels();
   const stale = modes.filter(m => m.model && models.length && !models.includes(m.model));
 
-  main.appendChild(pageHead('模式管理',
-    '两类模式分开管理：写稿模式只出现在 AI 工作站，稿件处理模式只出现在稿件处理页。每个模式都是一套独立的系统提示词，并拥有自己的模型与推理强度。',
+  main.appendChild(pageHead(i18n.t('nav.modes'),
+    i18n.t('modes.page_desc'),
     h('div', { class: 'inline' },
       h('button', {
-        text: '同步到当前接口',
-        title: '把所有模式的模型改为跟随当前接口的默认模型，推理强度改为默认值',
+        text: i18n.t('modes.sync_button'),
+        title: i18n.t('modes.sync_title'),
         onclick: () => {
           const api = apiCfg();
           modes.forEach(m => {
@@ -282,11 +275,11 @@ function viewModes(main) {
             m.effort = api.default_effort || 'medium';
           });
           touch('modes'); renderMain();
-          toast('已同步到当前接口的默认模型与推理强度。', 'ok');
+          toast(i18n.t('modes.synced'), 'ok');
         }
       }),
       h('button', {
-        class: 'primary', text: '＋ 新增' + modeKindLabel(ui.kind),
+        class: 'primary', text: i18n.t('modes.add_kind', { kind: modeKindLabel(ui.kind) }),
         onclick: () => addModeDialog(ui.kind)
       }))));
 
@@ -305,8 +298,8 @@ function viewModes(main) {
 
   if (stale.length) {
     main.appendChild(h('div', { class: 'notice warn' },
-      h('span', { text: '有 ' + stale.length + ' 个模式使用了当前接口不存在的模型，生成时会回退到默认模型。' }),
-      h('button', { class: 'mini', text: '一键同步', onclick: () => {
+      h('span', { text: i18n.t('modes.stale_warning', { count: stale.length }) }),
+      h('button', { class: 'mini', text: i18n.t('modes.sync_one'), onclick: () => {
         const api = apiCfg();
         modes.forEach(m => { m.model = ''; m.effort = api.default_effort || 'medium'; });
         touch('modes'); renderMain();
@@ -314,7 +307,7 @@ function viewModes(main) {
   }
   if (!models.length) {
     main.appendChild(h('div', { class: 'notice warn',
-      text: '当前接口还没有模型列表。请先到「模型设置」获取或手动填写模型，否则模式无法生成。' }));
+      text: i18n.t('modes.no_models') }));
   }
 
   const row = h('div', { class: 'row' });
@@ -327,12 +320,12 @@ function viewModes(main) {
     clear(left);
     const visible = listModes();
     const card = h('div', { class: 'card' },
-      h('h2', null, modeKindLabel(ui.kind) + '列表', h('span', { class: 'hint', text: visible.length + ' 个' })));
+      h('h2', null, i18n.t('modes.list_title', { kind: modeKindLabel(ui.kind) }), h('span', { class: 'hint', text: i18n.t('modes.count', { count: visible.length }) })));
     if (!visible.length) {
       card.appendChild(h('div', { class: 'muted small', style: { marginBottom: '10px' } },
-        '这一组还没有模式。可以新增一个，或把另一组的模式用途改到这里。'));
+        i18n.t('modes.group_empty')));
       card.appendChild(h('button', {
-        class: 'primary', text: '＋ 新增' + modeKindLabel(ui.kind),
+        class: 'primary', text: i18n.t('modes.add_kind', { kind: modeKindLabel(ui.kind) }),
         onclick: () => addModeDialog(ui.kind)
       }));
     } else {
@@ -343,7 +336,7 @@ function viewModes(main) {
           onclick: () => { ui.sel = mode.id; drawList(); drawEditor(); }
         },
           h('div', { class: 'name', text: mode.label || mode.id }),
-          h('div', { class: 'meta', text: (mode.model || '默认模型') + ' · ' + (mode.effort || 'medium') })));
+          h('div', { class: 'meta', text: (mode.model || i18n.t('settings.default_model_label')) + ' · ' + (mode.effort || 'medium') })));
       });
       card.appendChild(list);
     }
@@ -354,24 +347,24 @@ function viewModes(main) {
     clear(right);
     const mode = modes.find(m => m.id === ui.sel);
     if (!mode) {
-      right.appendChild(h('div', { class: 'card muted', text: '左侧选择一个模式，或新增模式。' }));
+      right.appendChild(h('div', { class: 'card muted', text: i18n.t('modes.pick_hint') }));
       return;
     }
     const card = h('div', { class: 'card' });
     card.appendChild(h('h2', null, mode.label || mode.id,
-      h('span', { class: 'hint', text: '自动保存；模型与推理放在最上面' })));
+      h('span', { class: 'hint', text: i18n.t('modes.autosave_hint') })));
 
     // 模型与推理强度：放在模式编辑器顶部
     const modelRow = h('div', { class: 'mode-settings-top' });
     modelRow.appendChild(h('div', { class: 'field' },
-      h('label', { text: '模型' }),
+      h('label', { text: i18n.t('modes.model_label') }),
       h('select', {
         onchange: e => { mode.model = e.target.value; touch('modes'); drawList(); }
       }, modeModelOptions(mode).map(opt => h('option', {
         value: opt.value, text: opt.label, selected: opt.value === (mode.model || '')
       })))));
     modelRow.appendChild(h('div', { class: 'field' },
-      h('label', { text: '推理强度' }),
+      h('label', { text: i18n.t('modes.effort_label') }),
       h('select', {
         onchange: e => { mode.effort = e.target.value; touch('modes'); drawList(); }
       }, effortChoices().map(value => h('option', {
@@ -379,13 +372,13 @@ function viewModes(main) {
       })))));
     card.appendChild(modelRow);
     card.appendChild(h('div', { class: 'small muted', style: { marginBottom: '10px' } },
-      '模型选项来自当前接口的模型列表；选择「跟随默认模型」时会自动使用上面的默认模型。'));
+      i18n.t('modes.model_hint')));
 
     card.appendChild(h('div', { class: 'field' },
-      h('label', { text: '模式名称' }),
+      h('label', { text: i18n.t('modes.name_label') }),
       h('input', { type: 'text', value: mode.label || '', oninput: e => { mode.label = e.target.value; touch('modes'); drawList(); } })));
     card.appendChild(h('div', { class: 'field' },
-      h('label', { text: '用途' }),
+      h('label', { text: i18n.t('modes.kind_label') }),
       h('select', {
         onchange: e => {
           mode.kind = e.target.value === 'process' ? 'process' : 'write';
@@ -400,22 +393,22 @@ function viewModes(main) {
         selected: modeKind(mode) === kind.id
       })))));
     card.appendChild(h('div', { class: 'small muted', style: { marginBottom: '10px' } },
-      '写稿模式只出现在 AI 工作站；稿件处理模式只出现在稿件处理页。切换用途后，模式会立刻移到对应分组。'));
+      i18n.t('modes.kind_hint')));
     card.appendChild(h('div', { class: 'field' },
-      h('label', { text: '一句话说明' }),
+      h('label', { text: i18n.t('common.one_line_desc') }),
       h('input', { type: 'text', value: mode.desc || '', oninput: e => { mode.desc = e.target.value; touch('modes'); } })));
 
     const advanced = h('details', { class: 'input-details' });
-    advanced.appendChild(h('summary', null, '高级参数'));
+    advanced.appendChild(h('summary', null, i18n.t('modes.advanced')));
     advanced.appendChild(h('div', { class: 'inline' },
       h('div', { class: 'field' }, h('label', { text: 'max_tokens' }),
         h('input', { type: 'number', value: mode.max_tokens || 32768, oninput: e => { mode.max_tokens = Number(e.target.value) || 32768; touch('modes'); } })),
       h('div', { class: 'field' }, h('label', { text: 'top_p' }),
         h('input', { type: 'number', step: '0.05', value: mode.top_p == null ? 0.95 : mode.top_p, oninput: e => { mode.top_p = Number(e.target.value) || 0.95; touch('modes'); } })),
-      h('div', { class: 'field' }, h('label', { text: 'temperature（可留空）' }),
+      h('div', { class: 'field' }, h('label', { text: i18n.t('modes.temp_label') }),
         h('input', {
           type: 'number', step: '0.05', value: mode.temperature == null ? '' : mode.temperature,
-          placeholder: '接口默认',
+          placeholder: i18n.t('modes.api_default'),
           oninput: e => {
             const v = e.target.value.trim();
             const n = Number(v);
@@ -425,34 +418,35 @@ function viewModes(main) {
         })),
       h('label', { class: 'check' },
         h('input', { type: 'checkbox', checked: !!mode.thinking, onchange: e => { mode.thinking = e.target.checked; touch('modes'); } }),
-        '发送 thinking 参数（仅部分接口支持）'),
+        i18n.t('modes.thinking_option')),
       modeKind(mode) === 'write' ? h('label', { class: 'check' },
         h('input', {
           type: 'checkbox', checked: mode.use_target_chars !== false,
           onchange: e => { mode.use_target_chars = e.target.checked; touch('modes'); }
         }),
-        '拼装目标字数') : null));
+        i18n.t('modes.target_chars_option')) : null));
     card.appendChild(advanced);
     card.appendChild(h('div', { class: 'small muted', style: { marginBottom: '10px' } },
       modeKind(mode) === 'process'
-        ? '稿件处理模式不拼装目标字数；如需要长度约束，请写进「处理要求」。'
-        : '字数设置只对写稿模式生效；稿件处理模式不拼装目标字数。'));
+        ? i18n.t('modes.target_chars_process_hint')
+        : i18n.t('modes.target_chars_write_hint')));
 
     card.appendChild(h('div', { class: 'field', style: { marginTop: '10px' } },
-      h('label', { text: '系统提示词（这个模式的核心内容）' }),
+      h('label', { text: i18n.t('modes.system_prompt_label') }),
+      h('div', {class: 'small muted', text: i18n.t('common.default_content')}),
       h('textarea', {
         rows: 22, value: mode.system_prompt || '',
         oninput: e => { mode.system_prompt = e.target.value; touch('modes'); autoGrow(e.target); }
       })));
-    card.appendChild(h('div', { class: 'small muted', text: '提示词保存后立即用于该模式；不再有旧版的提示词分组或工具说明。' }));
+    card.appendChild(h('div', { class: 'small muted', text: i18n.t('modes.prompt_saved_hint') }));
 
     card.appendChild(h('div', { class: 'inline', style: { marginTop: '10px' } },
       h('button', {
-        text: '恢复内置提示词',
+        text: i18n.t('modes.restore_builtin'),
         onclick: () => {
           const def = defaultModeFor(mode.id);
-          if (!def) { toast('这是自定义模式，没有内置版本。', 'err'); return; }
-          if (!confirm('恢复「' + (def.label || def.id) + '」的内置系统提示词与默认参数？')) return;
+          if (!def) { toast(i18n.t('modes.no_builtin'), 'err'); return; }
+          if (!confirm(i18n.t('modes.restore_confirm', { label: def.label || def.id }))) return;
           mode.kind = modeKind(def);
           mode.system_prompt = def.system_prompt;
           mode.effort = def.effort;
@@ -463,18 +457,18 @@ function viewModes(main) {
           mode.use_target_chars = def.use_target_chars;
           ui.kind = mode.kind;
           ui.sel = mode.id;
-          touch('modes'); renderMain(); toast('已恢复内置设置', 'ok');
+          touch('modes'); renderMain(); toast(i18n.t('modes.restored'), 'ok');
         }
       }),
       h('button', {
-        text: '↑', title: '上移',
+        text: '↑', title: i18n.t('common.move_up'),
         onclick: () => {
           const i = modes.indexOf(mode);
           if (i > 0) { [modes[i - 1], modes[i]] = [modes[i], modes[i - 1]]; touch('modes'); renderMain(); }
         }
       }),
       h('button', {
-        text: '↓', title: '下移',
+        text: '↓', title: i18n.t('common.move_down'),
         onclick: () => {
           const i = modes.indexOf(mode);
           if (i >= 0 && i < modes.length - 1) { [modes[i + 1], modes[i]] = [modes[i], modes[i + 1]]; touch('modes'); renderMain(); }
@@ -482,14 +476,14 @@ function viewModes(main) {
       }),
       h('span', { style: { flex: '1' } }),
       h('button', {
-        class: 'danger', text: '删除模式',
+        class: 'danger', text: i18n.t('modes.delete'),
         onclick: () => {
-          if (modes.length <= 1) { toast('至少保留一个模式。', 'err'); return; }
-          if (!confirm('删除模式「' + (mode.label || mode.id) + '」？')) return;
+          if (modes.length <= 1) { toast(i18n.t('modes.keep_one'), 'err'); return; }
+          if (!confirm(i18n.t('modes.delete_confirm', { label: mode.label || mode.id }))) return;
           modes.splice(modes.indexOf(mode), 1);
           const remaining = listModes();
           ui.sel = remaining.length ? remaining[0].id : '';
-          touch('modes'); renderMain(); toast('已删除模式', 'ok');
+          touch('modes'); renderMain(); toast(i18n.t('modes.deleted'), 'ok');
         }
       })));
     right.appendChild(card);
@@ -509,7 +503,7 @@ function addModeDialog(kind) {
     : '任务：根据用户提供的设定、当前状态、记忆与提示词完成本次工作。\n\n' +
       '要求：\n1. 严格遵循用户提供的设定与提示词。\n2. 不擅自新增未授权的设定、人物或情节。\n' +
       '3. 直接输出本次工作结果，不写与任务无关的前言后语。';
-  askDialog('新增' + modeKindLabel(kindId), '模式名称', defaultLabel, name => {
+  askDialog(i18n.t('modes.add_kind_title', { kind: modeKindLabel(kindId) }), i18n.t('modes.name_label'), defaultLabel, name => {
     const label = (name || '').trim() || defaultLabel;
     const modes = dbModes();
     const api = apiCfg();
@@ -523,7 +517,7 @@ function addModeDialog(kind) {
     });
     state.ui.modes = { kind: kindId, sel: id };
     touch('modes'); renderMain();
-    toast('已新增' + modeKindLabel(kindId) + '，可以开始编辑提示词。', 'ok');
+    toast(i18n.t('modes.added', { kind: modeKindLabel(kindId) }), 'ok');
   });
 }
 
@@ -583,7 +577,7 @@ function viewAI(main) {
   const cfg = state.db.config = state.db.config || {};
   ensureApiProfiles(cfg);
   const api = cfg.api;
-  const preset = providerById(api.provider) || { label: '自定义 / OpenAI 兼容', base_url: '', models: [], key_env: 'CUSTOM_API_KEY' };
+  const preset = providerById(api.provider) || { label: i18n.t('settings.custom_preset'), base_url: '', models: [], key_env: 'CUSTOM_API_KEY' };
   const customUrl = !preset || preset.id === 'custom' ||
     (api.base_url && preset.base_url && !sameProviderUrl(api.base_url, preset.base_url));
   const host = (() => {
@@ -594,25 +588,25 @@ function viewAI(main) {
     ['127.0.0.1', 'localhost', '::1'].includes(host);
   const models = currentModels();
 
-  main.appendChild(pageHead('模型设置',
-    '支持多种 OpenAI 兼容提供商，也可以填写任意自定义 URL。API Key 只保存在本机 data/config.json。',
+  main.appendChild(pageHead(i18n.t('nav.settings'),
+    i18n.t('settings.page_desc'),
     h('div', { class: 'inline' },
       h('button', {
-        text: '设置向导',
+        text: i18n.t('settings.wizard'),
         onclick: () => showOnboarding(true)
       }),
       h('button', {
-        text: '备份全部数据',
+        text: i18n.t('settings.backup_all'),
         onclick: async () => {
-          try { const r = await apiCall('/api/backup', { method: 'POST' }); toast('已备份到：' + r.path, 'ok'); }
-          catch (e) { toast('备份失败：' + e.message, 'err'); }
+          try { const r = await apiCall('/api/backup', { method: 'POST' }); toast(i18n.t('settings.backed_up_to', { path: r.path }), 'ok'); }
+          catch (e) { toast(i18n.t('settings.backup_failed_reason', { reason: e.message }), 'err'); }
         }
       }))));
 
   const apiCard = h('div', { class: 'card' });
-  apiCard.appendChild(h('h2', null, '接口与提供商'));
+  apiCard.appendChild(h('h2', null, i18n.t('settings.api_section')));
   apiCard.appendChild(h('div', { class: 'field' },
-    h('label', { text: '提供商预设' }),
+    h('label', { text: i18n.t('settings.provider_label') }),
     h('select', {
       onchange: e => {
         saveProviderProfile(cfg, api.provider);
@@ -625,13 +619,13 @@ function viewAI(main) {
     })))));
   if (!(api.api_key || '').trim() && !keyOptional) {
     apiCard.appendChild(h('div', { class: 'notice warn',
-      text: '还没有填写 API Key。可以手动填写，或设置环境变量 ' + (preset.key_env || 'OPENAI_API_KEY') + '。' }));
+      text: i18n.t('settings.no_key_hint', { env: preset.key_env || 'OPENAI_API_KEY' }) }));
   } else if (!(api.api_key || '').trim() && keyOptional) {
     apiCard.appendChild(h('div', { class: 'notice',
-      text: '当前是自定义或本地接口，API Key 可以留空；如果接口要求鉴权，再手动填写即可。' }));
+      text: i18n.t('settings.key_optional_hint') }));
   }
   apiCard.appendChild(h('div', { class: 'field' },
-    h('label', { text: '接口 URL（可留空使用预设，也可以自己填）' }),
+    h('label', { text: i18n.t('settings.url_label') }),
     h('input', {
       type: 'text', value: api.base_url || '', placeholder: preset.base_url || 'https://example.com/v1',
       oninput: e => { api.base_url = e.target.value; touch('config'); }
@@ -640,29 +634,29 @@ function viewAI(main) {
     h('label', { text: 'API Key' }),
     h('input', {
       type: 'password', value: api.api_key || '',
-      placeholder: (preset.key_env || 'CUSTOM_API_KEY') + '（可手动填写）',
+      placeholder: i18n.t('settings.key_placeholder', { env: preset.key_env || 'CUSTOM_API_KEY' }),
       oninput: e => { api.api_key = e.target.value; touch('config'); }
     })));
   apiCard.appendChild(h('div', { class: 'field' },
-    h('label', { text: '超时（秒）' }),
+    h('label', { text: i18n.t('settings.timeout_label') }),
     h('input', {
       type: 'number', value: api.timeout || 899,
       oninput: e => { api.timeout = Number(e.target.value) || 899; touch('config'); }
     })));
   apiCard.appendChild(h('div', { class: customUrl ? 'notice warn' : 'notice' },
     h('span', { text: customUrl
-      ? '自定义 URL：使用通用接口提示词，不强调具体模型或厂商。'
-      : '使用「' + preset.label + '」预设接口提示词。' }),
-    h('span', { class: 'small', text: customUrl ? '通用提示词' : preset.label })));
+      ? i18n.t('settings.custom_url_hint')
+      : i18n.t('settings.preset_hint', { label: preset.label }) }),
+    h('span', { class: 'small', text: customUrl ? i18n.t('settings.generic_prompt') : preset.label })));
   apiCard.appendChild(h('div', { class: 'small muted',
     text: customUrl
-      ? '通用接口提示词：不假定具体模型名称、厂商或特殊能力。'
-      : (preset.prompt_note || '当前使用 OpenAI 兼容接口。') }));
+      ? i18n.t('settings.generic_prompt_hint')
+      : (preset.prompt_note || i18n.t('settings.openai_compat_note')) }));
   const adv = h('details', { class: 'input-details' });
-  adv.appendChild(h('summary', null, '高级请求参数'));
+  adv.appendChild(h('summary', null, i18n.t('settings.advanced')));
   adv.appendChild(h('div', { class: 'inline' },
     h('div', { class: 'field' },
-      h('label', { text: 'max_tokens 字段名' }),
+      h('label', { text: i18n.t('settings.max_tokens_label') }),
       h('select', {
         onchange: e => { api.max_tokens_field = e.target.value; touch('config'); }
       }, ['max_tokens', 'max_completion_tokens'].map(value => h('option', {
@@ -672,41 +666,41 @@ function viewAI(main) {
       h('input', {
         type: 'checkbox', checked: !!api.send_reasoning_effort,
         onchange: e => { api.send_reasoning_effort = e.target.checked; touch('config'); }
-      }), '强制发送 reasoning_effort（自定义接口可能需要）'),
+      }), i18n.t('settings.force_reasoning')),
     h('label', { class: 'check' },
       h('input', {
         type: 'checkbox', checked: !!api.send_thinking,
         onchange: e => { api.send_thinking = e.target.checked; touch('config'); }
-      }), '强制发送 thinking 参数')));
+      }), i18n.t('settings.force_thinking'))));
   apiCard.appendChild(adv);
   main.appendChild(apiCard);
 
   const modelCard = h('div', { class: 'card' });
-  modelCard.appendChild(h('h2', null, '模型与默认参数',
-    h('span', { class: 'hint', text: '模型列表可以从接口获取，也可以手动填写' })));
+  modelCard.appendChild(h('h2', null, i18n.t('settings.models_section'),
+    h('span', { class: 'hint', text: i18n.t('settings.models_hint') })));
   modelCard.appendChild(h('div', { class: 'inline', style: { marginBottom: '8px' } },
     h('button', {
-      text: '从接口获取可用模型',
+      text: i18n.t('settings.fetch_models'),
       onclick: async ev => {
         const btn = ev.target;
         btn.disabled = true;
-        status('获取模型中…', 'busy');
+        status(i18n.t('common.fetching'), 'busy');
         try {
           const res = await apiCall('/api/models', { method: 'POST', body: { config: cfg } });
           api.models = res.models || [];
           if (!api.models.includes(api.default_model)) api.default_model = api.models[0] || '';
           touch('config'); renderMain();
-          toast('已获取 ' + api.models.length + ' 个模型。', 'ok');
-          status('模型列表已更新', 'ok');
+          toast(i18n.t('settings.fetched_models', { count: api.models.length }), 'ok');
+          status(i18n.t('settings.models_updated'), 'ok');
         } catch (e) {
-          toast('获取模型失败：' + e.message, 'err');
-          status('获取失败', 'err');
+          toast(i18n.t('settings.fetch_failed_reason', { reason: e.message }), 'err');
+          status(i18n.t('settings.fetch_failed'), 'err');
         } finally { btn.disabled = false; }
       }
     }),
-    h('span', { class: 'small muted', text: '需要接口支持 /models 端点；不支持时请手动填写。' })));
+    h('span', { class: 'small muted', text: i18n.t('settings.models_endpoint_hint') })));
   modelCard.appendChild(h('div', { class: 'field' },
-    h('label', { text: '可选模型（每行一个）' }),
+    h('label', { text: i18n.t('settings.models_label') }),
     h('textarea', {
       rows: 6, value: (api.models || []).join('\n'),
       oninput: e => {
@@ -716,19 +710,19 @@ function viewAI(main) {
       }
     }),
     h('button', {
-      class: 'mini', text: '刷新模型选项',
+      class: 'mini', text: i18n.t('settings.refresh_models'),
       onclick: () => renderMain()
     })));
   modelCard.appendChild(h('div', { class: 'inline' },
     h('div', { class: 'field', style: { flex: '1' } },
-      h('label', { text: '默认模型' }),
+      h('label', { text: i18n.t('settings.default_model_label') }),
       h('select', {
         onchange: e => { api.default_model = e.target.value; touch('config'); }
       }, (models.length ? models : [api.default_model || '']).map(m => h('option', {
-        value: m, text: m || '（请先填写模型）', selected: m === api.default_model
+        value: m, text: m || i18n.t('settings.no_model_option'), selected: m === api.default_model
       })))),
     h('div', { class: 'field' },
-      h('label', { text: '默认推理强度' }),
+      h('label', { text: i18n.t('settings.default_effort_label') }),
       h('select', {
         onchange: e => { api.default_effort = e.target.value; touch('config'); }
       }, effortChoices().map(value => h('option', {
@@ -736,56 +730,56 @@ function viewAI(main) {
       }))))));
   modelCard.appendChild(h('div', { class: 'inline' },
     h('button', {
-      class: 'primary', text: '保存配置',
+      class: 'primary', text: i18n.t('settings.save'),
       onclick: async () => {
         try {
           cfg.onboarding = cfg.onboarding || {};
           cfg.onboarding.done = true;
           saveProviderProfile(cfg, api.provider);
           await saveNow('config');
-          toast('配置已保存', 'ok');
-        } catch (e) { toast('保存失败：' + e.message, 'err'); }
+          toast(i18n.t('settings.saved'), 'ok');
+        } catch (e) { toast(i18n.t('common.save_failed_reason', { reason: e.message }), 'err'); }
       }
     }),
     h('button', {
-      text: '测试连接',
+      text: i18n.t('settings.test'),
       onclick: async ev => {
         const btn = ev.target;
         btn.disabled = true;
-        status('测试中…', 'busy');
+        status(i18n.t('common.testing'), 'busy');
         try {
           const res = await apiCall('/api/ai/ping', {
             method: 'POST',
             body: { config: cfg, model: api.default_model || (api.models || [])[0] || '' }
           });
-          toast('连通成功：' + res.result.model + '（' + res.result.elapsed + 's）', 'ok');
-          status('连通正常', 'ok');
+          toast(i18n.t('settings.test_ok', { model: res.result.model, elapsed: res.result.elapsed }), 'ok');
+          status(i18n.t('settings.test_ok_short'), 'ok');
         } catch (e) {
-          toast('测试失败：' + e.message, 'err');
-          status('测试失败', 'err');
+          toast(i18n.t('settings.test_failed_reason', { reason: e.message }), 'err');
+          status(i18n.t('settings.test_failed'), 'err');
         } finally { btn.disabled = false; }
       }
     })));
   main.appendChild(modelCard);
 
   const wCard = h('div', { class: 'card' });
-  wCard.appendChild(h('h2', null, '默认写作偏好'));
+  wCard.appendChild(h('h2', null, i18n.t('settings.writing_section')));
   wCard.appendChild(h('div', { class: 'inline' },
-    h('div', { class: 'field' }, h('label', { text: '默认目标字数（字符）' }),
+    h('div', { class: 'field' }, h('label', { text: i18n.t('settings.target_chars_label') }),
       h('input', { type: 'number', value: cfg.writing.target_chars || 8000, oninput: e => { cfg.writing.target_chars = Number(e.target.value) || 8000; touch('config'); } })),
     h('label', { class: 'check' },
       h('input', { type: 'checkbox', checked: cfg.writing.strict_length !== false, onchange: e => { cfg.writing.strict_length = e.target.checked; touch('config'); } }),
-      '默认作为硬性要求')));
+      i18n.t('settings.target_strict'))));
   wCard.appendChild(h('div', { class: 'small muted', style: { marginTop: '6px' },
-    text: '默认值会作为工作站目标字数的初始值；每次生成仍可单独修改。' }));
+    text: i18n.t('settings.target_chars_hint') }));
   main.appendChild(wCard);
 
   const sCard = h('div', { class: 'card' });
-  sCard.appendChild(h('h2', null, '应用',
-    h('span', { class: 'hint', text: '端口修改后需要重新启动' })));
+  sCard.appendChild(h('h2', null, i18n.t('settings.app_section'),
+    h('span', { class: 'hint', text: i18n.t('settings.port_hint') })));
   sCard.appendChild(h('div', { class: 'inline' },
     h('div', { class: 'field' },
-      h('label', { text: '端口号（1–65535）' }),
+      h('label', { text: i18n.t('settings.port_label') }),
       h('input', {
         type: 'number', min: 1, max: 65535,
         value: cfg.server.port || 8765,
@@ -798,32 +792,32 @@ function viewAI(main) {
         }
       })),
     h('span', { class: 'small muted',
-      text: '默认 8765。保存后下一次启动会自动使用新端口；命令行 --port 可临时覆盖。' })));
+      text: i18n.t('settings.port_desc') })));
   main.appendChild(sCard);
 
   const pCard = h('div', { class: 'card' });
-  pCard.appendChild(h('h2', null, '目录设置',
-    h('span', { class: 'hint', text: '相对于 app/ 目录 ' + (state.paths.root || '') })));
-  [['import_dir', '导入目录'], ['export_dir', '导出目录'],
-   ['output_dir', '正文输出目录'], ['text_dir', '稿件处理工作区'],
-   ['log_dir', '日志目录']].forEach(([key, label]) => {
+  pCard.appendChild(h('h2', null, i18n.t('settings.dirs_section'),
+    h('span', { class: 'hint', text: i18n.t('settings.dirs_hint', { root: state.paths.root || '' }) })));
+  [['import_dir', i18n.t('settings.dir_import')], ['export_dir', i18n.t('settings.dir_export')],
+   ['output_dir', i18n.t('settings.dir_output')], ['text_dir', i18n.t('settings.dir_text')],
+   ['log_dir', i18n.t('settings.dir_log')]].forEach(([key, label]) => {
     pCard.appendChild(h('div', { class: 'field' }, h('label', { text: label + '（' + key + '）' }),
       h('input', { type: 'text', value: cfg.paths[key] || '', oninput: e => { cfg.paths[key] = e.target.value; touch('config'); } })));
   });
   pCard.appendChild(h('div', { class: 'small muted' },
-    '数据目录默认是 app/data/，可通过环境变量 NOVELHELPER_DATA 覆盖。改完目录记得重启服务。'));
+    i18n.t('settings.data_dir_hint')));
   main.appendChild(pCard);
 
   const about = h('div', { class: 'card about-card' });
-  about.appendChild(h('h2', null, '关于 NovelHelper'));
+  about.appendChild(h('h2', null, i18n.t('settings.about')));
   about.appendChild(h('div', { class: 'about-links' },
-    h('span', { text: 'NovelHelper 是免费开源工具。开源地址：' }),
+    h('span', { text: i18n.t('settings.about_oss') }),
     h('a', {
       href: 'https://github.com/DreamInsight24/Novel-Helper',
       target: '_blank', rel: 'noopener noreferrer',
       text: 'https://github.com/DreamInsight24/Novel-Helper'
     }),
-    h('span', { text: '；作者 GitHub：' }),
+    h('span', { text: i18n.t('settings.about_author') }),
     h('a', {
       href: 'https://github.com/DreamInsight24',
       target: '_blank', rel: 'noopener noreferrer',
@@ -861,10 +855,10 @@ function showOnboarding(force) {
       renderNav();
       renderMain();
       toast(configured
-        ? '配置已保存，可以开始使用。'
-        : '已跳过引导，可随时在「模型设置」中配置。', 'ok');
+        ? i18n.t('welcome.saved')
+        : i18n.t('welcome.skipped'), 'ok');
     } catch (e) {
-      toast('保存失败：' + e.message, 'err');
+      toast(i18n.t('common.save_failed_reason', { reason: e.message }), 'err');
     }
   };
 
@@ -872,7 +866,7 @@ function showOnboarding(force) {
     clear(body);
     const api = cfg.api;
     const preset = providerById(api.provider) ||
-      { label: '自定义 / OpenAI 兼容', base_url: '', models: [], key_env: 'CUSTOM_API_KEY' };
+      { label: i18n.t('settings.custom_preset'), base_url: '', models: [], key_env: 'CUSTOM_API_KEY' };
     const models = currentModels();
     if (models.length && !models.includes(api.default_model)) {
       api.default_model = models[0];
@@ -881,9 +875,9 @@ function showOnboarding(force) {
       (api.base_url && preset.base_url && !sameProviderUrl(api.base_url, preset.base_url));
 
     body.appendChild(h('div', { class: 'notice',
-      text: '先选择接口并填写 API Key。可以跳过；不配置也能浏览和编辑设定，但开始生成前需要模型可用。' }));
+      text: i18n.t('welcome.desc') }));
     body.appendChild(h('div', { class: 'field' },
-      h('label', { text: '提供商' }),
+      h('label', { text: i18n.t('settings.provider_short') }),
       h('select', {
         onchange: e => {
           saveProviderProfile(cfg, api.provider);
@@ -896,7 +890,7 @@ function showOnboarding(force) {
         value: p.id, text: p.label, selected: p.id === api.provider
       })))));
     body.appendChild(h('div', { class: 'field' },
-      h('label', { text: '接口 URL（可留空使用预设，也可以自己填）' }),
+      h('label', { text: i18n.t('settings.url_label') }),
       h('input', {
         type: 'text', value: api.base_url || '',
         placeholder: preset.base_url || 'https://example.com/v1',
@@ -906,12 +900,12 @@ function showOnboarding(force) {
       h('label', { text: 'API Key' }),
       h('input', {
         type: 'password', value: api.api_key || '',
-        placeholder: (preset.key_env || 'CUSTOM_API_KEY') + '（可稍后填写）',
+        placeholder: i18n.t('welcome.key_placeholder', {env: preset.key_env || 'CUSTOM_API_KEY'}),
         oninput: e => { api.api_key = e.target.value; touch('config'); }
       })));
     body.appendChild(h('div', { class: 'inline', style: { marginBottom: '8px' } },
       h('button', {
-        text: '从接口获取模型',
+        text: i18n.t('settings.fetch_models'),
         onclick: async ev => {
           const btn = ev.target;
           btn.disabled = true;
@@ -920,14 +914,14 @@ function showOnboarding(force) {
             api.models = res.models || [];
             if (!api.models.includes(api.default_model)) api.default_model = api.models[0] || '';
             touch('config'); draw();
-            toast('已获取 ' + api.models.length + ' 个模型。', 'ok');
+            toast(i18n.t('settings.fetched_models', { count: api.models.length }), 'ok');
           } catch (e) {
-            toast('获取模型失败：' + e.message, 'err');
+            toast(i18n.t('settings.fetch_failed_reason', { reason: e.message }), 'err');
           } finally { btn.disabled = false; }
         }
       }),
       h('button', {
-        text: '测试连接',
+        text: i18n.t('settings.test'),
         onclick: async ev => {
           const btn = ev.target;
           btn.disabled = true;
@@ -936,15 +930,15 @@ function showOnboarding(force) {
               method: 'POST',
               body: { config: cfg, model: api.default_model || api.models[0] || '' }
             });
-            toast('连通成功：' + res.result.model + '（' + res.result.elapsed + 's）', 'ok');
+            toast(i18n.t('settings.test_ok', { model: res.result.model, elapsed: res.result.elapsed }), 'ok');
           } catch (e) {
-            toast('测试失败：' + e.message, 'err');
+            toast(i18n.t('settings.test_failed_reason', { reason: e.message }), 'err');
           } finally { btn.disabled = false; }
         }
       })));
     if (models.length) {
       body.appendChild(h('div', { class: 'field' },
-        h('label', { text: '默认模型' }),
+        h('label', { text: i18n.t('settings.default_model_label') }),
         h('select', {
           onchange: e => { api.default_model = e.target.value; touch('config'); }
         }, models.map(m => h('option', {
@@ -952,15 +946,15 @@ function showOnboarding(force) {
         })))));
     } else {
       body.appendChild(h('div', { class: 'field' },
-        h('label', { text: '模型名（可手动填写）' }),
+        h('label', { text: i18n.t('settings.model_name_label') }),
         h('input', {
           type: 'text', value: api.default_model || '',
-          placeholder: '例如 gpt-4.1-mini / deepseek-flash',
+          placeholder: i18n.t('settings.model_name_placeholder'),
           oninput: e => { api.default_model = e.target.value; touch('config'); }
         })));
     }
     body.appendChild(h('div', { class: 'field' },
-      h('label', { text: '默认推理强度' }),
+      h('label', { text: i18n.t('settings.default_effort_label') }),
       h('select', {
         onchange: e => { api.default_effort = e.target.value; touch('config'); }
       }, effortChoices().map(value => h('option', {
@@ -968,19 +962,19 @@ function showOnboarding(force) {
       })))));
     body.appendChild(h('div', { class: 'notice' + (customUrl ? ' warn' : ''),
       text: customUrl
-        ? '当前使用自定义 URL：将使用通用接口提示词。'
-        : '当前使用「' + preset.label + '」预设接口提示词。' }));
+        ? i18n.t('welcome.custom_url_note')
+        : i18n.t('welcome.preset_note', {name: preset.label}) }));
     body.appendChild(h('div', { class: 'small muted',
-      text: 'API Key 只保存在本机 app/data/config.json，不会上传到 NovelHelper 自己的服务。' }));
+      text: i18n.t('welcome.key_note') }));
   };
 
-  dialog = modal('欢迎使用 NovelHelper v2610.1', body, [
+  dialog = modal(i18n.t('welcome.title'), body, [
     h('button', {
-      text: '跳过，稍后设置', dataset: { noclose: '1' },
+      text: i18n.t('welcome.skip'), dataset: { noclose: '1' },
       onclick: () => finish(false)
     }),
     h('button', {
-      class: 'primary', text: '保存并开始', dataset: { noclose: '1' },
+      class: 'primary', text: i18n.t('welcome.start'), dataset: { noclose: '1' },
       onclick: () => finish(true)
     })
   ]);

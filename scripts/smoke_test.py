@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+from concurrent.futures import ThreadPoolExecutor
 import os
 import socket
 import subprocess
@@ -144,12 +145,39 @@ def run() -> None:
                     and b"<!doctype html>" in homepage_lower,
                 )
 
-                for asset in ("/core.js", "/workstation.js", "/style.css"):
+                for asset in ("/core.js", "/workstation.js", "/style.css", "/i18n/i18n.js",
+                              "/i18n/bootstrap.js", "/i18n/example.html"):
                     asset_status, asset_body = _request(base_url, asset)
                     _check(
                         f"static asset {asset}",
                         asset_status == 200 and bool(asset_body),
                     )
+
+                _, languages = _json_request(base_url, "/api/i18n")
+                for entry in languages["languages"]:
+                    code, catalog = _json_request(base_url, "/api/i18n/" + entry["id"])
+                    _check("language catalog " + entry["id"], code == 200 and catalog["lang"] == entry["id"]
+                           and "common.save" in catalog["messages"])
+                _, fallback = _json_request(base_url, "/api/i18n/not-configured")
+                _check("unknown language fallback", fallback["lang"] == languages["fallback"])
+
+                def localized_error(lang):
+                    request = urllib.request.Request(base_url + "/api/i18n-smoke-missing",
+                                                     headers={"X-NovelHelper-Language": lang})
+                    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+                    try:
+                        opener.open(request, timeout=5)
+                        raise AssertionError("Expected a missing-endpoint response")
+                    except urllib.error.HTTPError as exc:
+                        _check("localized error status", exc.code == 404)
+                        return json.loads(exc.read().decode("utf-8"))["error"]
+
+                with ThreadPoolExecutor(max_workers=2) as executor:
+                    results = list(executor.map(localized_error, ["en-US", "zh-CN"] * 3))
+                _check("concurrent request language isolation", results == [
+                    "Unknown endpoint: /api/i18n-smoke-missing", "未知接口: /api/i18n-smoke-missing"] * 3)
+                _, after = _json_request(base_url, "/api/i18n")
+                _check("request language does not mutate default", after["current"] == languages["current"])
 
                 state_status, state = _json_request(base_url, "/api/state")
                 _check("GET /api/state", state_status == 200 and state.get("ok") is True)

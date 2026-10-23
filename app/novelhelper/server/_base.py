@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ..localization import t, get_language, language_context
+
 import json
 import mimetypes
 import time
@@ -35,7 +37,7 @@ class _BaseHandler(BaseHTTPRequestHandler):
         if length <= 0:
             return {}
         if length > MAX_BODY:
-            raise ValueError("请求体过大")
+            raise ValueError(t('errors.body_too_large'))
         raw = self.rfile.read(length)
         if not raw.strip():
             return {}
@@ -51,6 +53,10 @@ class _BaseHandler(BaseHTTPRequestHandler):
         self._dispatch("GET")
 
     def _dispatch(self, method: str):
+        with language_context(self.headers.get("X-NovelHelper-Language") or get_language()):
+            self._dispatch_localized(method)
+
+    def _dispatch_localized(self, method: str):
         parsed = urlparse(self.path)
         path = unquote(parsed.path)
         query = parse_qs(parsed.query)
@@ -65,7 +71,7 @@ class _BaseHandler(BaseHTTPRequestHandler):
             self._error(str(exc), status=403)
         except FileNotFoundError as exc:
             logger.log_warning("HTTP", "not found", method=method, path=path, error=str(exc))
-            self._error(f"找不到文件: {exc}", status=404)
+            self._error(t('errors.file_missing', detail=exc), status=404)
         except ai.AIError as exc:
             logger.log_exception("AI", "request failed", exc, method=method, path=path)
             self._error(str(exc), status=502, detail=str(exc))
@@ -93,10 +99,10 @@ class _BaseHandler(BaseHTTPRequestHandler):
         try:
             target.relative_to(store.WEB_DIR.resolve())
         except ValueError:
-            self._error("非法路径", status=403)
+            self._error(t('errors.invalid_path'), status=403)
             return
         if not target.exists() or target.is_dir():
-            self._error(f"资源不存在: {rel}", status=404)
+            self._error(t('errors.resource_missing', path=rel), status=404)
             return
         ctype = mimetypes.guess_type(str(target))[0] or "application/octet-stream"
         if ctype.startswith("text/") or ctype in ("application/javascript", "application/json"):

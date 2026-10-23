@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from copy import deepcopy
 
+from .localization import t
+
 
 EFFORTS = ["none", "low", "medium", "high", "max"]
 
@@ -118,7 +120,13 @@ PROVIDERS = [
 
 def public_providers() -> list:
     """给前端的预设（不包含任何密钥）。"""
-    return deepcopy(PROVIDERS)
+    result = deepcopy(PROVIDERS)
+    for provider in result:
+        provider["prompt_note"] = t("settings.provider_note_" + provider["id"])
+        if provider["id"] in ("custom", "dashscope", "zhipu"):
+            provider["label"] = t("settings.custom_preset" if provider["id"] == "custom"
+                                  else "settings.provider_label_" + provider["id"])
+    return result
 
 
 def get_provider(provider_id: str) -> dict:

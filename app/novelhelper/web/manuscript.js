@@ -7,11 +7,11 @@ function processModes() {
 
 function manuscriptModeLabel(id) {
   const mode = allModes().find(m => m.id === id);
-  return mode ? (mode.label || mode.id) : (id || 'AI 处理');
+  return mode ? (mode.label || mode.id) : (id || i18n.t('manuscript.mode_fallback'));
 }
 
 function manuscriptShortName(path) {
-  return String(path || '').split(/[\\/]/).pop() || '（未命名）';
+  return String(path || '').split(/[\\/]/).pop() || i18n.t('common.unnamed_paren');
 }
 
 // ═══════════════════════════════════════════
@@ -78,13 +78,13 @@ function viewManuscript(main) {
       if (ui.path === path && ui.value === content) ui.dirty = false;
       const item = (state.io.files || []).find(f => f.path === path);
       if (item) item.size = new Blob([content]).size;
-      status((quiet ? '已自动保存 ' : '已保存 ') + manuscriptShortName(path), 'ok');
-      if (!quiet) toast('已保存：' + path, 'ok');
+      status(i18n.t(quiet ? 'manuscript.autosaved' : 'manuscript.saved_status', {name: manuscriptShortName(path)}), 'ok');
+      if (!quiet) toast(i18n.t('common.saved_to', { path: path }), 'ok');
       updateStat();
       return true;
     } catch (e) {
-      status('保存失败', 'err');
-      toast('保存失败：' + e.message, 'err');
+      status(i18n.t('common.save_failed'), 'err');
+      toast(i18n.t('common.save_failed_reason', { reason: e.message }), 'err');
       return false;
     }
   };
@@ -112,14 +112,14 @@ function viewManuscript(main) {
   };
 
   const area = h('textarea', {
-    rows: 30, class: 'notepad manuscript-area', placeholder: '在这里写 / 贴入要处理的稿件…',
+    rows: 30, class: 'notepad manuscript-area', placeholder: i18n.t('manuscript.editor_placeholder'),
     value: ui.value,
     oninput: () => setText(area.value),
     onscroll: () => { ui.scrollTop = area.scrollTop; }
   });
   const statLine = h('div', { class: 'small muted' });
   const pathHint = h('span', { class: 'hint' });
-  const refreshHint = () => { pathHint.textContent = ui.path || '（未命名，草稿）'; };
+  const refreshHint = () => { pathHint.textContent = ui.path || i18n.t('manuscript.unnamed_draft'); };
 
   const updateStat = () => {
     const t = ui.value;
@@ -127,11 +127,11 @@ function viewManuscript(main) {
     const lines = t.split('\n').length;
     const paras = t.split(/\n\s*\n/).filter(p => p.trim()).length;
     let save;
-    if (ui.path) save = ui.dirty ? (fileSaving ? '自动保存中…' : '待自动保存…') : '已保存';
-    else if (!t) save = '空（未命名）';
-    else save = '草稿已自动暂存（未命名，点「保存」定成文件）';
-    if (tooBig()) save = '内容过大，草稿不暂存（绑定文件后照常自动写盘）';
-    statLine.textContent = '字符 ' + t.length + ' · 汉字 ' + cjk + ' · 行 ' + lines + ' · 段 ' + paras + ' · ' + save;
+    if (ui.path) save = ui.dirty ? (fileSaving ? i18n.t('manuscript.autosaving') : i18n.t('manuscript.pending_save')) : i18n.t('common.saved');
+    else if (!t) save = i18n.t('manuscript.empty_unnamed');
+    else save = i18n.t('manuscript.draft_staged');
+    if (tooBig()) save = i18n.t('manuscript.too_big');
+    statLine.textContent = i18n.t('manuscript.stat_line', { chars: t.length, han: cjk, lines: lines, paras: paras, save: save });
   };
 
   // 所有内容改动都走这里：先进内存草稿，再排队写盘
@@ -155,7 +155,7 @@ function viewManuscript(main) {
 
   const keepAiResult = () => {
     if (!ui.aiResult) return true;
-    if (!confirm('当前工作区还有未处理的 AI 结果，继续后会被清除。')) return false;
+    if (!confirm(i18n.t('manuscript.ai_result_warning'))) return false;
     ui.aiResult = null;
     return true;
   };
@@ -164,7 +164,7 @@ function viewManuscript(main) {
     clearTimeout(fileTimer);
     if (!ui.path) {
       const folder = (state.paths.text || 'workspace/text').replace(/[\\/]+$/, '');
-      let name = prompt('保存到 ' + folder + '/ 的文件名', '正文_' + new Date().toISOString().slice(0, 10) + '.txt');
+      let name = prompt(i18n.t('manuscript.save_prompt', { folder: folder }), '正文_' + new Date().toISOString().slice(0, 10) + '.txt');
       if (!name) return;
       if (!/\.(txt|md)$/i.test(name)) name += '.txt';
       ui.path = folder + '/' + name.replace(/[\\/]/g, '_');
@@ -181,7 +181,7 @@ function viewManuscript(main) {
   const newText = async () => {
     if (ui.dirty) {
       if (ui.path) await flushFile();
-      else if (!confirm('「（未命名）」里还没落盘的内容会被清掉，继续吗？')) return;
+      else if (!confirm(i18n.t('manuscript.unsaved_clear'))) return;
     }
     if (!keepAiResult()) return;
     clearTimeout(fileTimer); clearTimeout(draftTimer);
@@ -189,14 +189,14 @@ function viewManuscript(main) {
     writeDraft();
     saveNow('state').catch(() => { });
     renderMain();
-    toast('已清空，保存时会让你选文件名', 'ok');
+    toast(i18n.t('manuscript.cleared'), 'ok');
   };
 
   const loadPath = async (path) => {
     if (path === ui.path) return;
     if (ui.dirty) {
       if (ui.path) await flushFile();
-      else if (!confirm('「（未命名）」里还没落盘的内容会被丢弃，继续吗？')) return;
+      else if (!confirm(i18n.t('manuscript.unsaved_discard'))) return;
     }
     if (!keepAiResult()) return;
     try {
@@ -206,14 +206,14 @@ function viewManuscript(main) {
       writeDraft();
       saveNow('state').catch(() => { });
       renderMain();
-    } catch (e) { toast('打开失败：' + e.message, 'err'); }
+    } catch (e) { toast(i18n.t('manuscript.open_failed_reason', { reason: e.message }), 'err'); }
   };
 
   // 从产出（workspace/output/）导入：.md 先转成 txt（去掉输出头、清理空行），再拷进文本文件夹。
   const importPath = async (path) => {
     if (ui.dirty) {
       if (ui.path) await flushFile();
-      else if (!confirm('「（未命名）」里还没落盘的内容会被丢弃，继续吗？')) return;
+      else if (!confirm(i18n.t('manuscript.unsaved_discard'))) return;
     }
     if (!keepAiResult()) return;
     try {
@@ -226,48 +226,48 @@ function viewManuscript(main) {
       const name = source.split(/[\\/]/).pop();
       const folder = (state.paths.text || 'workspace/text').replace(/[\\/]+$/, '');
       if ((state.io.files || []).some(f => f.name === name) &&
-          !confirm('「' + name + '」已存在，覆盖吗？')) return;
+          !confirm(i18n.t('manuscript.file_overwrite_confirm', { name: name }))) return;
       await api('/api/io/save', { method: 'POST', body: { path: folder + '/' + name, content: r.content } });
       await refreshFiles();
       writeDraft();          // refreshFiles 换掉了 state.db.state，把草稿重新贴回去
       ui.path = '';          // 强制 loadPath 重新读取，即使导入的是当前已打开的文件
       ui.dirty = false;
       await loadPath(folder + '/' + name);
-      toast('已导入：' + folder + '/' + name, 'ok');
-    } catch (e) { toast('导入失败：' + e.message, 'err'); }
+      toast(i18n.t('manuscript.imported', { path: folder + '/' + name }), 'ok');
+    } catch (e) { toast(i18n.t('records.import_failed_reason', { reason: e.message }), 'err'); }
   };
 
   const pickChapter = () => {
     const opts = (state.chapters || [])
       .filter(c => c.path.endsWith('.md') || c.path.endsWith('.txt'))
       .map(c => ({ value: c.path, label: c.name, meta: c.dir + ' · ' + c.mtime }));
-    if (!opts.length) { toast('workspace/output/ 下还没有产出。', 'err'); return; }
-    pickDialog('从产出导入（workspace/output/）', opts.slice(0, 120), rel => importPath(rel));
+    if (!opts.length) { toast(i18n.t('manuscript.no_outputs'), 'err'); return; }
+    pickDialog(i18n.t('manuscript.import_output'), opts.slice(0, 120), rel => importPath(rel));
   };
 
   // ── 文本清理 / 查找替换 ───────────────────
   const ops = [
-    ['删除所有空行', t => t.split('\n').filter(l => l.trim() !== '').join('\n')],
-    ['空行合并为一个', t => t.replace(/\n{3,}/g, '\n\n')],
-    ['合并段内换行', t => t.replace(/([^\n])\n(?!\n)/g, '$1')],
-    ['去掉行首缩进', t => t.split('\n').map(l => l.replace(/^[　 \t]+/, '')).join('\n')],
-    ['去首尾空白', t => t.trim()],
-    ['全角空格→半角', t => t.replace(/　/g, ' ')],
-    ['中文引号→英文', t => t.replace(/[“”]/g, '"').replace(/[‘’]/g, "'")]
+    [i18n.t('manuscript.clean_remove_empty'), t => t.split('\n').filter(l => l.trim() !== '').join('\n')],
+    [i18n.t('manuscript.clean_merge_empty'), t => t.replace(/\n{3,}/g, '\n\n')],
+    [i18n.t('manuscript.clean_merge_breaks'), t => t.replace(/([^\n])\n(?!\n)/g, '$1')],
+    [i18n.t('manuscript.clean_trim_indent'), t => t.split('\n').map(l => l.replace(/^[　 \t]+/, '')).join('\n')],
+    [i18n.t('manuscript.clean_trim'), t => t.trim()],
+    [i18n.t('manuscript.clean_fullwidth_space'), t => t.replace(/　/g, ' ')],
+    [i18n.t('manuscript.clean_cn_quotes'), t => t.replace(/[“”]/g, '"').replace(/[‘’]/g, "'")]
   ];
 
   const openFindReplace = () => {
-    const find = h('input', { type: 'text', placeholder: '查找' });
-    const repl = h('input', { type: 'text', placeholder: '替换为' });
+    const find = h('input', { type: 'text', placeholder: i18n.t('common.find') });
+    const repl = h('input', { type: 'text', placeholder: i18n.t('common.replace_with') });
     const all = h('input', { type: 'checkbox', checked: true });
     const body = h('div', null,
-      h('div', { class: 'field' }, h('label', { text: '查找' }), find),
-      h('div', { class: 'field' }, h('label', { text: '替换为' }), repl),
-      h('label', { class: 'check' }, all, '全部替换'));
-    const m = modal('查找替换', body, [
-      h('button', { text: '取消', onclick: () => m.close() }),
+      h('div', { class: 'field' }, h('label', { text: i18n.t('common.find') }), find),
+      h('div', { class: 'field' }, h('label', { text: i18n.t('common.replace_with') }), repl),
+      h('label', { class: 'check' }, all, i18n.t('manuscript.replace_all')));
+    const m = modal(i18n.t('manuscript.find_replace'), body, [
+      h('button', { text: i18n.t('common.cancel'), onclick: () => m.close() }),
       h('button', {
-        class: 'primary', text: '替换',
+        class: 'primary', text: i18n.t('common.replace'),
         onclick: () => {
           if (!find.value) return;
           setText(all.checked ? area.value.split(find.value).join(repl.value)
@@ -285,10 +285,10 @@ function viewManuscript(main) {
       clear(body);
       const files = (state.io.files || []).filter(f => ['.txt', '.md', '.json'].includes(f.ext));
       body.appendChild(h('div', { class: 'small muted', style: { marginBottom: '8px' } },
-        '目录：' + (state.io.rel || 'workspace/text/') + ' · 当前：' + (ui.path || '（未命名）')));
+        i18n.t('manuscript.dir_status', { dir: state.io.rel || 'workspace/text/', file: ui.path || i18n.t('common.unnamed_paren') })));
       if (!files.length) {
         body.appendChild(h('div', { class: 'muted small', style: { marginBottom: '10px' } },
-          '这个目录里还没有文本文件。'));
+          i18n.t('manuscript.no_text_files')));
       } else {
         const list = h('div', { class: 'list scroll', style: { maxHeight: '360px' } },
           files.map(f => h('div', {
@@ -300,9 +300,9 @@ function viewManuscript(main) {
         body.appendChild(list);
       }
       body.appendChild(h('div', { class: 'inline', style: { marginTop: '10px' } },
-        h('button', { class: 'mini', text: '新建文本', onclick: async () => { m.close(); await newText(); } }),
+        h('button', { class: 'mini', text: i18n.t('manuscript.new_text'), onclick: async () => { m.close(); await newText(); } }),
         h('button', {
-          class: 'mini', text: '刷新',
+          class: 'mini', text: i18n.t('common.refresh'),
           onclick: async ev => {
             const btn = ev.target;
             btn.disabled = true;
@@ -312,12 +312,12 @@ function viewManuscript(main) {
               await refreshFiles();
               writeDraft();
               draw();
-            } catch (e) { toast('刷新失败：' + e.message, 'err'); }
+            } catch (e) { toast(i18n.t('common.refresh_failed_reason', { reason: e.message }), 'err'); }
             finally { btn.disabled = false; }
           }
         })));
     };
-    const m = modal('文本文件夹', body, [h('button', { text: '关闭', onclick: () => m.close() })]);
+    const m = modal(i18n.t('manuscript.folder_title'), body, [h('button', { text: i18n.t('common.close'), onclick: () => m.close() })]);
     draw();
   };
 
@@ -334,19 +334,19 @@ function viewManuscript(main) {
     const chapInput = h('input', { type: 'text', value: opts.chapter || '' });
     const contentArea = h('textarea', { rows: 14, value: String(content || '') });
     const body = h('div', null,
-      h('div', { class: 'field' }, h('label', { text: '标题' }), titleInput),
+      h('div', { class: 'field' }, h('label', { text: i18n.t('common.title') }), titleInput),
       h('div', { class: 'inline' },
-        h('div', { class: 'field', style: { flex: '1' } }, h('label', { text: '分类' }), catSelect),
-        h('div', { class: 'field', style: { flex: '1' } }, h('label', { text: '章节 / 时间' }), chapInput)),
-      h('div', { class: 'field' }, h('label', { text: '内容（可直接改）' }), contentArea),
-      h('div', { class: 'small muted', text: opts.source ? '来源：' + opts.source : '' }));
-    const m = modal('导出至记忆', body, [
-      h('button', { text: '取消', onclick: () => m.close() }),
+        h('div', { class: 'field', style: { flex: '1' } }, h('label', { text: i18n.t('memories.category_label') }), catSelect),
+        h('div', { class: 'field', style: { flex: '1' } }, h('label', { text: i18n.t('memories.chapter_label') }), chapInput)),
+      h('div', { class: 'field' }, h('label', { text: i18n.t('manuscript.memory_content_label') }), contentArea),
+      h('div', { class: 'small muted', text: opts.source ? i18n.t('common.source_prefix', { source: opts.source }) : '' }));
+    const m = modal(i18n.t('manuscript.export_memory'), body, [
+      h('button', { text: i18n.t('common.cancel'), onclick: () => m.close() }),
       h('button', {
-        class: 'primary', text: '保存到记忆', dataset: { noclose: '1' },
+        class: 'primary', text: i18n.t('manuscript.save_to_memory'), dataset: { noclose: '1' },
         onclick: () => {
           const value = contentArea.value;
-          if (!value.trim()) { toast('内容为空，未保存。', 'err'); return; }
+          if (!value.trim()) { toast(i18n.t('manuscript.empty_not_saved'), 'err'); return; }
           const stamp = nowStr();
           coll.items.unshift({
             id: newId('mm'),
@@ -360,14 +360,14 @@ function viewManuscript(main) {
           touch('memories');
           renderNav();
           m.close();
-          toast('已保存到记忆库。', 'ok');
+          toast(i18n.t('manuscript.saved_to_memory'), 'ok');
         }
       })
     ]);
   };
 
   const exportCurrentToMemory = () => {
-    if (!ui.value.trim()) { toast('工作区没有可导出的文本。', 'err'); return; }
+    if (!ui.value.trim()) { toast(i18n.t('manuscript.nothing_export'), 'err'); return; }
     const base = manuscriptShortName(ui.path).replace(/\.(txt|md|json)$/i, '');
     openSaveToMemoryDialog(ui.value, {
       title: (base || '稿件处理') + ' · ' + new Date().toLocaleDateString(),
@@ -380,10 +380,10 @@ function viewManuscript(main) {
   const runManuscriptProcess = async (mode, instruction) => {
     if (state.ui.busy) return;
     const source = ui.value;
-    if (!source.trim()) { toast('工作区还没有可处理的文本。', 'err'); return; }
+    if (!source.trim()) { toast(i18n.t('manuscript.nothing_process'), 'err'); return; }
     state.ui.busy = true;
     renderMain();
-    status('AI 处理中…', 'busy');
+    status(i18n.t('common.processing'), 'busy');
     try {
       clearTimeout(draftTimer);
       writeDraft();
@@ -429,27 +429,27 @@ function viewManuscript(main) {
 
       state.ui.scrollToAiResult = true;
       if (state.view === 'text' || state.view === 'writer') renderMain();
-      status('处理完成', 'ok');
-      toast('处理完成，结果在文本下方，可编辑后再应用。', 'ok');
+      status(i18n.t('manuscript.process_done'), 'ok');
+      toast(i18n.t('manuscript.process_done_hint'), 'ok');
     } catch (e) {
       state.ui.busy = false;
       if (state.view === 'text' || state.view === 'writer') renderMain();
-      status('处理失败', 'err');
-      toast('处理失败：' + e.message, 'err');
+      status(i18n.t('manuscript.process_failed'), 'err');
+      toast(i18n.t('manuscript.process_failed_reason', { reason: e.message }), 'err');
     }
   };
 
   const openAiAssist = () => {
-    if (state.ui.busy) { toast('AI 正在处理中，请稍候。', 'err'); return; }
-    if (!ui.value.trim()) { toast('工作区还没有可处理的文本。', 'err'); return; }
+    if (state.ui.busy) { toast(i18n.t('manuscript.busy'), 'err'); return; }
+    if (!ui.value.trim()) { toast(i18n.t('manuscript.nothing_process'), 'err'); return; }
     const modes = processModes();
     if (!modes.length) {
       const body = h('div', null,
-        h('div', { class: 'small muted', text: '还没有稿件处理模式。请到「模式管理 → 稿件处理模式」新增，例如「润色修订」。' }));
-      const emptyModal = modal('AI 辅助 · 稿件处理', body, [
-        h('button', { text: '关闭', onclick: () => emptyModal.close() }),
+        h('div', { class: 'small muted', text: i18n.t('manuscript.no_mode') }));
+      const emptyModal = modal(i18n.t('manuscript.ai_title'), body, [
+        h('button', { text: i18n.t('common.close'), onclick: () => emptyModal.close() }),
         h('button', {
-          class: 'primary', text: '前往模式管理',
+          class: 'primary', text: i18n.t('workstation.go_modes'),
           onclick: () => {
             emptyModal.close();
             state.ui.modes = { kind: 'process', sel: '' };
@@ -461,43 +461,42 @@ function viewManuscript(main) {
     }
 
     const body = h('div');
-    const m = modal('AI 辅助 · 稿件处理', body, [h('button', { text: '关闭', onclick: () => m.close() })]);
+    const m = modal(i18n.t('manuscript.ai_title'), body, [h('button', { text: i18n.t('common.close'), onclick: () => m.close() })]);
 
     const drawPicker = () => {
       clear(body);
-      body.appendChild(h('div', { class: 'ai-question', text: '我们要对文本怎么做？' }));
+      body.appendChild(h('div', { class: 'ai-question', text: i18n.t('manuscript.ai_question') }));
       body.appendChild(h('div', { class: 'small muted', style: { marginBottom: '12px' } },
-        '将处理当前工作区全文 ' + ui.value.length + ' 字。结果会显示在文本下方，可编辑后再决定覆盖、删除或转存。'));
+        i18n.t('manuscript.ai_scope', { count: ui.value.length })));
       body.appendChild(h('div', { class: 'ai-mode-list' }, modes.map(mode => {
         const api = (state.db.config || {}).api || {};
         return h('div', { class: 'ai-mode-card', onclick: () => drawInstruction(mode) },
           h('div', { class: 'ai-mode-name', text: mode.label || mode.id }),
           h('div', { class: 'small muted', text: mode.desc || '' }),
           h('div', { class: 'small muted', style: { marginTop: '4px' } },
-            '模型 ' + (mode.model || api.default_model || '跟随默认') +
-            ' · 推理 ' + (mode.effort || api.default_effort || 'medium')));
+            i18n.t('manuscript.meta_line', { model: mode.model || api.default_model || i18n.t('workstation.follow_default'), effort: mode.effort || api.default_effort || 'medium' })));
       })));
     };
 
     const drawInstruction = (mode) => {
       clear(body);
       body.appendChild(h('div', { class: 'inline', style: { marginBottom: '8px' } },
-        h('button', { class: 'mini', text: '← 换一种处理', onclick: drawPicker }),
+        h('button', { class: 'mini', text: i18n.t('manuscript.try_another'), onclick: drawPicker }),
         h('span', { class: 'tag mode-tag', text: mode.label || mode.id })));
       body.appendChild(h('div', { class: 'mode-desc', text: mode.desc || '' }));
       const req = h('textarea', {
-        rows: 6, placeholder: '例如：只调整第 3 段的节奏；统一为第三人称；保留全部对话与情节。'
+        rows: 6, placeholder: i18n.t('manuscript.req_placeholder')
       });
       body.appendChild(h('div', { class: 'field', style: { marginTop: '10px' } },
-        h('label', { text: '处理要求（可选）' }), req));
+        h('label', { text: i18n.t('manuscript.req_label') }), req));
       body.appendChild(h('div', { class: 'small muted' },
-        '不填也可以，会按这个模式自己的要求处理。结果会出现在文本下方，可编辑后再应用。'));
+        i18n.t('manuscript.req_hint')));
       body.appendChild(h('div', { class: 'inline', style: { marginTop: '12px' } },
         h('button', {
-          class: 'primary', text: '开始处理',
+          class: 'primary', text: i18n.t('manuscript.start'),
           onclick: () => { m.close(); runManuscriptProcess(mode, req.value); }
         }),
-        h('button', { text: '取消', onclick: () => m.close() })));
+        h('button', { text: i18n.t('common.cancel'), onclick: () => m.close() })));
     };
 
     drawPicker();
@@ -509,7 +508,7 @@ function viewManuscript(main) {
     const resultArea = h('textarea', {
       rows: 14, class: 'notepad ai-result-area',
       value: ai.text || '',
-      placeholder: 'AI 处理结果会显示在这里，可直接修改。',
+      placeholder: i18n.t('manuscript.result_placeholder'),
       oninput: e => {
         ui.aiResult.text = e.target.value;
         updateAiStat();
@@ -519,46 +518,45 @@ function viewManuscript(main) {
     const aiStat = h('div', { class: 'small muted' });
     const updateAiStat = () => {
       const original = (ai.source_chars != null ? ai.source_chars : ui.value.length);
-      aiStat.textContent = '原文 ' + original + ' 字 → 结果 ' + (ui.aiResult.text || '').length +
-        ' 字 · 可直接修改后再应用。';
+      aiStat.textContent = i18n.t('manuscript.result_stat', { before: original, after: (ui.aiResult.text || '').length });
     };
     updateAiStat();
 
     const meta = ai.meta || {};
     const info = [
       ai.created || '',
-      meta.model ? '模型 ' + meta.model : '',
-      meta.elapsed != null ? '耗时 ' + meta.elapsed + 's' : '',
+      meta.model ? i18n.t('manuscript.meta_model', { model: meta.model }) : '',
+      meta.elapsed != null ? i18n.t('manuscript.meta_elapsed', { elapsed: meta.elapsed }) : '',
       meta.usage && meta.usage.total_tokens ? 'tokens ' + meta.usage.total_tokens : ''
     ].filter(Boolean).join(' · ');
 
     const card = h('div', { class: 'card ai-result-card' });
-    card.appendChild(h('h2', null, 'AI 处理结果',
+    card.appendChild(h('h2', null, i18n.t('manuscript.result_title'),
       h('span', { class: 'tag mode-tag', text: ai.mode_label || manuscriptModeLabel(ai.mode) }),
-      h('span', { class: 'hint', text: '结果由 AI 生成，应用前请自行核对' })));
+      h('span', { class: 'hint', text: i18n.t('manuscript.result_warning') })));
     if (info) card.appendChild(h('div', { class: 'small muted', style: { marginBottom: '8px' } }, info));
     card.appendChild(resultArea);
     card.appendChild(aiStat);
     card.appendChild(h('div', { class: 'output-actions' },
       h('button', {
-        class: 'primary', text: '覆盖原工作区',
+        class: 'primary', text: i18n.t('manuscript.overwrite'),
         onclick: async () => {
           const content = ui.aiResult.text || '';
-          if (!content.trim()) { toast('结果为空，无法覆盖。', 'err'); return; }
-          if (!confirm('用这个结果覆盖当前工作区？原文本会被替换。')) return;
+          if (!content.trim()) { toast(i18n.t('manuscript.result_empty'), 'err'); return; }
+          if (!confirm(i18n.t('manuscript.overwrite_confirm'))) return;
           setText(content);
           ui.aiResult = null;
           writeDraft();
           await saveNow('state').catch(() => { });
           renderMain();
-          toast(ui.path ? '已覆盖工作区，文件会自动保存。' : '已覆盖工作区（当前是未命名草稿，记得保存）。', 'ok');
+          toast(ui.path ? i18n.t('manuscript.overwritten_file') : i18n.t('manuscript.overwritten_draft'), 'ok');
         }
       }),
       h('button', {
-        text: '转存至记忆',
+        text: i18n.t('manuscript.save_result_memory'),
         onclick: () => {
           const aiNow = ui.aiResult;
-          if (!aiNow || !String(aiNow.text || '').trim()) { toast('结果为空，无法转存。', 'err'); return; }
+          if (!aiNow || !String(aiNow.text || '').trim()) { toast(i18n.t('manuscript.result_empty_save'), 'err'); return; }
           openSaveToMemoryDialog(aiNow.text, {
             title: (aiNow.mode_label || manuscriptModeLabel(aiNow.mode)) + ' · ' +
               manuscriptShortName(ui.path).replace(/\.(txt|md|json)$/i, ''),
@@ -568,50 +566,50 @@ function viewManuscript(main) {
         }
       }),
       h('button', {
-        text: '复制',
+        text: i18n.t('common.copy'),
         onclick: () => {
           const text = ui.aiResult.text || '';
           if (!text.trim()) return;
           if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(text).then(
-              () => toast('已复制到剪贴板', 'ok'),
+              () => toast(i18n.t('common.copied'), 'ok'),
               () => fallbackCopy(text));
           } else fallbackCopy(text);
         }
       }),
       h('span', { style: { flex: '1' } }),
       h('button', {
-        class: 'danger', text: '删除结果',
+        class: 'danger', text: i18n.t('manuscript.delete_result'),
         onclick: () => {
-          if (!confirm('删除这次 AI 处理结果？工作区原文不会改变。')) return;
+          if (!confirm(i18n.t('manuscript.delete_result_confirm'))) return;
           ui.aiResult = null;
           writeDraft();
           saveNow('state').catch(() => { });
           renderMain();
-          toast('已删除处理结果。', 'ok');
+          toast(i18n.t('manuscript.result_deleted'), 'ok');
         }
       })));
     return card;
   };
 
   // ── 页面 ─────────────────────────────────
-  main.appendChild(pageHead('稿件处理',
-    '独立的大文本工作区：上方工具栏可以调用 AI 辅助、打开文本文件夹或导出到记忆库。内容会自动暂存，绑定文件后停手 1.5 秒自动写盘。'));
+  main.appendChild(pageHead(i18n.t('nav.text'),
+    i18n.t('manuscript.page_desc')));
 
   const toolbar = h('div', { class: 'manuscript-toolbar' },
-    h('button', { class: 'primary', text: 'AI 辅助', onclick: openAiAssist }),
-    h('button', { text: '文本文件夹', onclick: openTextFolderDialog }),
-    h('button', { text: '导出至记忆', onclick: exportCurrentToMemory }),
+    h('button', { class: 'primary', text: i18n.t('manuscript.ai_assist'), onclick: openAiAssist }),
+    h('button', { text: i18n.t('manuscript.folder_title'), onclick: openTextFolderDialog }),
+    h('button', { text: i18n.t('manuscript.export_memory'), onclick: exportCurrentToMemory }),
     h('span', { class: 'toolbar-sep' }),
-    h('button', { text: '保存', onclick: saveLocal }),
-    h('button', { text: '从产出导入…', onclick: pickChapter }),
-    h('button', { text: '从其他导入…', onclick: () => browseOpen(path => importPath(path)) }),
-    h('button', { text: '另存为 / 导出 txt…', onclick: () => exportAs(ui.value) }),
+    h('button', { text: i18n.t('common.save'), onclick: saveLocal }),
+    h('button', { text: i18n.t('manuscript.import_output_btn'), onclick: pickChapter }),
+    h('button', { text: i18n.t('manuscript.import_other_btn'), onclick: () => browseOpen(path => importPath(path)) }),
+    h('button', { text: i18n.t('manuscript.export_txt_btn'), onclick: () => exportAs(ui.value) }),
     h('span', { class: 'toolbar-sep' }),
-    h('button', { text: '查找替换…', onclick: openFindReplace }));
+    h('button', { text: i18n.t('manuscript.find_replace_btn'), onclick: openFindReplace }));
 
   const cleanTools = h('details', { class: 'input-details' });
-  cleanTools.appendChild(h('summary', null, '文本清理工具'));
+  cleanTools.appendChild(h('summary', null, i18n.t('manuscript.clean_tools')));
   cleanTools.appendChild(h('div', { class: 'inline', style: { flexWrap: 'wrap' } },
     ops.map(([label, fn]) => h('button', {
       class: 'mini', text: label,
@@ -619,7 +617,7 @@ function viewManuscript(main) {
     }))));
 
   const panel = h('div', { class: 'card' });
-  panel.appendChild(h('h2', null, '稿件工作区', pathHint));
+  panel.appendChild(h('h2', null, i18n.t('manuscript.workspace_title'), pathHint));
   panel.appendChild(toolbar);
   panel.appendChild(cleanTools);
   panel.appendChild(area);
@@ -646,8 +644,8 @@ function viewManuscript(main) {
     main.appendChild(h('div', { class: 'work-lock' },
       h('div', { class: 'work-lock-box' },
         h('div', { class: 'spinner' }),
-        h('strong', { text: 'AI 正在处理中' }),
-        h('div', { class: 'small muted', text: '完成前无法修改文本或切换操作。' }))));
+        h('strong', { text: i18n.t('manuscript.lock_title') }),
+        h('div', { class: 'small muted', text: i18n.t('manuscript.lock_hint') }))));
   }
 
   // 切到别的栏目时（go()）把草稿和文件都立刻落盘
@@ -660,9 +658,9 @@ function viewManuscript(main) {
 function exportAs(content) {
   let cwd = state.paths.export || '';
   const pathInput = h('input', { type: 'text', value: cwd });
-  const nameInput = h('input', { type: 'text', placeholder: '文件名.txt', value: '正文_' + new Date().toISOString().slice(0, 10) + '.txt' });
+  const nameInput = h('input', { type: 'text', placeholder: i18n.t('manuscript.filename_placeholder'), value: '正文_' + new Date().toISOString().slice(0, 10) + '.txt' });
   const encSel = h('select', null, [
-    ['utf-8', 'UTF-8（推荐）'], ['utf-8-sig', 'UTF-8 带 BOM（部分编辑器）'], ['gbk', 'GBK（部分中文站点需要）']
+    ['utf-8', i18n.t('manuscript.enc_utf8')], ['utf-8-sig', i18n.t('manuscript.enc_utf8_bom')], ['gbk', i18n.t('manuscript.enc_gbk')]
   ].map(([v, l]) => h('option', { value: v, text: l })));
   const dirList = h('div', { class: 'list scroll', style: { maxHeight: '240px' } });
 
@@ -672,24 +670,24 @@ function exportAs(content) {
       cwd = r.path;
       pathInput.value = r.path;
       clear(dirList);
-      if (r.parent) dirList.appendChild(h('div', { class: 'list-item', onclick: () => load(r.parent) }, h('div', { class: 'name', text: '⬆ 上一层' })));
+      if (r.parent) dirList.appendChild(h('div', { class: 'list-item', onclick: () => load(r.parent) }, h('div', { class: 'name', text: i18n.t('manuscript.up_level') })));
       if (r.shortcut) dirList.appendChild(h('div', { class: 'list-item', onclick: () => load(r.shortcut.path) }, h('div', { class: 'name', text: '🏠 ' + r.shortcut.name })));
       (r.dirs || []).forEach(d => dirList.appendChild(h('div', { class: 'list-item', onclick: () => load(d.path) }, h('div', { class: 'name', text: '📁 ' + d.name }))));
       (r.files || []).forEach(f => dirList.appendChild(h('div', { class: 'list-item' }, h('div', { class: 'name muted', text: f.name }), h('div', { class: 'meta', text: (f.size / 1024).toFixed(1) + 'KB' }))));
-    } catch (e) { toast('无法访问：' + e.message, 'err'); }
+    } catch (e) { toast(i18n.t('manuscript.access_failed_reason', { reason: e.message }), 'err'); }
   };
 
   const body = h('div', null,
-    h('div', { class: 'field' }, h('label', { text: '目标目录（可以一路点进去，也可以直接改路径）' }), pathInput),
+    h('div', { class: 'field' }, h('label', { text: i18n.t('manuscript.dir_label') }), pathInput),
     dirList,
     h('div', { class: 'inline', style: { marginTop: '10px' } },
-      h('div', { class: 'field', style: { flex: '1' } }, h('label', { text: '文件名' }), nameInput),
-      h('div', { class: 'field' }, h('label', { text: '编码' }), encSel)));
+      h('div', { class: 'field', style: { flex: '1' } }, h('label', { text: i18n.t('common.filename') }), nameInput),
+      h('div', { class: 'field' }, h('label', { text: i18n.t('manuscript.encoding') }), encSel)));
 
-  const m = modal('导出为 txt', body, [
-    h('button', { text: '取消', onclick: () => m.close() }),
+  const m = modal(i18n.t('manuscript.export_txt'), body, [
+    h('button', { text: i18n.t('common.cancel'), onclick: () => m.close() }),
     h('button', {
-      class: 'primary', text: '导出', dataset: { noclose: '1' },
+      class: 'primary', text: i18n.t('common.export'), dataset: { noclose: '1' },
       onclick: async () => {
         let dir = pathInput.value.trim();
         let name = nameInput.value.trim() || 'untitled.txt';
@@ -697,9 +695,9 @@ function exportAs(content) {
         const full = dir.replace(/[\\/]+$/, '') + '\\' + name;
         try {
           const res = await api('/api/io/export', { method: 'POST', body: { path: full, content, encoding: encSel.value } });
-          toast('已导出：' + res.path + '（' + (res.size / 1024).toFixed(1) + 'KB）', 'ok');
+          toast(i18n.t('manuscript.exported_size', { path: res.path, size: (res.size / 1024).toFixed(1) }), 'ok');
           m.close();
-        } catch (e) { toast('导出失败：' + e.message, 'err'); }
+        } catch (e) { toast(i18n.t('common.export_failed_reason', { reason: e.message }), 'err'); }
       }
     })
   ]);
@@ -716,17 +714,17 @@ function browseOpen(onPick) {
       cwd = r.path;
       pathInput.value = r.path;
       clear(dirList);
-      if (r.parent) dirList.appendChild(h('div', { class: 'list-item', onclick: () => load(r.parent) }, h('div', { class: 'name', text: '⬆ 上一层' })));
+      if (r.parent) dirList.appendChild(h('div', { class: 'list-item', onclick: () => load(r.parent) }, h('div', { class: 'name', text: i18n.t('manuscript.up_level') })));
       if (r.shortcut) dirList.appendChild(h('div', { class: 'list-item', onclick: () => load(r.shortcut.path) }, h('div', { class: 'name', text: '🏠 ' + r.shortcut.name })));
       (r.dirs || []).forEach(d => dirList.appendChild(h('div', { class: 'list-item', onclick: () => load(d.path) }, h('div', { class: 'name', text: '📁 ' + d.name }))));
       (r.files || []).forEach(f => dirList.appendChild(h('div', {
         class: 'list-item',
         onclick: () => { m.close(); onPick(f.path); }
       }, h('div', { class: 'name', text: '📄 ' + f.name }), h('div', { class: 'meta', text: (f.size / 1024).toFixed(1) + 'KB' }))));
-    } catch (e) { toast('无法访问：' + e.message, 'err'); }
+    } catch (e) { toast(i18n.t('manuscript.access_failed_reason', { reason: e.message }), 'err'); }
   };
-  const m = modal('打开文本文件', h('div', null,
-    h('div', { class: 'field' }, h('label', { text: '当前目录' }), pathInput),
-    dirList), [h('button', { text: '取消', onclick: () => m.close() })]);
+  const m = modal(i18n.t('manuscript.open_file'), h('div', null,
+    h('div', { class: 'field' }, h('label', { text: i18n.t('manuscript.current_dir') }), pathInput),
+    dirList), [h('button', { text: i18n.t('common.cancel'), onclick: () => m.close() })]);
   load(cwd);
 }
