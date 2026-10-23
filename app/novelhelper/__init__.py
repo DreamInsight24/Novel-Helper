@@ -2,8 +2,7 @@
 # -*- coding: utf-8 -*-
 """NovelHelper：本地优先的小说创作工作站。"""
 
-__version__ = "2610.1"
-APP_VERSION = "v2610.1"
+from ._version import APP_VERSION, __version__
 
 __all__ = [
     "APP_VERSION",

@@ -74,6 +74,9 @@ def _title_from_prompt(prompt: str, mode: str) -> str:
     return f"新对话 · {mode}"
 
 
+title_from_prompt = _title_from_prompt
+
+
 def create_session(title: str = "", mode: str = "draft") -> dict:
     session = {
         "id": store.new_id("hs"),
