@@ -5,14 +5,14 @@
 ## 1. 设计原则
 
 - **职责单一**：每个软件包只承担一类职责，包名即职责。
-- **边界清晰**：包之间只通过对方 `__init__.py` 暴露的公共 API 交互，不直接 import 内部模块。
-- **对外最小暴露**：公共 API 由 `__all__` 显式声明，内部实现以 `_` 前缀标识私有。
+- **边界清晰**：包之间原则上只通过对方 `__init__.py` 暴露的公共 API 交互，不直接 import 内部模块；已知例外见本文件第 3 节。
+- **对外最小暴露**：包级公共 API 由 `__all__` 显式声明；独立保留模块使用不以下划线开头的名称提供公开符号，内部实现以 `_` 前缀标识私有。
 - **行为稳定**：结构重构只搬移与重组，不改变对外行为、数据格式与接口签名。
 - **无循环依赖**：包依赖关系为有向无环图，新增依赖需在本文档记录。
 
 ## 2. 目标包结构
 
-以下为 v2610.2 任务 1 的结构；P0 基线以及 P1 `store`、P2 `project`、P3 `server` 包迁移和 P4 版本常量提取均已完成并通过本地回归。A 的详细计划暂存于项目外；基线、拆分粒度、迁移映射和历史追踪证据见 `docs/restructure/`。
+以下为 v2610.2 任务 1 的目标结构；P0 基线以及 P1 `store`、P2 `project`、P3 `server` 包迁移和 P4 收尾均已实施。历史标题公共别名已按计划落实，最终源码与 EXE 回归结果见验收记录。基线、拆分粒度、迁移映射和最终验收记录见 `docs/restructure/`。
 
 ```
 app/novelhelper/
@@ -81,7 +81,7 @@ app/novelhelper/
 | `store` | JSON 读写、默认数据、旧数据迁移、路径和备份 | `prompts`、`providers`、`elements`；包内按私有模块分层 | P1 已实施；接口见 `docs/api/store.md` |
 | `project` | 工作区文件、导入/导出与文本处理 | `store`、`elements`、`context`；包内按私有模块分层 | P2 已实施；接口见 `docs/api/project.md` |
 | `server` | HTTP 服务、静态资源和 API 编排 | `ai`、`context`、`history`、`logger`、`project`、`store` 等 | P3 已实施；接口见 `docs/api/server.md` |
-| `ai`、`context`、`elements`、`history`、`logger`、`prompts`、`providers` | 保留职责相对单一的模块，作为根包公开模块 | 依具体模块而定；依赖方向以迁移计划为准 | 计划保留 |
+| `ai`、`context`、`elements`、`history`、`logger`、`prompts`、`providers` | 保留职责相对单一的模块，作为根包公开模块 | 依具体模块而定；依赖方向以迁移计划为准 | 已保留；符号基线见 `docs/restructure/public-api-baseline.md` |
 
 `store`、`project` 与 `server` 均有接口说明。P1-P3 包内依赖如下；私有实现不反向导入所属包的 `__init__`：
 
@@ -122,6 +122,8 @@ app/novelhelper/
 | `_generation` | `_helpers`、`_state`、`ai`、`context`、`history`、`logger`、`project`、`prompts`、`providers`、`store` |
 | `_handler` | `_api`、`_base`、`_generation`、`_records`、`store` |
 | `__init__` | `_handler`、`_state`；保留 `ai` 模块属性兼容 |
+
+`server/_generation.py` 通过公开的 `history.title_from_prompt` 生成会话标题。该名称是原 `_title_from_prompt` 的公开别名，保留原签名与算法；`history` 内部调用仍可使用私有实现。API 索引记录了此模块级接口。`store._migrate_mode_kinds` 继续作为既有自检的兼容出口，不属于 `store.__all__`。
 
 ## 4. 豁免清单
 

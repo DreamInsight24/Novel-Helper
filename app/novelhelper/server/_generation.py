@@ -121,7 +121,7 @@ class _GenerationMixin:
                 session = history.load_session(session_id) if session_id else None
                 if session is None:
                     session = history.create_session(
-                        history._title_from_prompt(user_prompt, mode_id), mode_id)
+                        history.title_from_prompt(user_prompt, mode_id), mode_id)
                     session_id = session["id"]
 
                 saved = history.append_turn(

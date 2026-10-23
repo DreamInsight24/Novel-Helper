@@ -12,12 +12,16 @@ docs/
   requirements/
     v2610.2.md                 # 版本需求归档，一个版本一个文件
   api/
+    README.md                   # Python 公共 API 总索引
     <package>.md               # 各软件包接口文档，与 __all__/docstring 一致
   i18n-inventory.md            # 界面文案盘点清单
   restructure/                 # v2610.2 结构迁移基线与路径映射
+    final-validation.md         # P4 集成验收结果与待确认项
 CHANGELOG.md                   # 仓库根目录，版本变更日志
 scripts/
   smoke_test.py                # 最小冒烟回归脚本
+  check_dependencies.py        # 静态依赖与导入顺序检查
+  exe_smoke_test.py            # PyInstaller EXE 隔离运行验收
 ```
 
 目录职责：
@@ -28,9 +32,9 @@ scripts/
 | `docs/architecture.md` | 代码结构、包边界、行为不变约束、迁移记录 | 是 |
 | `docs/localization.md` | 本地化规范与接口用法 | 是 |
 | `docs/requirements/` | 各版本需求归档，只增不改 | 否，归档后冻结 |
-| `docs/api/` | 各包公共接口说明 | 是，随代码更新 |
+| `docs/api/` | 公共 API 总索引及各包接口说明 | 是，随代码更新 |
 | `docs/i18n-inventory.md` | 界面文案盘点 | 是，文案变动时更新 |
-| `docs/restructure/` | 结构迁移前的符号基线、粒度复核、迁移映射和历史追踪抽查 | v2610.2 重构期间维护；后续架构以 `architecture.md` 为准 |
+| `docs/restructure/` | 结构迁移基线、粒度复核、迁移映射、历史追踪与最终验收记录 | v2610.2 重构期间维护；后续架构以 `architecture.md` 为准 |
 | `CHANGELOG.md` | 面向用户与贡献者的版本变更 | 是 |
 | `scripts/smoke_test.py` | 冒烟回归，作为合并前基线 | 是 |
 
@@ -41,6 +45,7 @@ scripts/
 - 接口文档与软件包同名：`docs/api/store.md` 对应 `app/novelhelper/store/`。
 - 项目 API 文档：`docs/api/project.md` 对应 `app/novelhelper/project/`。
 - 服务端 API 文档：`docs/api/server.md` 对应 `app/novelhelper/server/`。
+- Python 公共 API 总索引位于 `docs/api/README.md`。
 - 文档标题与文件名语义一致，避免“杂项”“其他”“temp”这类命名。
 - 不使用个人化或团队内部缩写命名（如 `requirements2gm`），文档面向所有贡献者。
 
