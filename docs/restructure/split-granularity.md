@@ -92,4 +92,19 @@
 | `store/_collections.py` | 37 | 5 函数 | 集合查询 |
 | `store/_backup.py` | 19 | 1 函数 | 跨仓库/目录/集合的备份编排，小文件有真实依赖边界 |
 
-P1 仅调整 Python 代码组织与导出；默认内容、路径结果、签名和持久化行为通过基线对照/自检核对。project/server 尚未迁移。
+P1 仅调整 Python 代码组织与导出；默认内容、路径结果、签名和持久化行为通过基线对照/自检核对。P2 仅调整 project 代码组织与导出；此后仅 `server` 尚未迁移。
+
+## 7. P2 `project` 实施后的实测规模
+
+| 实际文件 | 实测行数 | 顶层定义/常量 | 对应职责 |
+|---|---:|---:|---|
+| `project/__init__.py` | 71 | 36 个公共函数 + `HEADING_RE` re-export | API 入口 |
+| `project/_paths.py` | 48 | 5 函数 | 路径约束与基础文本读写 |
+| `project/_parsers.py` | 178 | 8 函数 + 1 常量 | Markdown、记忆和地图解析 |
+| `project/_imports.py` | 214 | 6 函数 | 导入转换、校验与记录合并 |
+| `project/_exports.py` | 152 | 4 个公共函数 + 1 私有函数 | JSON/文本导出 |
+| `project/_text.py` | 119 | 8 函数 | 正文解析与纯文本操作 |
+| `project/_outputs.py` | 76 | 4 函数 | 正文、计划、转换文件与章节列表 |
+| `project/_browse.py` | 95 | 5 个公共函数 + 1 私有函数 | 导入源、工作区列表与磁盘浏览 |
+
+P2 的 43 个顶层定义/常量与 `pre-refactor-store` AST 对照一致；比较时仅忽略为适配包内位置而将两个函数内 `context` 相对导入层级从一级改为二级的差异。运行期 `project.__all__` 与基线 37 个公开名称一致，7 个私有模块无循环依赖；`app/selftest.py` 67 项通过，`scripts/smoke_test.py` 15 项通过。
