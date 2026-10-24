@@ -61,7 +61,8 @@ app/novelhelper/
 
 - 当前 `store`、`project` 与 `server` 均已拆成同名包，并保留旧包级导入入口。
 - 当前本地用户配置文件为 `store.DATA_DIR / "config.json"`；默认源码路径为 `app/data/config.json`，`app/run.py --debug` 默认路径为 `app/debug/data/config.json`。运行时环境变量可改变数据目录，详见 P0 计划中的路径矩阵。
-- 读写入口分别是 `store.load("config")` 和 `store.save("config", config)`；缺失/空白文件返回默认配置。非法 JSON 或非 UTF-8 目前会引发 `RuntimeError`。任务 1 保持该行为；任务 2 按 K2 处理损坏配置的备份和日志，不另建语言配置文件。
+- 读写入口分别是 `store.load("config")` 和 `store.save("config", config)`；缺失/空白文件返回默认配置。非法 JSON 或非 UTF-8 目前会引发 `RuntimeError`。任务 1 保持该行为；任务 3.2 在 `server/_language.py` 实现语言字段读写与 K2 损坏配置处理（备份为 `config.json.bak-<时间戳>` 并记日志，随后按首次/默认配置继续），不另建语言配置文件。
+- `config.language` 为任务 3.2 的用户语言字段；配置中无该字段即视为首次进入。启动时 `server.serve()` 将其应用到进程默认语言，`POST /api/settings/language` 写入并立即生效。损坏配置的备份与日志由 `server/_language.py` 负责，`store` 层的既有 `RuntimeError` 行为不变。
 - `config.paths.data_dir` 当前未参与 `DATA_DIR` 路径计算；不应将其误当成用户数据迁移开关。
 
 ## 3. 计划职责

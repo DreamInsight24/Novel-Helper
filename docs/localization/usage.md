@@ -81,7 +81,7 @@ i18n.apply(document);
 
 register 的作用是将 key → 译文字典合并进前端内存。正常页面由 bootstrap 自动拉取、注册；业务页面不应另维护独立翻译表。
 
-## 5. 启动与临时预览
+## 5. 启动、语言选择与临时预览
 
 ```powershell
 python app/run.py --no-browser
@@ -93,6 +93,10 @@ python app/run.py --no-browser
 - [英文预览](http://127.0.0.1:8765/?lang=en-US)
 - [静态/动态绑定示例](http://127.0.0.1:8765/i18n/example.html?lang=en-US)
 
-lang 查询参数只用于本次预览，不写用户配置。未提供参数时使用后端 current；未知语言按 fallback 处理。实际解析后的语言写入 html lang，业务 API 请求自动使用该语言请求头。
+**首次进入**：本地配置中没有 `language` 字段时，页面在业务脚本加载前弹出语言选择（列表来自 `languages.json`），点击即写入配置并刷新，之后以所选语言渲染。配置缺失或损坏时按首次处理（备份 + 日志，见[运行流程](runtime-flow.md)）。
 
-当前完整切换通过改变 URL 并重新加载页面完成。仅调用 i18n.load 不会重建所有业务常量。首次选择、设置项与持久化留给任务 3.2。
+**设置页切换**：「模型设置 → 应用」中的语言下拉来自后端语言清单，切换后立即保存并刷新页面。
+
+lang 查询参数只用于本次预览，不写用户配置，且跳过首次选择弹层。未提供参数时使用后端 current（启动时由 `config.language` 决定）；未知语言按 fallback 处理。实际解析后的语言写入 html lang，业务 API 请求自动使用该语言请求头。
+
+完整切换通过 `POST /api/settings/language` 后重新加载页面完成。仅调用 i18n.load 不会重建所有业务常量。

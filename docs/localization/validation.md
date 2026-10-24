@@ -73,3 +73,40 @@ python scripts/exe_smoke_test.py dist/NovelHelper.exe
 任务 3.1 的英文排版验收限定上述桌面视口；390px 移动布局限制已如实记录，不能据桌面验证结果声称所有视口通过。
 
 首次语言选择、设置页切换及持久化按原需求留给任务 3.2。本次 `?lang=` 为非持久化预览入口，后端语言列表与取词接口可供下一任务复用。
+
+---
+
+# 任务 3.2 验证记录
+
+日期：2026-10-24。范围：语言持久化、首次语言选择、设置页语言切换与 K2 损坏配置恢复。分支 `dev/v2610.2_language_persistence`。
+
+## 自动化检查
+
+| 检查 | 结果 | 覆盖 |
+|---|---|---|
+| `python scripts/test_language_settings.py` | 11 项通过 | 首次判定、保存/落盘、未知语言回退、损坏配置备份与恢复、非对象配置、启动应用、请求上下文隔离、HTTP 切换端点与 first_run 标记、空语言 400 |
+| `python scripts/smoke_test.py` | 通过 | 原有 15 项 + 首次标记、切换立即生效、空值拒绝、重启后语言保留 |
+| `python scripts/test_localization.py` | 15 项通过 | 原有取词/回退/校验基线（新增 6 个 key 后中英集合一致） |
+| `node scripts/test_i18n.cjs` | 通过 | 前端运行时基线 |
+| `python app/selftest.py` | 69 项通过 | 原有业务基线；注意：环境存在 DEEPSEEK_API_KEY 时 3 项"无 Key 报错"断言失败，属既有环境依赖，与本任务无关 |
+| `python -X utf8 -B scripts/check_dependencies.py` | 通过 | 新增 `server/_language.py` 仅依赖 store 与 localization 公共 API，无循环依赖 |
+| `git diff --check`、`node --check`（config.js / bootstrap.js / i18n.js） | 通过 | 空白与语法检查 |
+
+## 手工检查清单（截图 / 录屏记录）
+
+以下场景由负责人以浏览器人工验证并附截图/录屏（需求 6.4、6.5）：
+
+1. 清空数据目录后首次进入：弹出语言选择，列表来自 `languages.json`（简体中文 / English）；
+2. 点击 English：立即以英文重新渲染并写入 `config.language`，无需二次确认；
+3. 重启应用：界面保持英文，不再弹出首次选择；
+4. 清空配置后选择简体中文：界面为中文，首次弹层不再出现；
+5. 「模型设置 → 应用」语言下拉：切换到另一语言后页面刷新并立即生效；
+6. 进行中的生成任务期间切换语言：任务不受影响（请求语言已固定）；
+7. 损坏 `config.json`（写入非法 JSON）后启动：日志出现备份记录，目录出现 `config.json.bak-*`，页面按首次进入处理；
+8. `?lang=zh-CN` 预览参数：不触发首次弹层、不写配置。
+
+## 验收边界
+
+- 英文终审与 PR review 仍待人工流程；需求文件勾选由负责人执行。
+- 录屏/截图由负责人制作并归档，本文档仅保留文字验证记录。
+- 已知边界（沿用任务 3.1 判定）：存储数据默认值、栏目名、模式名、地图坐标与导出格式保留原文，见 [i18n-inventory.md](i18n-inventory.md) 豁免清单。

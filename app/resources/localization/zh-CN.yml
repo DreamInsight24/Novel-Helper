@@ -166,6 +166,7 @@ errors.generation_locked: AI 正在生成中，工作站已锁定。请等待本
 errors.invalid_path: 非法路径
 errors.invalid_session_id: 非法的会话 id
 errors.is_process_mode: 「{label}」是稿件处理模式，不能在 AI 工作站使用。
+errors.language_required: 语言不能为空
 errors.json_format: JSON 格式错误：{detail}
 errors.json_no_records: 'JSON 中没有可导入的记录（需要数组，或 {"items": [...]}）'
 errors.map_cells_invalid: 地图的 cells 必须是对象
@@ -249,6 +250,9 @@ inventory.remove: 移出背包
 inventory.title: '{name} · 背包'
 inventory.worn_status: 佩戴中
 inventory.worn_title: 穿戴与装备
+language.first_run_hint: 选择后立即生效，之后可在「模型设置」中更改。
+language.first_run_title: 选择你的语言
+language.switch_failed_reason: 语言切换失败：{reason}
 manuscript.access_failed_reason: 无法访问：{reason}
 manuscript.ai_assist: AI 辅助
 manuscript.ai_question: 我们要对文本怎么做？
@@ -572,6 +576,8 @@ settings.generic_prompt: 通用提示词
 settings.generic_prompt_hint: 通用接口提示词：不假定具体模型名称、厂商或特殊能力。
 settings.key_optional_hint: 当前是自定义或本地接口，API Key 可以留空；如果接口要求鉴权，再手动填写即可。
 settings.key_placeholder: '{env}（可手动填写）'
+settings.language: 语言
+settings.language_hint: 切换后立即生效
 settings.max_tokens_label: max_tokens 字段名
 settings.model_name_label: 模型名（可手动填写）
 settings.model_name_placeholder: 例如 gpt-4.1-mini / deepseek-flash
