@@ -154,6 +154,7 @@ def run() -> None:
                     )
 
                 _, languages = _json_request(base_url, "/api/i18n")
+                _check("fresh runtime reports first run", languages.get("first_run") is True)
                 for entry in languages["languages"]:
                     code, catalog = _json_request(base_url, "/api/i18n/" + entry["id"])
                     _check("language catalog " + entry["id"], code == 200 and catalog["lang"] == entry["id"]
@@ -243,6 +244,62 @@ def run() -> None:
                     (data_root / "config.json").read_text(encoding="utf-8")
                 )
                 _check("config persisted in temporary runtime", disk_config == roundtrip)
+
+                # Language switch must persist across a restart (task 3.2).
+                switch_status, switched = _json_request(
+                    base_url,
+                    "/api/settings/language",
+                    method="POST",
+                    payload={"language": "en-US"},
+                )
+                _check(
+                    "switch language endpoint",
+                    switch_status == 200
+                    and switched.get("ok") is True
+                    and switched.get("language") == "en-US",
+                )
+                _, after_switch = _json_request(base_url, "/api/i18n")
+                _check(
+                    "language switch takes effect immediately",
+                    after_switch["current"] == "en-US"
+                    and after_switch.get("first_run") is False,
+                )
+                try:
+                    _json_request(
+                        base_url,
+                        "/api/settings/language",
+                        method="POST",
+                        payload={"language": ""},
+                    )
+                    _check("empty language is rejected", False)
+                except urllib.error.HTTPError as exc:
+                    _check("empty language is rejected", exc.code == 400)
+
+                _stop(process)
+                process = subprocess.Popen(
+                    [
+                        sys.executable,
+                        "-B",
+                        str(RUNNER),
+                        "--no-browser",
+                        "--host",
+                        "127.0.0.1",
+                        "--port",
+                        str(port),
+                    ],
+                    cwd=ROOT,
+                    env=env,
+                    stdin=subprocess.DEVNULL,
+                    stdout=log_stream,
+                    stderr=subprocess.STDOUT,
+                )
+                _wait_until_ready(base_url, process)
+                _, restarted = _json_request(base_url, "/api/i18n")
+                _check(
+                    "language persists across restart",
+                    restarted["current"] == "en-US"
+                    and restarted.get("first_run") is False,
+                )
             except BaseException as exc:
                 failure = exc
             finally:
