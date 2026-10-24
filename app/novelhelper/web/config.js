@@ -793,6 +793,27 @@ function viewAI(main) {
       })),
     h('span', { class: 'small muted',
       text: i18n.t('settings.port_desc') })));
+  // 语言切换（任务 3.2）：选项来自后端语言清单，不硬编码；切换后刷新页面立即生效。
+  sCard.appendChild(h('div', { class: 'inline' },
+    h('div', { class: 'field' },
+      h('label', { text: i18n.t('settings.language') }),
+      h('select', {
+        value: i18n.defaults.current || 'zh-CN',
+        onchange: async e => {
+          const select = e.target;
+          select.disabled = true;
+          try {
+            await apiCall('/api/settings/language', { method: 'POST', body: { language: select.value } });
+            location.reload();
+          } catch (err) {
+            select.disabled = false;
+            select.value = i18n.defaults.current || 'zh-CN';
+            toast(i18n.t('language.switch_failed_reason', { reason: err.message }), 'err');
+          }
+        },
+      }, (i18n.defaults.languages || []).map(l => h('option', { value: l.id, text: l.name })))),
+    h('span', { class: 'small muted',
+      text: i18n.t('settings.language_hint') })));
   main.appendChild(sCard);
 
   const pCard = h('div', { class: 'card' });
