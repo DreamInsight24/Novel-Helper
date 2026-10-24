@@ -21,6 +21,7 @@ function h(tag, props, ...kids) {
     }
   }
   appendKids(el, kids);
+  i18n.apply(el);
   return el;
 }
 
@@ -52,13 +53,13 @@ function status(text, kind) {
 
 async function api(path, opts) {
   opts = opts || {};
-  const init = { method: opts.method || 'GET', headers: { 'Content-Type': 'application/json' } };
+  const init = { method: opts.method || 'GET', headers: { 'Content-Type': 'application/json', 'X-NovelHelper-Language': document.documentElement.lang } };
   if (opts.body !== undefined) init.body = JSON.stringify(opts.body);
   const res = await fetch(path, init);
   const raw = await res.text();
   let data;
   try { data = raw ? JSON.parse(raw) : {}; }
-  catch (e) { data = { ok: false, error: '返回内容无法解析', detail: raw.slice(0, 300) }; }
+  catch (e) { data = { ok: false, error: i18n.t('errors.parse_failed'), detail: raw.slice(0, 300) }; }
   if (!res.ok || data.ok === false) {
     const msg = data.error || ('HTTP ' + res.status);
     throw new Error(data.detail ? msg + '（' + String(data.detail).slice(0, 300) + '）' : msg);
@@ -167,6 +168,7 @@ function modal(title, bodyNode, footNodes) {
   }
   clear(root);
   root.appendChild(overlay);
+  i18n.apply(overlay);
   document.addEventListener('keydown', onKey);
   return { close, dlg };
 }
@@ -174,8 +176,8 @@ function modal(title, bodyNode, footNodes) {
 /** 确认弹窗：替代原生 confirm，样式统一。 */
 function confirmDialog(title, text, onYes) {
   const m = modal(title, h('div', { class: 'small' }, text), [
-    h('button', { text: '取消', onclick: () => m.close() }),
-    h('button', { class: 'primary', text: '确定', dataset: { noclose: '1' }, onclick: () => { m.close(); onYes(); } })
+    h('button', { text: i18n.t('common.cancel'), onclick: () => m.close() }),
+    h('button', { class: 'primary', text: i18n.t('common.confirm'), dataset: { noclose: '1' }, onclick: () => { m.close(); onYes(); } })
   ]);
   return m;
 }
@@ -185,9 +187,9 @@ function askDialog(title, label, defaultValue, onSubmit) {
   const input = h('input', { type: 'text', value: defaultValue == null ? '' : String(defaultValue) });
   const submit = () => { const v = input.value; m.close(); onSubmit(v); };
   const m = modal(title, h('div', null,
-    h('div', { class: 'field' }, h('label', { text: label || '名称' }), input)), [
-    h('button', { text: '取消', onclick: () => m.close() }),
-    h('button', { class: 'primary', text: '确定', dataset: { noclose: '1' }, onclick: submit })
+    h('div', { class: 'field' }, h('label', { text: label || i18n.t('common.name') }), input)), [
+    h('button', { text: i18n.t('common.cancel'), onclick: () => m.close() }),
+    h('button', { class: 'primary', text: i18n.t('common.confirm'), dataset: { noclose: '1' }, onclick: submit })
   ]);
   input.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
   input.focus();
@@ -200,7 +202,7 @@ function pickDialog(title, options, onPick) {
     h('div', { class: 'list-item', onclick: () => { m.close(); onPick(opt.value); } },
       h('div', { class: 'name', text: opt.label }),
       opt.meta ? h('div', { class: 'meta', text: opt.meta }) : null)));
-  const m = modal(title, list, [h('button', { text: '取消', onclick: () => m.close() })]);
+  const m = modal(title, list, [h('button', { text: i18n.t('common.cancel'), onclick: () => m.close() })]);
 }
 
 // ═══════════════════════════════════════════
@@ -267,15 +269,15 @@ function defFor(view) {
   const key = view.slice('section_'.length);
   const sec = sectionDefs(true).find(s => s.key === key) || {};
   return {
-    coll: view, singular: '条目', label: sec.label || key, idPrefix: 'ot',
-    desc: sec.desc || '自定义设定栏目（可在「自定义栏目」页增删改名）',
-    tagLabel: '备注', notesLabel: '字段说明', hasCategory: true, hasContent: true
+    coll: view, singular: i18n.t('collections.singular_entry'), label: sec.label || key, idPrefix: 'ot',
+    desc: sec.desc || i18n.t('sections.default_desc'),
+    tagLabel: i18n.t('common.note'), notesLabel: i18n.t('common.field_notes'), hasCategory: true, hasContent: true
   };
 }
 
 function recordName(rec) {
-  if (!rec) return '（缺失）';
-  const base = rec.name || rec.title || '未命名';
+  if (!rec) return i18n.t('common.missing');
+  const base = rec.name || rec.title || i18n.t('common.unnamed');
   return rec.tag ? base + '（' + rec.tag + '）' : base;
 }
 
@@ -327,15 +329,15 @@ function setDb(collections) {
 const saveTimers = {};
 
 function touch(coll, quiet) {
-  if (!quiet) status('保存中…', 'busy');
+  if (!quiet) status(i18n.t('common.saving'), 'busy');
   clearTimeout(saveTimers[coll]);
   saveTimers[coll] = setTimeout(async () => {
     try {
       await api('/api/collections/' + coll, { method: 'POST', body: { data: state.db[coll] } });
-      if (!quiet) status('已保存 ' + new Date().toLocaleTimeString(), 'ok');
+      if (!quiet) status(i18n.t('common.saved_at', { time: new Date().toLocaleTimeString() }), 'ok');
     } catch (e) {
-      status('保存失败', 'err');
-      toast('保存失败：' + e.message, 'err');
+      status(i18n.t('common.save_failed'), 'err');
+      toast(i18n.t('common.save_failed_reason', { reason: e.message }), 'err');
     }
   }, 500);
 }
@@ -343,7 +345,7 @@ function touch(coll, quiet) {
 async function saveNow(coll) {
   clearTimeout(saveTimers[coll]);
   await api('/api/collections/' + coll, { method: 'POST', body: { data: state.db[coll] } });
-  status('已保存 ' + new Date().toLocaleTimeString(), 'ok');
+  status(i18n.t('common.saved_at', { time: new Date().toLocaleTimeString() }), 'ok');
 }
 
 /** 把一段文本追加到稿件处理工作区（不清空已有内容）。 */
@@ -363,7 +365,7 @@ function appendToTextPanel(content, quiet) {
   saved.dirty = true;
   saved.updated = new Date().toISOString();
   touch('state', true);
-  if (!quiet) toast('已追加到稿件处理工作区。', 'ok');
+  if (!quiet) toast(i18n.t('common.appended_to_workspace'), 'ok');
 }
 
 // 浏览器端异常也写入本地日志，便于排查界面问题。
@@ -371,7 +373,7 @@ function clientLog(level, message, detail) {
   try {
     fetch('/api/client-log', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-NovelHelper-Language': document.documentElement.lang },
       body: JSON.stringify({ level, message, detail })
     }).catch(() => {});
   } catch (e) { /* 日志失败不影响界面 */ }
@@ -389,27 +391,27 @@ window.addEventListener('unhandledrejection', e => {
 // 侧栏与路由
 // ═══════════════════════════════════════════
 const NAV = [
-  { group: '写作' },
-  { id: 'writer', label: 'AI 工作站' },
-  { id: 'chapters', label: '章节与导出' },
-  { id: 'text', label: '稿件处理' },
-  { group: '基础设定' },
-  { id: 'characters', label: '人物档案', coll: 'characters' },
-  { id: 'inventory', label: '人物背包' },
-  { id: 'world', label: '世界地图' },
-  { id: 'items', label: '道具设定', coll: 'items' },
-  { id: 'equipment', label: '服饰与装备', coll: 'equipment' },
-  { group: '自定义设定' },
-  { id: 'factions', label: '势力设定', coll: 'factions' },
+  { group: i18n.t('nav.group_writing') },
+  { id: 'writer', label: i18n.t('nav.writer') },
+  { id: 'chapters', label: i18n.t('nav.chapters') },
+  { id: 'text', label: i18n.t('nav.text') },
+  { group: i18n.t('nav.group_core') },
+  { id: 'characters', label: i18n.t('nav.characters'), coll: 'characters' },
+  { id: 'inventory', label: i18n.t('nav.inventory') },
+  { id: 'world', label: i18n.t('nav.worldmap') },
+  { id: 'items', label: i18n.t('nav.items'), coll: 'items' },
+  { id: 'equipment', label: i18n.t('nav.equipment'), coll: 'equipment' },
+  { group: i18n.t('nav.group_custom') },
+  { id: 'factions', label: i18n.t('nav.factions'), coll: 'factions' },
   { sections: true },
-  { id: 'other', label: '其他设定', coll: 'other' },
-  { group: '记忆' },
-  { id: 'memories', label: '记忆库', coll: 'memories' },
-  { group: '系统' },
-  { id: 'elements', label: '元素模板' },
-  { id: 'sections', label: '自定义栏目' },
-  { id: 'modes', label: '模式管理' },
-  { id: 'ai', label: '模型设置' }
+  { id: 'other', label: i18n.t('nav.other'), coll: 'other' },
+  { group: i18n.t('nav.group_memory') },
+  { id: 'memories', label: i18n.t('nav.memories'), coll: 'memories' },
+  { group: i18n.t('nav.group_system') },
+  { id: 'elements', label: i18n.t('nav.elements') },
+  { id: 'sections', label: i18n.t('nav.sections') },
+  { id: 'modes', label: i18n.t('nav.modes') },
+  { id: 'ai', label: i18n.t('nav.settings') }
 ];
 
 function renderNav() {
@@ -457,7 +459,7 @@ function renderMain() {
   clear(main);
   if (state.debug) {
     main.appendChild(h('div', { class: 'debug-strip',
-      text: 'DEBUG 模式 · 当前数据、输出与日志与正式版本隔离' }));
+      text: i18n.t('common.debug_banner') }));
   }
   const map = {
     writer: viewWorkstation, chapters: viewChapters, text: viewManuscript,
@@ -466,7 +468,9 @@ function renderMain() {
   };
   if (map[state.view]) map[state.view](main);
   else if (defFor(state.view)) viewRecords(main, state.view);
-  else main.appendChild(h('div', { class: 'card muted', text: '未知页面' }));
+  else main.appendChild(h('div', { class: 'card muted', text: i18n.t('common.unknown_page') }));
+  main.appendChild(h('div', {class: 'small muted', text: i18n.t('common.data_content')}));
+  i18n.apply(main);
   main.scrollTop = keepTop;
 }
 
@@ -482,30 +486,30 @@ function pageHead(title, desc, actions) {
 // ═══════════════════════════════════════════
 const COLLECTIONS = {
   characters: {
-    coll: 'characters', singular: '人物', label: '人物档案', idPrefix: 'ch',
-    desc: '多维设定按「元素树」组织：外貌、性格、能力……都能继续往下分子集。背包与穿戴在「人物背包」页编辑。',
-    tagLabel: '身份备注（括号内容）', notesLabel: '补充说明',
+    coll: 'characters', singular: i18n.t('collections.singular_character'), label: i18n.t('nav.characters'), idPrefix: 'ch',
+    desc: i18n.t('collections.characters.desc'),
+    tagLabel: i18n.t('collections.characters.tag_label'), notesLabel: i18n.t('collections.notes'),
     hasInventory: true, hasEquipment: true
   },
   factions: {
-    coll: 'factions', singular: '势力', label: '势力设定', idPrefix: 'fa',
-    desc: '组织 / 家族 / 阵营；成员直接指针到人物档案。',
-    tagLabel: '类型备注', notesLabel: '补充说明', hasMembers: true
+    coll: 'factions', singular: i18n.t('collections.singular_faction'), label: i18n.t('nav.factions'), idPrefix: 'fa',
+    desc: i18n.t('collections.factions.desc'),
+    tagLabel: i18n.t('collections.factions.tag_label'), notesLabel: i18n.t('collections.notes'), hasMembers: true
   },
   items: {
-    coll: 'items', singular: '道具', label: '道具设定', idPrefix: 'it',
-    desc: '能放进背包的东西；不单独发送，只在人物背包里被引用时作为那条的解释发送。',
-    tagLabel: '别称', notesLabel: '补充说明', hasCategory: true
+    coll: 'items', singular: i18n.t('collections.singular_item'), label: i18n.t('nav.items'), idPrefix: 'it',
+    desc: i18n.t('collections.items.desc'),
+    tagLabel: i18n.t('collections.alias'), notesLabel: i18n.t('collections.notes'), hasCategory: true
   },
   equipment: {
-    coll: 'equipment', singular: '服饰 / 装备', label: '服饰与装备', idPrefix: 'eq',
-    desc: '基于道具的穿戴物；不单独发送，只在人物背包里被引用时作为那条的解释发送。',
-    tagLabel: '别称', notesLabel: '补充说明', hasSlot: true, hasCategory: true
+    coll: 'equipment', singular: i18n.t('collections.singular_equipment'), label: i18n.t('nav.equipment'), idPrefix: 'eq',
+    desc: i18n.t('collections.equipment.desc'),
+    tagLabel: i18n.t('collections.alias'), notesLabel: i18n.t('collections.notes'), hasSlot: true, hasCategory: true
   },
   other: {
-    coll: 'other', singular: '条目', label: '其他设定', idPrefix: 'ot',
-    desc: '世界观、物种、规则都放这里；没有专门栏目的设定也放这里，随时可以搬到别的类别。',
-    tagLabel: '备注', notesLabel: '字段说明', hasCategory: true, hasContent: true
+    coll: 'other', singular: i18n.t('collections.singular_entry'), label: i18n.t('nav.other'), idPrefix: 'ot',
+    desc: i18n.t('collections.other.desc'),
+    tagLabel: i18n.t('common.note'), notesLabel: i18n.t('common.field_notes'), hasCategory: true, hasContent: true
   }
 };
 
@@ -530,8 +534,8 @@ async function refreshFiles() {
   if (badge) badge.hidden = !state.debug;
   document.body.classList.toggle('debug-mode', state.debug);
   document.title = state.debug
-    ? 'NovelHelper [DEBUG] · AI 小说工作站'
-    : 'NovelHelper · AI 小说工作站';
+    ? i18n.t('common.doc_title_debug')
+    : i18n.t('common.doc_title');
   state.paths = {
     root: r.root, data: r.data_dir, export: r.export_dir,
     import: r.import_dir, text: r.text_dir

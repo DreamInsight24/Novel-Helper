@@ -18,6 +18,8 @@ AI 工作站对话历史。
 """
 from __future__ import annotations
 
+from .localization import t
+
 import copy
 import json
 import os
@@ -47,7 +49,7 @@ def _atomic_write(path: Path, payload: dict) -> None:
 
 def _conversation_path(session_id: str) -> Path:
     if not _ID_RE.match(session_id or ""):
-        raise ValueError("非法的会话 id")
+        raise ValueError(t('errors.invalid_session_id'))
     return CONVERSATION_DIR / f"{session_id}.json"
 
 

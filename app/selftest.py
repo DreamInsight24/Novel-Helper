@@ -484,8 +484,8 @@ def main() -> int:
         with urllib.request.urlopen(base + "/manuscript.js", timeout=20) as resp:
             manuscript_js = resp.read().decode("utf-8")
         check("稿件处理前端静态资源可访问",
-              "稿件处理" in manuscript_js and "AI 辅助" in manuscript_js
-              and "覆盖原工作区" in manuscript_js)
+              "nav.text" in manuscript_js and "manuscript.ai_assist" in manuscript_js
+              and "manuscript.overwrite" in manuscript_js)
 
         deleted = delete("/api/history/" + hist["items"][0]["id"])
         check("DELETE /api/history/<id>", deleted.get("ok") is True)

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ..localization import t
+
 import json
 
 from .. import elements as el, logger, project, store
@@ -12,8 +14,7 @@ class _RecordMixin:
         source = body.get("source") or ""
         target = body.get("target") or "other"
         if str(source).lower().endswith(".md") and (kind != "md" or target != "other"):
-            self._error("Markdown（.md）现在只支持导入到「其他设定」；"
-                        "导入后可用「搬运到…」转为自定义设定的条目。")
+            self._error(t('errors.md_import_target'))
             return
         text = project.read_text(source)
         blobs = store.load_all()
@@ -21,11 +22,11 @@ class _RecordMixin:
         if kind == "worldmap":
             world = project.parse_worldmap(text, name=body.get("name") or "")
             if not world:
-                self._error("地图表格格式错误：没有找到含「方位」表头的 Markdown 表格")
+                self._error(t('errors.map_table_format'))
                 return
             store.save("worldmap", world)
             logger.log_event("IMPORT", "map", source=source, regions=len(world.get("regions") or {}))
-            self._json({"ok": True, "message": f"已导入地图：{len(world['regions'])} 个区域",
+            self._json({"ok": True, "message": t('messages.map_imported', count=len(world['regions'])),
                         "collections": store.load_all()})
             return
 
@@ -37,14 +38,14 @@ class _RecordMixin:
             data["items"] = items
             store.save("memories", data)
             logger.log_event("IMPORT", "memories", source=source, added=added, updated=updated)
-            self._json({"ok": True, "message": f"{source}：新增 {added} 条记忆，更新 {updated} 条",
+            self._json({"ok": True, "message": t('messages.memory_imported', source=source, added=added, updated=updated),
                         "collections": store.load_all()})
             return
 
         if kind == "json":
             allowed = set(store.RECORD_COLLECTIONS) | set(store.section_names()) | {"worldmap"}
             if target not in allowed:
-                self._error(f"未知的导入目标: {target}")
+                self._error(t('errors.unknown_import_target', name=target))
                 return
             try:
                 if target == "worldmap":
@@ -54,14 +55,14 @@ class _RecordMixin:
                                      regions=len(world.get("regions") or {}))
                     self._json({
                         "ok": True,
-                        "message": f"已导入地图：{len(world.get('regions') or {})} 个区域",
+                        "message": t('messages.map_imported', count=len(world.get('regions') or {})),
                         "collections": store.load_all(),
                     })
                     return
                 incoming = project.import_json(text, target)
                 incoming = project.validate_import_records(incoming, target)
             except (ValueError, json.JSONDecodeError) as exc:
-                self._error(f"JSON 格式错误：{exc}")
+                self._error(t('errors.json_format', detail=exc))
                 return
             data = blobs.get(target) or store.default_for(target)
             key = "title" if target == "memories" else "name"
@@ -72,7 +73,7 @@ class _RecordMixin:
             store.save(target, data)
             logger.log_event("IMPORT", "json", source=source, target=target,
                              added=added, updated=updated)
-            self._json({"ok": True, "message": f"{source} → {target}：新增 {added} 条，更新 {updated} 条",
+            self._json({"ok": True, "message": t('messages.imported_stats', source=source, target=target, added=added, updated=updated),
                         "collections": store.load_all()})
             return
 
@@ -88,7 +89,7 @@ class _RecordMixin:
         meta = store.load("meta")
         meta.setdefault("last_import", {})[source] = store.now_str()
         store.save("meta", meta)
-        self._json({"ok": True, "message": f"{source} → 其他设定：新增 {added} 条，更新 {updated} 条",
+        self._json({"ok": True, "message": t('messages.imported_other', source=source, added=added, updated=updated),
                     "collections": store.load_all()})
 
     def _auto_sort(self):
@@ -120,10 +121,10 @@ class _RecordMixin:
             store.save(target_name, target)
             pool = [rec for rec in pool if (rec.get("category") or "") not in wanted]
             moved_total += len(moving)
-            report.append(f"{section.get('label') or key} ← {len(moving)} 条")
+            report.append(t('messages.auto_sort_line', section=section.get('label') or key, count=len(moving)))
         other["items"] = pool
         store.save("other", other)
-        message = ("已归类：" + "；".join(report)) if report else "没有匹配到可自动归类的条目"
+        message = t("messages.auto_sorted", report="; ".join(report)) if report else t('messages.auto_sort_none')
         self._json({"ok": True, "moved": moved_total, "message": message,
                     "detail": report, "collections": store.load_all()})
 
@@ -135,7 +136,7 @@ class _RecordMixin:
         keep = bool(body.get("keep"))
         movable = set(store.RECORD_COLLECTIONS) | set(store.section_names())
         if src_coll not in movable or dst_coll not in movable:
-            self._error("不支持的集合")
+            self._error(t('errors.collection_unsupported'))
             return
         src = store.load(src_coll)
         dst = store.load(dst_coll)
@@ -200,5 +201,5 @@ class _RecordMixin:
         store.save(dst_coll, dst)
         logger.log_event("DATA", "move", source=src_coll, target=dst_coll,
                          count=moved, keep=keep)
-        self._json({"ok": True, "moved": moved, "message": f"已搬运 {moved} 条 → {dst_coll}",
+        self._json({"ok": True, "moved": moved, "message": t('messages.moved', count=moved, target=dst_coll),
                     "collections": store.load_all()})

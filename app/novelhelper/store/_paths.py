@@ -5,6 +5,8 @@ import os
 import sys
 from pathlib import Path
 
+from ..localization import t
+
 FROZEN = bool(getattr(sys, "frozen", False))
 
 STUDIO_DIR = Path(__file__).resolve().parent.parent
@@ -62,6 +64,6 @@ def _root(rel: str | Path) -> Path:
         try:
             target.resolve().relative_to(RUNTIME_ROOT.resolve())
         except ValueError as exc:
-            raise PermissionError(f"调试模式路径必须位于 {RUNTIME_ROOT}: {rel}") from exc
+            raise PermissionError(t("errors.debug_path", root=RUNTIME_ROOT, path=rel)) from exc
     return target
 

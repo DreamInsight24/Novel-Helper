@@ -15,12 +15,11 @@ function flatValues(obj, out) {
 // 人物背包
 // ═══════════════════════════════════════════
 function viewInventory(main) {
-  main.appendChild(pageHead('人物背包',
-    '背包只在这里编辑（人物档案页不再重复）。选人物 → 入包 / 穿戴，指针直接指向「道具设定」与「服饰与装备」；' +
-    '钱袋是背包的特殊字段，可以填数量或富裕 / 一般 / 紧张，留空＝不体现。'));
+  main.appendChild(pageHead(i18n.t('nav.inventory'),
+    i18n.t('inventory.page_desc')));
   const chars = collItems('characters');
   if (!chars.length) {
-    main.appendChild(h('div', { class: 'card muted', text: '人物背包只编辑已有人物的随身物品与穿戴。还没有人物时，请到「人物档案」新建，或在该页导入人物 JSON。' }));
+    main.appendChild(h('div', { class: 'card muted', text: i18n.t('inventory.no_characters') }));
     return;
   }
   state.ui.inventory = state.ui.inventory || { sel: chars[0].id };
@@ -49,14 +48,14 @@ function viewInventory(main) {
     rec.inventory = rec.inventory || [];
     rec.equipment = rec.equipment || [];
     const card = h('div', { class: 'card' });
-    card.appendChild(h('h2', null, recordName(rec) + ' · 背包'));
+    card.appendChild(h('h2', null, i18n.t('inventory.title', { name: recordName(rec) })));
     // 钱袋：背包的特殊字段。填数量（2金3银2铜）或档位（富裕 / 一般 / 紧张）都行，
     // 留空＝不重要，提示词里不会出现这一行。
     card.appendChild(h('div', { class: 'field' },
-      h('label', { text: '钱袋' }),
+      h('label', { text: i18n.t('inventory.purse_label') }),
       h('input', {
         class: 'purse', type: 'text', list: 'purse-levels', value: rec.purse || '',
-        placeholder: '留空＝不体现；也可以填 富裕 / 一般 / 紧张',
+        placeholder: i18n.t('inventory.purse_placeholder'),
         oninput: e => { rec.purse = e.target.value; touch('characters'); }
       }),
       h('datalist', { id: 'purse-levels' },
@@ -68,27 +67,27 @@ function viewInventory(main) {
     const packRow = (entry, listKey, targetColl, idKey, qty) => {
       const target = findById(targetColl, entry[idKey]);
       const line = h('div', { class: 'inline', style: { marginBottom: '6px' } });
-      line.appendChild(h('span', { class: 'tag', text: target ? recordName(target) : '⚠ 指针失效' }));
+      line.appendChild(h('span', { class: 'tag', text: target ? recordName(target) : i18n.t('records.broken_pointer') }));
       if (qty) {
         line.appendChild(h('input', {
-          type: 'number', value: entry.qty == null ? 1 : entry.qty, style: { width: '72px' }, title: '数量',
+          type: 'number', value: entry.qty == null ? 1 : entry.qty, style: { width: '72px' }, title: i18n.t('records.qty'),
           oninput: e => { entry.qty = e.target.value === '' ? 1 : Number(e.target.value); touch('characters'); }
         }));
       }
       line.appendChild(h('input', {
-        type: 'text', value: entry.note || '', placeholder: '备注（就是这一条发给模型的解释）', style: { flex: '1' },
+        type: 'text', value: entry.note || '', placeholder: i18n.t('inventory.note_label'), style: { flex: '1' },
         oninput: e => { entry.note = e.target.value; touch('characters'); }
       }));
-      line.appendChild(h('label', { class: 'check small', title: '带上身（随身 / 穿戴）；取消＝放进「已拥有」' },
+      line.appendChild(h('label', { class: 'check small', title: i18n.t('inventory.carried_hint') },
         h('input', {
           type: 'checkbox', checked: entry.carried !== false,
           onchange: e => {
             if (e.target.checked) delete entry.carried; else entry.carried = false;
             touch('characters'); redraw();
           }
-        }), '携带'));
+        }), i18n.t('inventory.carried_label')));
       line.appendChild(h('button', {
-        class: 'ghost mini', text: '✕', title: '移出背包',
+        class: 'ghost mini', text: '✕', title: i18n.t('inventory.remove'),
         onclick: () => { rec[listKey] = rec[listKey].filter(x => x !== entry); touch('characters'); redraw(); }
       }));
       return line;
@@ -97,8 +96,8 @@ function viewInventory(main) {
       class: 'mini', text: '＋ ' + t.label,
       onclick: () => {
         const options = collItems(t.coll).map(x => ({ value: x.id, label: recordName(x), meta: x.category || '' }));
-        if (!options.length) { toast('目标集合还是空的。', 'err'); return; }
-        pickDialog('选择要添加的' + t.label, options, id => {
+        if (!options.length) { toast(i18n.t('records.target_empty'), 'err'); return; }
+        pickDialog(i18n.t('records.pick_label', { label: t.label }), options, id => {
           const entry = { note: '', carried: t.carried };
           entry[t.idKey] = id;
           if (t.qty) entry.qty = 1;
@@ -110,23 +109,23 @@ function viewInventory(main) {
     const block = (title, hint, rows, targets) => {
       const box = h('div', { class: 'field' });
       box.appendChild(h('label', { text: title }, h('span', { class: 'hint', text: hint })));
-      if (!rows.length) box.appendChild(h('div', { class: 'muted small', text: '（空）' }));
+      if (!rows.length) box.appendChild(h('div', { class: 'muted small', text: i18n.t('common.empty_paren') }));
       rows.forEach(r => box.appendChild(packRow(r.entry, r.listKey, r.coll, r.idKey, r.qty)));
       box.appendChild(addBar(targets));
       return box;
     };
     const on = e => e.carried !== false;
-    card.appendChild(block('随身物品', '携带中',
+    card.appendChild(block(i18n.t('inventory.carried_title'), i18n.t('inventory.carried_status'),
       rec.inventory.filter(e => e.item_id && on(e)).map(e => ({ entry: e, listKey: 'inventory', coll: 'items', idKey: 'item_id', qty: true })),
-      [{ label: '从道具中添加', listKey: 'inventory', coll: 'items', idKey: 'item_id', qty: true, carried: true }]));
-    card.appendChild(block('穿戴与装备', '佩戴中',
+      [{ label: i18n.t('inventory.add_item'), listKey: 'inventory', coll: 'items', idKey: 'item_id', qty: true, carried: true }]));
+    card.appendChild(block(i18n.t('inventory.worn_title'), i18n.t('inventory.worn_status'),
       rec.equipment.filter(e => e.equip_id && on(e)).map(e => ({ entry: e, listKey: 'equipment', coll: 'equipment', idKey: 'equip_id', qty: false })),
-      [{ label: '从服饰/装备中添加', listKey: 'equipment', coll: 'equipment', idKey: 'equip_id', qty: false, carried: true }]));
-    card.appendChild(block('已拥有（未携带）', '存在、但没带在身上',
+      [{ label: i18n.t('inventory.add_equipment'), listKey: 'equipment', coll: 'equipment', idKey: 'equip_id', qty: false, carried: true }]));
+    card.appendChild(block(i18n.t('inventory.owned_title'), i18n.t('inventory.owned_status'),
       rec.inventory.filter(e => e.item_id && !on(e)).map(e => ({ entry: e, listKey: 'inventory', coll: 'items', idKey: 'item_id', qty: true }))
         .concat(rec.equipment.filter(e => e.equip_id && !on(e)).map(e => ({ entry: e, listKey: 'equipment', coll: 'equipment', idKey: 'equip_id', qty: false }))),
-      [{ label: '道具', listKey: 'inventory', coll: 'items', idKey: 'item_id', qty: true, carried: false },
-       { label: '服饰/装备', listKey: 'equipment', coll: 'equipment', idKey: 'equip_id', qty: false, carried: false }]));
+      [{ label: i18n.t('collections.singular_item'), listKey: 'inventory', coll: 'items', idKey: 'item_id', qty: true, carried: false },
+       { label: i18n.t('collections.singular_equipment'), listKey: 'equipment', coll: 'equipment', idKey: 'equip_id', qty: false, carried: false }]));
 
     card.appendChild(h('div', { class: 'sep' }));
     const lines = ['### ' + recordName(rec) + ' · 完整外貌拼装'].concat(renderElementsMd(rec.elements, 0));
@@ -242,20 +241,19 @@ function viewWorld(main) {
   state.ui.world = state.ui.world || { sel: null };
   const ui = state.ui.world;
 
-  main.appendChild(pageHead('世界地图',
-    '一棵确定的树：根表格每格挂一个区域，区域自己的子表格再挂子区域，最多 ' + WORLD_MAX_DEPTH +
-    ' 层。行、列都能加；完全没内容的表格不会写进提示词。',
+  main.appendChild(pageHead(i18n.t('nav.worldmap'),
+    i18n.t('worldmap.page_desc', { max: WORLD_MAX_DEPTH }),
     h('div', { class: 'inline' },
       exportButtons('worldmap'),
       h('button', {
-        text: '重命名地图',
-        onclick: () => askDialog('重命名地图', '地图名称', world.name || '', v => {
+        text: i18n.t('worldmap.rename'),
+        onclick: () => askDialog(i18n.t('worldmap.rename'), i18n.t('worldmap.name_label'), world.name || '', v => {
           world.name = (v || '').trim() || world.name;
           touch('worldmap'); renderMain();
         })
       }))));
 
-  main.appendChild(importPanel('json', { title: '导入地图 JSON', kinds: ['json'], target: 'worldmap' }));
+  main.appendChild(importPanel('json', { title: i18n.t('worldmap.import_json'), kinds: ['json'], target: 'worldmap' }));
 
   const row = h('div', { class: 'row' });
   const left = h('div', { class: 'col', style: { flex: '1 1 620px' } });
@@ -280,10 +278,10 @@ function viewWorld(main) {
 
   /** 能不能把 id 放到 parentId 这张表下面（防环 + 防超深）。返回错误说明或空串。 */
   const canPlace = (id, parentId) => {
-    if (parentId && subtreeIds(world, id).includes(parentId)) return '不能把区域挪进它自己的子区域里。';
+    if (parentId && subtreeIds(world, id).includes(parentId)) return i18n.t('worldmap.cannot_move_into_self');
     const depth = parentId ? worldDepth(world, parentId) + 1 : 1;
     if (depth + subtreeHeight(world, id) - 1 > WORLD_MAX_DEPTH) {
-      return '挪过去会超过地图深度上限（' + WORLD_MAX_DEPTH + ' 层）。';
+      return i18n.t('worldmap.depth_limit', { max: WORLD_MAX_DEPTH });
     }
     return '';
   };
@@ -297,14 +295,14 @@ function viewWorld(main) {
     if (occupant && occupant.id === id) return;
     const from = locate(id);
     if (occupant) {
-      if (!from) { toast('这一格已经有区域了。', 'err'); return; }
+      if (!from) { toast(i18n.t('worldmap.cell_occupied'), 'err'); return; }
       const problem = canPlace(id, parentId) || canPlace(occupant.id, from.parentId);
       if (problem) { toast(problem, 'err'); return; }
       board.cells[key] = id;
       region.parent = parentId || '';
       from.board.cells[from.key] = occupant.id;
       occupant.parent = from.parentId || '';
-      toast('已交换「' + region.name + '」与「' + occupant.name + '」', 'ok');
+      toast(i18n.t('worldmap.swapped', { a: region.name, b: occupant.name }), 'ok');
     } else {
       const problem = canPlace(id, parentId);
       if (problem) { toast(problem, 'err'); return; }
@@ -312,7 +310,7 @@ function viewWorld(main) {
       board.cells = board.cells || {};
       board.cells[key] = id;
       region.parent = parentId || '';
-      toast('已移动「' + region.name + '」', 'ok');
+      toast(i18n.t('worldmap.moved', { name: region.name }), 'ok');
     }
     region.updated = nowStr();
     touch('worldmap');
@@ -340,27 +338,27 @@ function viewWorld(main) {
   };
   /** 空格的选项：新建一个区域 / 挂上一个还没挂上的区域。 */
   const fillDialog = (board, parentId, key, label) => {
-    const nameInput = h('input', { type: 'text', placeholder: '区域名称，例如：史莱姆森林' });
+    const nameInput = h('input', { type: 'text', placeholder: i18n.t('worldmap.name_placeholder') });
     const loose = Object.values(world.regions).filter(r => !placedIds(world).has(r.id));
     const body = h('div', null,
       h('div', { class: 'field' }, h('label', { text: label }), nameInput),
-      loose.length ? h('div', { class: 'small muted', text: '或者挂接一个还没挂上的区域：' + loose.map(r => r.name).join('、') }) : null);
-    const m = modal('这一格放什么', body, [
+      loose.length ? h('div', { class: 'small muted', text: i18n.t('worldmap.attach_loose', { list: loose.map(r => r.name).join('、') }) }) : null);
+    const m = modal(i18n.t('worldmap.cell_modal_title'), body, [
       loose.length ? h('button', {
-        text: '挂接已有区域',
+        text: i18n.t('worldmap.attach_existing'),
         onclick: () => {
           const options = Object.values(world.regions).filter(r => !placedIds(world).has(r.id))
             .map(r => ({ value: r.id, label: r.name, meta: r.summary || '' }));
-          pickDialog('选择要挂上的区域', options, id => {
+          pickDialog(i18n.t('worldmap.pick_region'), options, id => {
             attach(id, board, parentId, key);
             touch('worldmap'); m.close(); open(id);
           });
         }
       }) : null,
       h('span', { style: { flex: '1' } }),
-      h('button', { text: '取消', onclick: () => m.close() }),
+      h('button', { text: i18n.t('common.cancel'), onclick: () => m.close() }),
       h('button', {
-        class: 'primary', text: '创建并挂上',
+        class: 'primary', text: i18n.t('worldmap.create_attach'),
         onclick: () => {
           const region = newRegionRecord(nameInput.value);
           world.regions[region.id] = region;
@@ -377,10 +375,10 @@ function viewWorld(main) {
     const table = h('table', { class: 'grid' + (opts.sub ? ' subgrid-table' : '') });
     const cells = boardCells(board);
     const head = (label, kind, index) => h('th', {
-      class: 'axis-th', text: label, title: '点一下改这一' + (kind === 'row' ? '行' : '列') + '的名字',
+      class: 'axis-th', text: label, title: i18n.t('worldmap.axis_rename_title', { axis: i18n.t(kind === 'row' ? 'worldmap.row' : 'worldmap.col') }),
       onclick: () => renameAxis(board, kind, index)
     });
-    table.appendChild(h('tr', null, h('th', { text: '方位' }),
+    table.appendChild(h('tr', null, h('th', { text: i18n.t('worldmap.corner_label') }),
       (board.cols || []).map((c, i) => head(c, 'col', i))));
     (board.rows || []).forEach((r, ri) => {
       const tr = h('tr', null, head(r, 'row', ri));
@@ -391,8 +389,8 @@ function viewWorld(main) {
           class: 'cell-btn ' + (region ? 'has' : 'empty'),
           text: region ? region.name : '＋',
           draggable: region ? 'true' : null,
-          title: region ? '拖动＝换位置（拖到别的格会互换）；点击＝编辑'
-                        : '点一下新建 / 挂接区域，也可以把别的区域拖进来',
+          title: region ? i18n.t('worldmap.cell_drag_title')
+                        : i18n.t('worldmap.cell_empty_title'),
           ondragstart: region ? (e => {
             drag.id = region.id;
             try {
@@ -436,7 +434,7 @@ function viewWorld(main) {
     const old = list[index] || '';
     const label = String(value == null ? '' : value).trim();
     if (!label || label === old) return false;
-    if (list.includes(label)) { toast('已经有同名的' + (kind === 'row' ? '行' : '列') + '了：' + label, 'err'); return false; }
+    if (list.includes(label)) { toast(i18n.t('worldmap.axis_duplicate', { axis: i18n.t(kind === 'row' ? 'worldmap.row' : 'worldmap.col'), label: label }), 'err'); return false; }
     list[index] = label;
     const moved = {};
     Object.keys(board.cells || {}).forEach(k => {
@@ -454,7 +452,7 @@ function viewWorld(main) {
   /** 点表头的行/列名 → 直接改名。 */
   const renameAxis = (board, kind, index) => {
     const list = kind === 'row' ? (board.rows || []) : (board.cols || []);
-    askDialog('改这一' + (kind === 'row' ? '行' : '列') + '的名字', '名称', list[index] || '', v => {
+    askDialog(i18n.t('worldmap.rename_axis_title', { axis: i18n.t(kind === 'row' ? 'worldmap.row' : 'worldmap.col') }), i18n.t('common.name'), list[index] || '', v => {
       if (setAxisLabel(board, kind, index, v)) { touch('worldmap'); drawGrid(); drawRegion(); }
     });
   };
@@ -463,19 +461,19 @@ function viewWorld(main) {
   const axisDialog = board => {
     const rowTa = h('textarea', { rows: Math.min(12, Math.max(3, (board.rows || []).length)), value: (board.rows || []).join('\n') });
     const colTa = h('textarea', { rows: Math.min(12, Math.max(3, (board.cols || []).length)), value: (board.cols || []).join('\n') });
-    const m = modal('行 / 列名称', h('div', null,
-      h('div', { class: 'field' }, h('label', { text: '行（一行一个）' }), rowTa),
-      h('div', { class: 'field' }, h('label', { text: '列（一行一个）' }), colTa),
-      h('div', { class: 'small muted', text: '改名字直接改；少写几行＝从末尾删掉几行（里面挂的区域会变成未挂接，不会删掉区域）。增加请用 ＋ 按钮。' })), [
-      h('button', { text: '取消', onclick: () => m.close() }),
+    const m = modal(i18n.t('worldmap.axes_title'), h('div', null,
+      h('div', { class: 'field' }, h('label', { text: i18n.t('worldmap.rows_label') }), rowTa),
+      h('div', { class: 'field' }, h('label', { text: i18n.t('worldmap.cols_label') }), colTa),
+      h('div', { class: 'small muted', text: i18n.t('worldmap.axes_hint') })), [
+      h('button', { text: i18n.t('common.cancel'), onclick: () => m.close() }),
       h('button', {
-        class: 'primary', text: '保存', dataset: { noclose: '1' },
+        class: 'primary', text: i18n.t('common.save'), dataset: { noclose: '1' },
         onclick: () => {
           const rows = rowTa.value.split('\n').map(s => s.trim()).filter(s => s !== '');
           const cols = colTa.value.split('\n').map(s => s.trim()).filter(s => s !== '');
-          if (!rows.length || !cols.length) { toast('行列不能清空。', 'err'); return; }
+          if (!rows.length || !cols.length) { toast(i18n.t('worldmap.axes_empty'), 'err'); return; }
           if (rows.length > (board.rows || []).length || cols.length > (board.cols || []).length) {
-            toast('名字数量不能多于现有行列；增加请用 ＋ 按钮。', 'err');
+            toast(i18n.t('worldmap.axes_too_many'), 'err');
             return;
           }
           const dropRows = (board.rows || []).length - rows.length;
@@ -491,8 +489,8 @@ function viewWorld(main) {
           };
           if (dropRows > 0 || dropCols > 0) {
             m.close();
-            confirmDialog('删掉末尾的行列？',
-              '会删掉末尾 ' + dropRows + ' 行、' + dropCols + ' 列；挂在上面的区域会变成「未挂接」（区域本身不会删）。',
+            confirmDialog(i18n.t('worldmap.drop_confirm_title'),
+              i18n.t('worldmap.drop_confirm', { rows: dropRows, cols: dropCols }),
               apply);
             return;
           }
@@ -524,14 +522,14 @@ function viewWorld(main) {
    */
   const setAxisLabels = (board, kind, values) => {
     const list = kind === 'row' ? (board.rows = board.rows || []) : (board.cols = board.cols || []);
-    const label = kind === 'row' ? '行' : '列';
+    const label = i18n.t(kind === 'row' ? 'worldmap.row' : 'worldmap.col');
     const cleaned = values.map(v => String(v == null ? '' : v).trim());
-    if (!cleaned.length) return label + '不能为空。';
-    if (cleaned.some(v => !v)) return '有空的' + label + '名。';
-    if (new Set(cleaned).size !== cleaned.length) return '有重复的' + label + '名。';
+    if (!cleaned.length) return i18n.t('worldmap.axis_empty_msg', { axis: label });
+    if (cleaned.some(v => !v)) return i18n.t('worldmap.axis_blank_name', { axis: label });
+    if (new Set(cleaned).size !== cleaned.length) return i18n.t('worldmap.axis_dup_name', { axis: label });
     const tail = list.slice(cleaned.length);
     const clash = cleaned.filter(v => tail.includes(v));
-    if (clash.length) return '和末尾待删的' + label + '名撞了：' + clash.join('、');
+    if (clash.length) return i18n.t('worldmap.axis_clash', { axis: label, list: clash.join('、') });
     const map = {};
     list.forEach((old, i) => { if (i < cleaned.length) map[old] = cleaned[i]; });
     const moved = {};
@@ -544,7 +542,7 @@ function viewWorld(main) {
       moved[nr + '|' + nc] = board.cells[k];
     });
     if (Object.keys(moved).length !== Object.keys(board.cells || {}).length) {
-      return '改名后有两格撞在一起了，换一组名字试试。';
+      return i18n.t('worldmap.rename_clash');
     }
     board.cells = moved;
     list.length = 0;
@@ -557,10 +555,10 @@ function viewWorld(main) {
     position = position || 'end';
     const list = kind === 'row' ? (board.rows = board.rows || []) : (board.cols = board.cols || []);
     const fallback = nextAxisLabel(list, position, kind);
-    askDialog((position === 'start' ? '在最前面加一' : '在最后面加一') + (kind === 'row' ? '行' : '列'),
-      '名称', fallback, v => {
+    askDialog(i18n.t(position === 'start' ? 'worldmap.add_axis_front' : 'worldmap.add_axis_end', {axis: i18n.t(kind === 'row' ? 'worldmap.row' : 'worldmap.col')}),
+      i18n.t('common.name'), fallback, v => {
         const name = (v || '').trim() || fallback;
-        if (list.includes(name)) { toast('已经有同名的' + (kind === 'row' ? '行' : '列') + '了。', 'err'); return; }
+        if (list.includes(name)) { toast(i18n.t('worldmap.axis_name_exists', {axis: i18n.t(kind === 'row' ? 'worldmap.row' : 'worldmap.col')}), 'err'); return; }
         if (position === 'start') list.unshift(name); else list.push(name);
         touch('worldmap');
         if (board === world) drawGrid(); else drawRegion();
@@ -570,20 +568,20 @@ function viewWorld(main) {
   const drawGrid = () => {
     clear(left);
     const card = h('div', { class: 'card' });
-    card.appendChild(h('h2', null, world.name || '世界地图',
-      h('span', { class: 'hint', text: '根表格（第 1 层）：点空白格新建 / 挂接区域，点已有区域进入编辑' })));
+    card.appendChild(h('h2', null, world.name || i18n.t('nav.worldmap'),
+      h('span', { class: 'hint', text: i18n.t('worldmap.root_hint') })));
     card.appendChild(h('div', { class: 'inline', style: { marginBottom: '8px' } },
-      h('button', { class: 'mini', text: '＋行·末', title: '在最后面加一行', onclick: () => addAxis(world, 'row', 'end') }),
-      h('button', { class: 'mini', text: '＋行·首', title: '在最前面加一行', onclick: () => addAxis(world, 'row', 'start') }),
-      h('button', { class: 'mini', text: '＋列·末', title: '在最后面加一列', onclick: () => addAxis(world, 'col', 'end') }),
-      h('button', { class: 'mini', text: '＋列·首', title: '在最前面加一列', onclick: () => addAxis(world, 'col', 'start') }),
-      h('button', { class: 'mini', text: '行 / 列名称…', title: '整批改名', onclick: () => axisDialog(world) }),
-      h('span', { class: 'small muted', text: (world.rows || []).length + ' 行 × ' + (world.cols || []).length + ' 列' })));
+      h('button', { class: 'mini', text: i18n.t('worldmap.add_row_end'), title: i18n.t('worldmap.add_axis_end', {axis: i18n.t('worldmap.row')}), onclick: () => addAxis(world, 'row', 'end') }),
+      h('button', { class: 'mini', text: i18n.t('worldmap.add_row_start'), title: i18n.t('worldmap.add_axis_front', {axis: i18n.t('worldmap.row')}), onclick: () => addAxis(world, 'row', 'start') }),
+      h('button', { class: 'mini', text: i18n.t('worldmap.add_col_end'), title: i18n.t('worldmap.add_axis_end', {axis: i18n.t('worldmap.col')}), onclick: () => addAxis(world, 'col', 'end') }),
+      h('button', { class: 'mini', text: i18n.t('worldmap.add_col_start'), title: i18n.t('worldmap.add_axis_front', {axis: i18n.t('worldmap.col')}), onclick: () => addAxis(world, 'col', 'start') }),
+      h('button', { class: 'mini', text: i18n.t('worldmap.axes_button'), title: i18n.t('worldmap.batch_rename'), onclick: () => axisDialog(world) }),
+      h('span', { class: 'small muted', text: i18n.t('worldmap.grid_size', { rows: (world.rows || []).length, cols: (world.cols || []).length }) })));
     card.appendChild(h('div', { class: 'grid-wrap' }, boardTable(world, '', {})));
     const loose = Object.values(world.regions).filter(r => !placedIds(world).has(r.id));
     if (loose.length) {
       card.appendChild(h('div', { class: 'small muted', style: { marginTop: '8px' } },
-        '还没挂到地图上的区域：' + loose.map(r => r.name).join('、') + '（在任意空白格里可以挂接）'));
+        i18n.t('worldmap.loose_hint', { list: loose.map(r => r.name).join('、') })));
     }
     left.appendChild(card);
   };
@@ -592,14 +590,14 @@ function viewWorld(main) {
     clear(right);
     const region = world.regions[ui.sel];
     if (!region) {
-      right.appendChild(h('div', { class: 'card muted', text: '点左边的格子来查看 / 编辑区域。' }));
+      right.appendChild(h('div', { class: 'card muted', text: i18n.t('worldmap.pick_cell') }));
       return;
     }
     region.elements = region.elements || [];
     const depth = worldDepth(world, region.id);
     const card = h('div', { class: 'card' });
     const crumbs = h('div', { class: 'crumbs' }, [h('span', {
-      class: 'crumb', text: '世界地图',
+      class: 'crumb', text: i18n.t('nav.worldmap'),
       onclick: () => { ui.sel = null; drawGrid(); drawRegion(); }
     })]);
     worldChain(world, region.id).forEach(pid => {
@@ -609,56 +607,56 @@ function viewWorld(main) {
       crumbs.appendChild(h('span', { class: 'crumb', text: rg.name, onclick: () => open(rg.id) }));
     });
     crumbs.appendChild(h('span', { text: '›' }));
-    crumbs.appendChild(h('span', { text: region.name + '（第 ' + depth + ' 层）' }));
+    crumbs.appendChild(h('span', { text: i18n.t('worldmap.depth_crumb', { name: region.name, depth: depth }) }));
     card.appendChild(crumbs);
 
-    card.appendChild(h('div', { class: 'field' }, h('label', { text: '区域名称' }),
+    card.appendChild(h('div', { class: 'field' }, h('label', { text: i18n.t('worldmap.region_name_label') }),
       h('input', { type: 'text', value: region.name || '', oninput: e => { region.name = e.target.value; touch('worldmap'); drawGrid(); } })));
-    card.appendChild(h('div', { class: 'field' }, h('label', { text: '一句话简述' }),
+    card.appendChild(h('div', { class: 'field' }, h('label', { text: i18n.t('worldmap.summary_label') }),
       h('input', { type: 'text', value: region.summary || '', oninput: e => { region.summary = e.target.value; touch('worldmap'); } })));
 
     card.appendChild(h('div', { class: 'sep' }));
     card.appendChild(h('div', { class: 'inline' },
-      h('label', { text: '区域元素（地形、气候、居民、危险度……）', style: { flex: '1' } }),
+      h('label', { text: i18n.t('worldmap.elements_label'), style: { flex: '1' } }),
       h('button', {
-        class: 'mini', text: '套用「其他设定」模板',
-        onclick: () => { const added = applyPreset(region.elements, presetsOf('other')); touch('worldmap'); drawRegion(); toast(added ? '补充了 ' + added + ' 个元素' : '没有可补的元素', 'ok'); }
+        class: 'mini', text: i18n.t('worldmap.apply_other_template'),
+        onclick: () => { const added = applyPreset(region.elements, presetsOf('other')); touch('worldmap'); drawRegion(); toast(added ? i18n.t('records.template_added', { count: added }) : i18n.t('worldmap.nothing_to_add'), 'ok'); }
       })));
     card.appendChild(elementTree(region.elements, 'worldmap', { onChange: () => { } }));
 
-    card.appendChild(h('div', { class: 'field', style: { marginTop: '10px' } }, h('label', { text: '详细描述' }),
+    card.appendChild(h('div', { class: 'field', style: { marginTop: '10px' } }, h('label', { text: i18n.t('worldmap.details_label') }),
       h('textarea', { rows: 6, value: region.details || '', oninput: e => { region.details = e.target.value; touch('worldmap'); autoGrow(e.target); } })));
 
     card.appendChild(h('div', { class: 'sep' }));
     if (depth >= WORLD_MAX_DEPTH) {
-      card.appendChild(h('h2', null, '子表格'));
+      card.appendChild(h('h2', null, i18n.t('worldmap.subgrid')));
       card.appendChild(h('div', { class: 'small muted' },
-        '这里已经是第 ' + depth + ' 层，达到地图深度上限（' + WORLD_MAX_DEPTH + ' 层），不能再往下开子表格。'));
+        i18n.t('worldmap.depth_max', { depth: depth, max: WORLD_MAX_DEPTH })));
     } else {
-      card.appendChild(h('h2', null, '子表格',
-        h('span', { class: 'hint', text: '第 ' + (depth + 1) + ' 层的区域挂在这里' })));
+      card.appendChild(h('h2', null, i18n.t('worldmap.subgrid'),
+        h('span', { class: 'hint', text: i18n.t('worldmap.subgrid_hint', {depth: depth + 1}) })));
       if (!region.board) {
         card.appendChild(h('div', { class: 'small muted', style: { marginBottom: '6px' } },
-          '还没有子表格。需要在下一层细分时再建，空表格不会写进提示词。'));
+          i18n.t('worldmap.no_subgrid')));
         card.appendChild(h('button', {
-          class: 'mini', text: '＋ 创建 3×3 子表格',
-          onclick: () => { region.board = newBoard(); touch('worldmap'); drawRegion(); toast('已创建 3×3 子表格', 'ok'); }
+          class: 'mini', text: i18n.t('worldmap.create_subgrid'),
+          onclick: () => { region.board = newBoard(); touch('worldmap'); drawRegion(); toast(i18n.t('worldmap.subgrid_created'), 'ok'); }
         }));
       } else {
         const board = region.board;
         board.rows = board.rows || [];
         board.cols = board.cols || [];
         card.appendChild(h('div', { class: 'inline', style: { marginBottom: '8px' } },
-          h('button', { class: 'mini', text: '＋行·末', title: '在最后面加一行', onclick: () => addAxis(board, 'row', 'end') }),
-          h('button', { class: 'mini', text: '＋行·首', title: '在最前面加一行', onclick: () => addAxis(board, 'row', 'start') }),
-          h('button', { class: 'mini', text: '＋列·末', title: '在最后面加一列', onclick: () => addAxis(board, 'col', 'end') }),
-          h('button', { class: 'mini', text: '＋列·首', title: '在最前面加一列', onclick: () => addAxis(board, 'col', 'start') }),
-          h('button', { class: 'mini', text: '行 / 列名称…', title: '整批改名', onclick: () => axisDialog(board) }),
-          h('span', { class: 'small muted', text: board.rows.length + ' 行 × ' + board.cols.length + ' 列' })));
-        card.appendChild(h('div', { class: 'grid-wrap' }, boardTable(board, region.id, { sub: true, label: '子表格 ' })));
+          h('button', { class: 'mini', text: i18n.t('worldmap.add_row_end'), title: i18n.t('worldmap.add_axis_end', {axis: i18n.t('worldmap.row')}), onclick: () => addAxis(board, 'row', 'end') }),
+          h('button', { class: 'mini', text: i18n.t('worldmap.add_row_start'), title: i18n.t('worldmap.add_axis_front', {axis: i18n.t('worldmap.row')}), onclick: () => addAxis(board, 'row', 'start') }),
+          h('button', { class: 'mini', text: i18n.t('worldmap.add_col_end'), title: i18n.t('worldmap.add_axis_end', {axis: i18n.t('worldmap.col')}), onclick: () => addAxis(board, 'col', 'end') }),
+          h('button', { class: 'mini', text: i18n.t('worldmap.add_col_start'), title: i18n.t('worldmap.add_axis_front', {axis: i18n.t('worldmap.col')}), onclick: () => addAxis(board, 'col', 'start') }),
+          h('button', { class: 'mini', text: i18n.t('worldmap.axes_button'), title: i18n.t('worldmap.batch_rename'), onclick: () => axisDialog(board) }),
+          h('span', { class: 'small muted', text: i18n.t('worldmap.grid_size', { rows: board.rows.length, cols: board.cols.length }) })));
+        card.appendChild(h('div', { class: 'grid-wrap' }, boardTable(board, region.id, { sub: true, label: i18n.t('worldmap.subgrid') })));
         if (!Object.keys(boardCells(board)).length) {
           card.appendChild(h('div', { class: 'small muted', style: { marginTop: '6px' } },
-            '（表格还是空的——完全没有内容的表格不会出现在提示词里）'));
+            i18n.t('worldmap.grid_empty_note')));
         }
       }
     }
@@ -666,7 +664,7 @@ function viewWorld(main) {
     card.appendChild(h('div', { class: 'sep' }));
     card.appendChild(h('div', { class: 'inline' },
       region.parent ? h('button', {
-        text: '解除挂接（放回未挂接）',
+        text: i18n.t('worldmap.detach'),
         onclick: () => {
           const back = region.parent;
           detach(region.id);
@@ -674,14 +672,13 @@ function viewWorld(main) {
           ui.sel = back;
           drawGrid(); drawRegion();
         }
-      }) : h('span', { class: 'small muted', text: '根表格里的区域' }),
+      }) : h('span', { class: 'small muted', text: i18n.t('worldmap.in_root') }),
       h('span', { style: { flex: '1' } }),
       h('button', {
-        class: 'danger', text: '删除区域（含子区域）',
+        class: 'danger', text: i18n.t('worldmap.delete_region'),
         onclick: () => {
           const ids = subtreeIds(world, region.id);
-          confirmDialog('删除区域', '删除「' + region.name + '」' +
-            (ids.length > 1 ? '及其下的 ' + (ids.length - 1) + ' 个子区域' : '') + '？删掉的区域不会出现在提示词里。',
+          confirmDialog(i18n.t('worldmap.delete_region_title'), i18n.t(ids.length > 1 ? 'worldmap.delete_with_children' : 'worldmap.delete_full', {name: region.name, count: ids.length - 1}),
             () => {
               ids.forEach(rid => { detach(rid); delete world.regions[rid]; });
               ui.sel = null;
@@ -707,13 +704,13 @@ function viewMemories(main) {
   const ui = state.ui.memories;
   if (!coll.items.some(r => r.id === ui.sel)) ui.sel = coll.items.length ? coll.items[0].id : null;
 
-  main.appendChild(pageHead('记忆库',
-    '集中管理短期记忆、长期记忆、伏笔与设定备忘。AI 工作站左侧可以按需勾选，只发送本次需要的条目。',
+  main.appendChild(pageHead(i18n.t('nav.memories'),
+    i18n.t('memories.page_desc'),
     h('div', { class: 'inline' },
       exportButtons('memories'),
-      h('button', { text: '压缩全部记忆', onclick: () => compressMemories(coll.items) }),
+      h('button', { text: i18n.t('memories.compress_all'), onclick: () => compressMemories(coll.items) }),
       h('button', {
-        class: 'primary', text: '＋ 新建记忆',
+        class: 'primary', text: i18n.t('memories.new'),
         onclick: () => {
           const stamp = nowStr();
           const rec = { id: newId('mm'), title: '新记忆', category: '短期记忆', chapter: '', content: '', tags: [], created: stamp, updated: stamp };
@@ -721,7 +718,7 @@ function viewMemories(main) {
         }
       }))));
 
-  main.appendChild(importPanel('json', { title: '导入记忆 JSON', kinds: ['json'], target: 'memories' }));
+  main.appendChild(importPanel('json', { title: i18n.t('memories.import_json'), kinds: ['json'], target: 'memories' }));
 
   const row = h('div', { class: 'row' });
   const left = h('div', { class: 'col', style: { flex: '0 0 300px' } });
@@ -738,9 +735,9 @@ function viewMemories(main) {
     clear(left);
     memRowEls.clear();
     const catSel = h('select', { onchange: e => { ui.cat = e.target.value; drawList(); } },
-      [h('option', { value: '', text: '全部分类', selected: ui.cat === '' })]
+      [h('option', { value: '', text: i18n.t('memories.all_categories'), selected: ui.cat === '' })]
         .concat(coll.categories.map(c => h('option', { value: c, text: c, selected: ui.cat === c }))));
-    const search = h('input', { type: 'text', placeholder: '搜索…', value: ui.q, oninput: e => { ui.q = e.target.value; drawList(); } });
+    const search = h('input', { type: 'text', placeholder: i18n.t('common.search'), value: ui.q, oninput: e => { ui.q = e.target.value; drawList(); } });
     const q = ui.q.toLowerCase();
     clear(memScroll);
     coll.items
@@ -750,15 +747,15 @@ function viewMemories(main) {
         class: 'list-item' + (ui.sel === r.id ? ' active' : ''),
         onclick: () => { ui.sel = r.id; memRowEls.forEach((el, rid) => el.classList.toggle('active', rid === r.id)); drawEditor(); }
       });
-        rowEl.appendChild(h('div', { class: 'name', text: r.title || '未命名' }));
-        rowEl.appendChild(h('div', { class: 'meta', text: (r.category || '') + ' · ' + String(r.content || '').length + '字' }));
+        rowEl.appendChild(h('div', { class: 'name', text: r.title || i18n.t('common.unnamed') }));
+        rowEl.appendChild(h('div', { class: 'meta', text: i18n.t('memories.meta_line', { category: r.category || '', count: String(r.content || '').length }) }));
         memRowEls.set(r.id, rowEl);
         memScroll.appendChild(rowEl);
       });
     left.appendChild(h('div', { class: 'card' },
       h('div', { class: 'field' }, catSel),
       h('div', { class: 'field' }, search),
-      h('div', { class: 'small muted', style: { marginBottom: '6px' } }, '共 ' + coll.items.length + ' 条'),
+      h('div', { class: 'small muted', style: { marginBottom: '6px' } }, i18n.t('records.total', { count: coll.items.length })),
       memScroll));
     memScroll.scrollTop = keepTop;
   };
@@ -766,31 +763,31 @@ function viewMemories(main) {
   const drawEditor = () => {
     clear(right);
     const rec = coll.items.find(r => r.id === ui.sel);
-    if (!rec) { right.appendChild(h('div', { class: 'card muted', text: '左侧选一条记忆。' })); return; }
+    if (!rec) { right.appendChild(h('div', { class: 'card muted', text: i18n.t('memories.pick_hint') })); return; }
     const card = h('div', { class: 'card' });
-    card.appendChild(h('h2', null, '编辑记忆', h('span', { class: 'hint', text: '自动保存' })));
-    card.appendChild(h('div', { class: 'field' }, h('label', { text: '标题' }),
+    card.appendChild(h('h2', null, i18n.t('memories.edit_title'), h('span', { class: 'hint', text: i18n.t('common.autosave') })));
+    card.appendChild(h('div', { class: 'field' }, h('label', { text: i18n.t('common.title') }),
       h('input', { type: 'text', value: rec.title || '', oninput: e => { rec.title = e.target.value; touch('memories'); } })));
     card.appendChild(h('div', { class: 'inline' },
-      h('div', { class: 'field', style: { flex: '1' } }, h('label', { text: '分类' }),
+      h('div', { class: 'field', style: { flex: '1' } }, h('label', { text: i18n.t('memories.category_label') }),
         h('select', { onchange: e => { rec.category = e.target.value; touch('memories'); } },
           coll.categories.map(c => h('option', { value: c, text: c, selected: c === rec.category })))),
-      h('div', { class: 'field', style: { flex: '1' } }, h('label', { text: '章节 / 时间' }),
+      h('div', { class: 'field', style: { flex: '1' } }, h('label', { text: i18n.t('memories.chapter_label') }),
         h('input', { type: 'text', value: rec.chapter || '', oninput: e => { rec.chapter = e.target.value; touch('memories'); } }))));
-    card.appendChild(h('div', { class: 'field' }, h('label', { text: '内容' }),
+    card.appendChild(h('div', { class: 'field' }, h('label', { text: i18n.t('common.content') }),
       h('textarea', { rows: 16, value: rec.content || '', oninput: e => { rec.content = e.target.value; touch('memories'); autoGrow(e.target); } })));
     card.appendChild(h('div', { class: 'inline' },
       h('button', {
-        class: 'mini', text: '添加分类',
-        onclick: () => { const v = prompt('新分类'); if (v) { coll.categories.push(v); rec.category = v; touch('memories'); drawList(); drawEditor(); } }
+        class: 'mini', text: i18n.t('records.add_category'),
+        onclick: () => { const v = prompt(i18n.t('records.new_category_prompt')); if (v) { coll.categories.push(v); rec.category = v; touch('memories'); drawList(); drawEditor(); } }
       }),
-      h('button', { text: '压缩本条', onclick: () => compressMemories([rec]) }),
+      h('button', { text: i18n.t('memories.compress_one'), onclick: () => compressMemories([rec]) }),
       h('span', { style: { flex: '1' } }),
-      rec.source ? h('span', { class: 'tag', text: '来源：' + rec.source }) : null,
+      rec.source ? h('span', { class: 'tag', text: i18n.t('common.source_prefix', { source: rec.source }) }) : null,
       h('button', {
-        class: 'danger', text: '删除',
+        class: 'danger', text: i18n.t('common.delete'),
         onclick: () => {
-          if (!confirm('删除这条记忆？')) return;
+          if (!confirm(i18n.t('memories.delete_confirm'))) return;
           coll.items.splice(coll.items.indexOf(rec), 1);
           ui.sel = null; touch('memories'); drawList(); drawEditor();
         }
@@ -802,19 +799,19 @@ function viewMemories(main) {
 }
 
 async function compressMemories(records) {
-  if (!records.length) { toast('没有可压缩的记忆。', 'err'); return; }
+  if (!records.length) { toast(i18n.t('memories.nothing_compress'), 'err'); return; }
   const text = records.map(r => '### ' + (r.title || '') + '\n' + (r.content || '')).join('\n\n');
-  status('压缩记忆中…', 'busy');
+  status(i18n.t('common.compressing'), 'busy');
   try {
     const res = await api('/api/ai/run', { method: 'POST', body: { tool: 'compress', text, config: state.db.config } });
     const ta = h('textarea', { rows: 18, value: res.text });
     const body = h('div', null,
-      h('div', { class: 'small muted', text: '原 ' + text.length + ' 字 → 压缩后 ' + res.text.length + ' 字' }),
-      h('div', { class: 'field' }, h('label', { text: '压缩结果（可直接改）' }), ta));
-    const m = modal('记忆压缩结果', body, [
-      h('button', { text: '取消', onclick: () => m.close() }),
+      h('div', { class: 'small muted', text: i18n.t('memories.compress_stat', { before: text.length, after: res.text.length }) }),
+      h('div', { class: 'field' }, h('label', { text: i18n.t('memories.compress_result') }), ta));
+    const m = modal(i18n.t('memories.compress_title'), body, [
+      h('button', { text: i18n.t('common.cancel'), onclick: () => m.close() }),
       h('button', {
-        text: '作为新条目保存', dataset: { noclose: '1' },
+        text: i18n.t('memories.save_as_new'), dataset: { noclose: '1' },
         onclick: () => {
           const stamp = nowStr();
           state.db.memories.items.unshift({
@@ -822,25 +819,25 @@ async function compressMemories(records) {
             category: records[0].category || '长期记忆', chapter: records[0].chapter || '',
             content: ta.value, tags: [], created: stamp, updated: stamp
           });
-          touch('memories'); renderMain(); m.close(); toast('已保存为新条目', 'ok');
+          touch('memories'); renderMain(); m.close(); toast(i18n.t('memories.saved_new'), 'ok');
         }
       }),
       h('button', {
-        class: 'primary', text: '替换原条目内容', dataset: { noclose: '1' },
+        class: 'primary', text: i18n.t('memories.replace_original'), dataset: { noclose: '1' },
         onclick: () => {
           const sections = splitMdSections(ta.value);
           records.forEach((rec, i) => {
             if (sections[i]) rec.content = sections[i].body;
             else if (records.length === 1) rec.content = ta.value;
           });
-          touch('memories'); renderMain(); m.close(); toast('已更新记忆', 'ok');
+          touch('memories'); renderMain(); m.close(); toast(i18n.t('memories.updated'), 'ok');
         }
       })
     ]);
-    status('压缩完成', 'ok');
+    status(i18n.t('common.compress_done'), 'ok');
   } catch (e) {
-    toast('压缩失败：' + e.message, 'err');
-    status('压缩失败', 'err');
+    toast(i18n.t('memories.compress_failed_reason', { reason: e.message }), 'err');
+    status(i18n.t('memories.compress_failed'), 'err');
   }
 }
 
@@ -859,29 +856,29 @@ function splitMdSections(text) {
 // 章节与产出
 // ═══════════════════════════════════════════
 function viewChapters(main) {
-  main.appendChild(pageHead('章节与导出', 'workspace/output/ 下的正文、计划与转换结果。可预览、转 txt，或直接送到稿件处理页继续整理。',
-    h('button', { text: '刷新', onclick: async () => { await refreshFiles(); renderMain(); } })));
+  main.appendChild(pageHead(i18n.t('nav.chapters'), i18n.t('chapters.page_desc'),
+    h('button', { text: i18n.t('common.refresh'), onclick: async () => { await refreshFiles(); renderMain(); } })));
   const card = h('div', { class: 'card' });
   const table = h('table', { class: 'grid' });
-  table.appendChild(h('tr', null, ['文件', '目录', '大小', '修改时间', '操作'].map(t => h('th', { text: t }))));
+  table.appendChild(h('tr', null, ['file', 'dir', 'size', 'mtime', 'actions'].map(key => h('th', { text: i18n.t('chapters.col_' + key) }))));
   for (const c of state.chapters) {
     const actions = h('div', { class: 'inline', style: { justifyContent: 'center' } },
-      h('button', { class: 'mini', text: '预览', onclick: () => previewFile(c.path) }),
+      h('button', { class: 'mini', text: i18n.t('common.preview'), onclick: () => previewFile(c.path) }),
       c.path.endsWith('.md') ? h('button', {
-        class: 'mini', text: '转 txt',
+        class: 'mini', text: i18n.t('chapters.to_txt'),
         onclick: async () => {
-          try { const r = await api('/api/txt', { method: 'POST', body: { path: c.path } }); toast('已生成 ' + r.path, 'ok'); await refreshFiles(); }
-          catch (e) { toast('转换失败：' + e.message, 'err'); }
+          try { const r = await api('/api/txt', { method: 'POST', body: { path: c.path } }); toast(i18n.t('chapters.generated', { path: r.path }), 'ok'); await refreshFiles(); }
+          catch (e) { toast(i18n.t('chapters.convert_failed_reason', { reason: e.message }), 'err'); }
         }
       }) : null,
       h('button', {
-        class: 'mini', text: '送到稿件处理',
+        class: 'mini', text: i18n.t('chapters.send_to_manuscript'),
         onclick: async () => {
           try {
             const r = await api('/api/file?path=' + encodeURIComponent(c.path));
             appendToTextPanel(r.content);
             go('text');
-          } catch (e) { toast('读取失败：' + e.message, 'err'); }
+          } catch (e) { toast(i18n.t('common.read_failed_reason', { reason: e.message }), 'err'); }
         }
       }));
     table.appendChild(h('tr', null,
@@ -898,7 +895,7 @@ function viewChapters(main) {
 async function previewFile(rel) {
   try {
     const r = await api('/api/file?path=' + encodeURIComponent(rel));
-    modal(rel, h('pre', { class: 'log', style: { maxHeight: '56vh' }, text: r.content }), [h('button', { text: '关闭' })]);
-  } catch (e) { toast('读取失败：' + e.message, 'err'); }
+    modal(rel, h('pre', { class: 'log', style: { maxHeight: '56vh' }, text: r.content }), [h('button', { text: i18n.t('common.close') })]);
+  } catch (e) { toast(i18n.t('common.read_failed_reason', { reason: e.message }), 'err'); }
 }
 

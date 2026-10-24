@@ -1,0 +1,15 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>i18n example</title></head>
+<body><button data-i18n="common.save"></button><div id="dynamic"></div>
+<script src="/i18n/i18n.js"></script>
+<script>
+(async () => {
+  const config = await (await fetch('/api/i18n')).json();
+  await i18n.load(new URLSearchParams(location.search).get('lang') || config.current);
+  i18n.apply(document);
+  const child = document.createElement('span');
+  child.dataset.i18n = 'common.cancel';
+  document.getElementById('dynamic').appendChild(child);
+  i18n.apply(child);
+})();
+</script></body></html>

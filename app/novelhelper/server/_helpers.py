@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ..localization import t
+
 import json
 from pathlib import Path
 from urllib.parse import urlparse
@@ -23,15 +25,15 @@ def _compact_selection(selection: dict) -> dict:
 def _surface_error(mode: dict, surface: str) -> str:
     """校验模式用途与调用界面是否匹配；返回空字符串表示通过。"""
     if surface not in ("workstation", "manuscript"):
-        return f"未知的 surface: {surface}"
+        return t('errors.unknown_surface', name=surface)
     expected = "process" if surface == "manuscript" else "write"
     actual = context.mode_kind(mode)
     if actual == expected:
         return ""
-    label = mode.get("label") or mode.get("id") or "该模式"
+    label = mode.get("label") or mode.get("id") or t("errors.this_mode")
     if expected == "process":
-        return f"「{label}」不是稿件处理模式，不能在稿件处理页使用。"
-    return f"「{label}」是稿件处理模式，不能在 AI 工作站使用。"
+        return t('errors.not_process_mode', label=label)
+    return t('errors.is_process_mode', label=label)
 
 def _api_ready(config: dict) -> bool:
     try:
@@ -46,4 +48,4 @@ def _api_ready(config: dict) -> bool:
 def _json_default(obj):
     if isinstance(obj, Path):
         return str(obj)
-    raise TypeError(f"无法序列化: {type(obj)}")
+    raise TypeError(t('errors.serialize_failed', type=type(obj)))

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ..localization import t
+
 from .. import ai, context, history, logger, project, prompts as prompts_mod, providers, store
 from ._helpers import _compact_selection, _surface_error
 from ._state import _RUN_LOCK, _RUN_STATE
@@ -20,7 +22,7 @@ class _GenerationMixin:
         if tool == "summarize":
             content = project.extract_body(text) if body.get("from_output", True) else text
             if not content.strip():
-                self._error("没有可总结的正文内容")
+                self._error(t('errors.no_text_summary'))
                 return
             user = content.strip()
             if body.get("chapter"):
@@ -54,7 +56,7 @@ class _GenerationMixin:
         db = store.load_all()
         mode = context.find_mode(db, mode_id)
         if mode is None:
-            self._error(f"模式不存在: {mode_id}")
+            self._error(t('errors.mode_missing', id=mode_id))
             return
         error = _surface_error(mode, surface)
         if error:
@@ -62,10 +64,10 @@ class _GenerationMixin:
             return
         source_text = str(body.get("source_text") or "")
         if surface == "manuscript" and not source_text.strip():
-            self._error("工作区没有可处理的文本。")
+            self._error(t('errors.workspace_empty'))
             return
         if not _RUN_LOCK.acquire(blocking=False):
-            self._error("AI 正在生成中，工作站已锁定。请等待本次生成完成。", status=409)
+            self._error(t('errors.generation_locked'), status=409)
             return
         _RUN_STATE.update(busy=True, started=store.now_str(), mode=mode_id,
                           surface=surface, transport="")
