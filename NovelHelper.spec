@@ -8,6 +8,7 @@ ROOT = Path(SPECPATH)
 
 datas = [
     (str(ROOT / "app" / "novelhelper" / "web"), "novelhelper/web"),
+    (str(ROOT / "app" / "resources" / "localization"), "resources/localization"),
 ]
 
 # openai 是可选依赖；构建机上安装后，把它的元数据一并打包，

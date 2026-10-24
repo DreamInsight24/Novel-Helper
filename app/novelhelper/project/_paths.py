@@ -1,6 +1,8 @@
 """Project-relative path resolution and basic text I/O."""
 from __future__ import annotations
 
+from ..localization import t
+
 from pathlib import Path
 
 from ..store import PROJECT_ROOT
@@ -26,7 +28,7 @@ def safe_rel(rel: str) -> Path:
     """把相对路径解析到项目内，越界直接拒绝。"""
     target = (PROJECT_ROOT / str(rel).replace("\\", "/").lstrip("/")).resolve()
     if not in_project(target):
-        raise PermissionError(f"路径越出项目目录: {rel}")
+        raise PermissionError(t('errors.path_outside', path=rel))
     return target
 
 
