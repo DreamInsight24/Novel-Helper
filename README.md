@@ -222,4 +222,16 @@ git push origin v2610.2
 
 ## License
 
-[MIT](LICENSE)
+本项目以 [GNU 通用公共许可证 v3.0 或更高版本](LICENSE)（GPL-3.0-or-later）授权。
+
+- 版权：Copyright (C) 2026 DreamInsight24 and NovelHelper contributors。
+- 你可以自由使用、复制、修改与再分发本项目，但须遵守 GPL-3.0 的条款：保留版权与许可声明、标注修改内容及日期、以相同许可发布修改后的版本，并在分发二进制（如 `NovelHelper.exe`）时一并提供对应源码。
+- 本项目按「原样」提供，不提供任何担保。完整条款见 [LICENSE](LICENSE)。
+
+### 对应源码（Corresponding Source）
+
+根据 GPL-3.0 第 6 条，随二进制分发的对应源码即本仓库本身：
+
+- 源码仓库：<https://github.com/DreamInsight24/Novel-Helper>
+- 构建配置：`NovelHelper.spec`；构建工作流：`.github/workflows/build-windows.yml`
+- 与某个 Release 中的 `NovelHelper.exe` 完全对应的源码，请以该 Release 的 tag 检出本仓库。

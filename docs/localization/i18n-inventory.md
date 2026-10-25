@@ -1045,3 +1045,21 @@ ASCII 技术标识（API Key、max_tokens、top_p、模型名、URL、编码名�
 - `seed_localized_defaults` 仅在集合仍是未改动的内置默认值时写入，用户已编辑的数据不会被覆盖；
 - 导出格式关键字（`行`/`列`/`格`/`分类`/`内容`…）与解析关键字（`方位`/`世界地图`/`短期记忆`）仍保留原文，不受影响；
 - `context.item_brief` 的元素名查找改为按所有已配置语言尝试候选键名，兼容初始化时冻结的键名。
+
+## 9. 许可与免责声明文案（2026-10-25 新增）
+
+设置页「关于」卡片新增 GPL-3.0 许可与免责声明区块（GPL-3.0 §5(d) 要求交互式界面展示版权、免责声明与许可信息）。对应 key 统一放在 `settings.license_*` 命名空间下，中英对齐以 `zh-CN.yml` / `en-US.yml` 为准。
+
+| 当前位置 | key | 中文 | 英文 | 状态 |
+|---|---|---|---|---|
+| `web/config.js:867` | `settings.license_title` | 许可与免责声明 | License & Disclaimer | [x] |
+| `web/config.js:868` | `settings.license_copyright` | Copyright (C) 2026 DreamInsight24 and NovelHelper contributors | Copyright (C) 2026 DreamInsight24 and NovelHelper contributors | [x] |
+| `web/config.js:869` | `settings.license_body` | 本程序是自由软件：你可以依据自由软件基金会发布的《GNU 通用公共许可证》（GPL）第 3 版或任何后续版本重新分发和/或修改它。 | This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. | [x] |
+| `web/config.js:870` | `settings.license_warranty` | 本程序按「原样」提供，不提供任何担保；详情见 GNU 通用公共许可证。 | This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details. | [x] |
+| `web/config.js:872` | `settings.license_view` | 查看许可证全文与对应源码： | View the full license and the corresponding source: | [x] |
+
+约束：
+
+- `settings.license_copyright` 为法律声明，中英保持一致，不随界面语言变化；
+- 新增 key 不含 `{placeholder}`，两种语言占位符集合一致；
+- `settings.license_body` / `settings.license_warranty` 的措辞须与 `LICENSE` 中的 GPL-3.0 全文一致；许可证变更时需同步更新本区块与设置页文案。

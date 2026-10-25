@@ -138,3 +138,29 @@ python scripts/exe_smoke_test.py dist/NovelHelper.exe
 10. 「模式管理」中内置模式的系统提示词：中文环境为中文、英文环境为英文，且均不含 `##` 等 Markdown 标题标记；
 11. 新增模式时使用的默认提示词同样按当前语言生成；
 12. 人物背包「完整外貌拼装」预览的标签按当前语言显示。
+
+---
+
+# 许可变更与界面许可声明验证记录
+
+日期：2026-10-25。范围：许可证由 MIT 改为 GPL-3.0-or-later，设置页「关于」新增许可与免责声明文案（`settings.license_*`）。
+
+## 自动化检查
+
+| 检查 | 结果 | 覆盖 |
+|---|---|---|
+| `python scripts/test_localization.py` | 15 项通过 | 原有取词/回退/校验基线 + 新增 5 个 `settings.license_*` key 中英对齐、占位符一致 |
+| `node scripts/test_i18n.cjs` | 通过 | 前端运行时基线 |
+| `python scripts/test_language_settings.py` | 17 项通过 | 语言持久化基线不受影响 |
+| `python scripts/smoke_test.py` | 通过 | 原服务/API/配置往返基线 |
+| `python app/selftest.py` | 69 项通过，0 失败 | 原有业务基线 |
+| `ast.parse` 全部 `.py` + `node --check` 全部 `.js` | 通过 | 许可头为纯注释，不改变语法 |
+
+## 界面检查
+
+设置页「关于」卡片新增「许可与免责声明」区块，展示版权、GPL-3.0-or-later 授权说明、免责声明与许可证全文链接；中英文分别取词，版权行不随语言变化。
+
+## 验收边界
+
+- 许可由 MIT 改为 GPL-3.0-or-later 属法律文本变更，需取得全部版权人同意并由项目负责人确认；本次未创建/合并 PR。
+- `LICENSE` 为 GPL-3.0 全文，改动许可证时须同步更新设置页文案与 `settings.license_*`。

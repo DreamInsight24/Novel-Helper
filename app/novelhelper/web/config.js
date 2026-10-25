@@ -1,3 +1,22 @@
+/*
+ * Copyright (C) 2026 DreamInsight24 and NovelHelper contributors
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 /* NovelHelper —— 元素模板 / 提示词 / 模型设置 */
 'use strict';
 
@@ -843,6 +862,18 @@ function viewAI(main) {
       target: '_blank', rel: 'noopener noreferrer',
       text: 'https://github.com/DreamInsight24'
     })));
+  // GPL-3.0 §5(d)：交互式界面需展示版权、免责声明与许可信息。
+  about.appendChild(h('div', { class: 'license-note' },
+    h('div', { class: 'license-title', text: i18n.t('settings.license_title') }),
+    h('div', { text: i18n.t('settings.license_copyright') }),
+    h('div', { text: i18n.t('settings.license_body') }),
+    h('div', { text: i18n.t('settings.license_warranty') }),
+    h('div', null,
+      h('span', { text: i18n.t('settings.license_view') }),
+      h('a', {
+        href: 'https://github.com/DreamInsight24/Novel-Helper/blob/main/LICENSE',
+        target: '_blank', rel: 'noopener noreferrer', text: 'LICENSE'
+      }))));
   main.appendChild(about);
 }
 

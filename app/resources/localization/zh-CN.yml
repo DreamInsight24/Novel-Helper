@@ -1,3 +1,20 @@
+# Copyright (C) 2026 DreamInsight24 and NovelHelper contributors
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 browse.user_dir: 用户目录
 chapters.col_actions: 操作
 chapters.col_dir: 目录
@@ -916,6 +933,11 @@ settings.key_optional_hint: 当前是自定义或本地接口，API Key 可以�
 settings.key_placeholder: '{env}（可手动填写）'
 settings.language: 语言
 settings.language_hint: 切换后立即生效
+settings.license_body: 本程序是自由软件：你可以依据自由软件基金会发布的《GNU 通用公共许可证》（GPL）第 3 版或任何后续版本重新分发和/或修改它。
+settings.license_copyright: Copyright (C) 2026 DreamInsight24 and NovelHelper contributors
+settings.license_title: 许可与免责声明
+settings.license_view: 查看许可证全文与对应源码：
+settings.license_warranty: 本程序按「原样」提供，不提供任何担保；详情见 GNU 通用公共许可证。
 settings.max_tokens_label: max_tokens 字段名
 settings.model_name_label: 模型名（可手动填写）
 settings.model_name_placeholder: 例如 gpt-4.1-mini / deepseek-flash
