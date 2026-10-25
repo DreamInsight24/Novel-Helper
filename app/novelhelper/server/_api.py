@@ -8,17 +8,32 @@ import re
 
 from .. import ai, context, history, logger, project, prompts as prompts_mod, providers, store
 from ._helpers import _api_ready, _surface_error
+from ._language import first_run, save_language
 from ._state import _RUN_STATE
 
 
 class _ApiMixin:
     def _api(self, method: str, path: str, query: dict):
         if method == "GET" and path == "/api/i18n":
-            self._json({**localization.get_languages(), "version": APP_VERSION})
+            self._json({**localization.get_languages(), "version": APP_VERSION,
+                        "first_run": first_run()})
             return
         if method == "GET" and path.startswith("/api/i18n/"):
             lang = localization.resolve_language(path[len("/api/i18n/"):])
             self._json({"lang": lang, "messages": localization.get_translations(lang)})
+            return
+        if method == "POST" and path == "/api/settings/language":
+            # In-flight generation is unaffected: each request's language is fixed
+            # at dispatch time by language_context, so the process default may change.
+            body = self._body()
+            lang = str(body.get("language") or "").strip()
+            if not lang:
+                self._error(t("errors.language_required"), status=400)
+                return
+            saved = save_language(lang)
+            logger.log_event("CONFIG", "language", language=saved)
+            self._json({"ok": True, "language": saved,
+                        "current": localization.get_language()})
             return
         if method == "GET" and path == "/api/state":
             self._json({

@@ -30,7 +30,13 @@ app/novelhelper/web/i18n/
 
 ## 3. 语言选择与取词
 
-后端的语言优先级为：当前请求上下文覆盖 → 进程默认语言。`set_language()` 修改进程默认语言，后续取词立即生效，但不写用户配置。
+后端的语言优先级为：当前请求上下文覆盖 → 进程默认语言。`set_language()` 修改进程默认语言，后续取词立即生效，但自身不写用户配置；持久化由 `server/_language.py` 完成（任务 3.2）：
+
+- `POST /api/settings/language` 校验语言后写入 `config.language`（`store.save("config", ...)`），再 `set_language()` 立即生效；
+- `server.serve()` 启动时把 `config.language` 应用到进程默认语言；
+- 配置中无 `language` 字段视为首次进入，`GET /api/i18n` 以 `first_run` 返回给前端；
+- 配置缺失、非法 JSON、非 UTF-8 或非对象时按首次处理：记录日志并把损坏文件备份为 `config.json.bak-<时间戳>`（K2），随后使用默认配置；
+- 切换语言不影响进行中的生成任务：请求语言在分发时已由 `language_context` 固定，进程默认值的变更不会改变该请求的取词结果。
 
 前端业务请求携带 `X-NovelHelper-Language`。HTTP 处理器用 `language_context()` 暂时设置该请求语言；底层 `ContextVar` 隔离并发请求，结束或异常退出时还原，不把请求语言写回进程默认值。
 
@@ -48,7 +54,7 @@ app/novelhelper/web/i18n/
 
 ## 4. 翻译表传给前端
 
-`GET /api/i18n` 提供语言配置、当前语言与应用版本；`GET /api/i18n/<lang_id>` 提供实际解析后的语言 ID 和扁平翻译表。返回整表时先合并 fallback，当前语言的值覆盖回退值。
+`GET /api/i18n` 提供语言配置、当前语言、应用版本与 `first_run` 首次进入标记；`GET /api/i18n/<lang_id>` 提供实际解析后的语言 ID 和扁平翻译表。返回整表时先合并 fallback，当前语言的值覆盖回退值。
 
 返回的配置和翻译表为副本，调用方修改副本不会破坏缓存。获取某语言的翻译表不会改变进程默认语言。返回结构见 [HTTP 接口](../api/i18n.md#http-接口)。
 
@@ -57,12 +63,15 @@ app/novelhelper/web/i18n/
 首页按以下顺序执行：
 
 1. 加载 i18n.js 和 bootstrap.js。
-2. 请求语言配置与版本，将版本写入 `i18n.defaults.version`。
+2. 请求语言配置、版本与 `first_run`，将配置写入 `i18n.defaults`（version、languages、current）。
 3. 以 URL 中的 lang 参数或后端 current 确定预览语言。
 4. `i18n.load(lang)` 请求翻译表；成功后替换旧表、注册译文并设置 html lang。
-5. `i18n.apply(document)` 填充 HTML 静态文案。
-6. 顺序加载 core、records、views、config、workstation、manuscript 六个原业务脚本。
-7. 全部脚本加载完成后调用 `boot()`，读取业务状态并绘制页面。
+5. `first_run` 为 true 且无 lang 预览参数时：在业务脚本加载前弹出语言选择（语言列表来自后端配置，名称使用该语言自称）；点击即 `POST /api/settings/language` 写入配置并刷新页面，重新进入非首次流程。
+6. `i18n.apply(document)` 填充 HTML 静态文案。
+7. 顺序加载 core、records、views、config、workstation、manuscript 六个原业务脚本。
+8. 全部脚本加载完成后调用 `boot()`，读取业务状态并绘制页面。
+
+设置页的语言下拉直接使用 bootstrap 写入 `i18n.defaults.languages` 的清单，切换成功后刷新页面。首次选择弹层独立于「模型设置」的首次引导：先选语言，再进入模型设置引导。
 
 导航与集合定义中有脚本顶层取词，因此必须在翻译表注册后加载这些脚本。`workstation.js` 末尾原有自动执行的 boot 改由 bootstrap 在 manuscript 加载后调用，避免初始化竞争；原全局函数与 DOM 构造方式继续使用。
 

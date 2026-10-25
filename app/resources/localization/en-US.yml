@@ -181,6 +181,7 @@ errors.generation_locked: AI is generating; the workstation is locked. Please wa
 errors.invalid_path: Invalid path
 errors.invalid_session_id: Invalid session id
 errors.is_process_mode: '"{label}" is a manuscript mode and cannot be used in the AI Workstation.'
+errors.language_required: Language is required
 errors.json_format: 'JSON format error: {detail}'
 errors.json_no_records: 'No importable records in the JSON (need an array, or {"items": [...]})'
 errors.map_cells_invalid: Map cells must be an object
@@ -270,6 +271,9 @@ inventory.remove: Remove from inventory
 inventory.title: '{name} · Inventory'
 inventory.worn_status: being worn
 inventory.worn_title: Worn & Equipment
+language.first_run_hint: Takes effect immediately; you can change it later in Model Settings.
+language.first_run_title: Choose your language
+language.switch_failed_reason: 'Failed to switch language: {reason}'
 manuscript.access_failed_reason: 'Cannot access: {reason}'
 manuscript.ai_assist: AI Assist
 manuscript.ai_question: What should we do with the text?
@@ -625,6 +629,8 @@ settings.generic_prompt_hint: 'Generic API prompt: assumes no specific model nam
 settings.key_optional_hint: This is a custom or local API; the API key can be left empty. Fill it in only if the
   API requires authentication.
 settings.key_placeholder: '{env} (optional)'
+settings.language: Language
+settings.language_hint: Takes effect immediately
 settings.max_tokens_label: max_tokens field name
 settings.model_name_label: Model name (enter manually)
 settings.model_name_placeholder: e.g. gpt-4.1-mini / deepseek-flash
