@@ -133,7 +133,6 @@ def check_dynamic_imports() -> bool:
     checks = [
         ("关键模块导入顺序 A", modules),
         ("关键模块导入顺序 B", list(reversed(modules))),
-        ("app/tools/common.py 兼容导入", ["common"]),
     ]
     passed = True
     for label, requested in checks:
@@ -141,7 +140,7 @@ def check_dynamic_imports() -> bool:
             f"importlib.import_module({name!r})" for name in requested
         )
         env = os.environ.copy()
-        paths = [str(APP), str(APP / "tools")]
+        paths = [str(APP)]
         old_path = env.get("PYTHONPATH")
         if old_path:
             paths.append(old_path)

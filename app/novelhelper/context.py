@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import Any, Iterable
 
-from . import elements as el, localization, prompts as prompts_mod, providers
+from . import elements as el, localization, providers
 
 
 # ─────────────────────────────────────────────
@@ -470,54 +470,5 @@ def assemble_mode(
         "user": user,
         "tool": "mode",
         "mode_id": mode.get("id") or "",
-        "parts": 1,
-    }
-
-
-def assemble(
-    config: dict,
-    db: dict,
-    prompts: dict | None,
-    selection: dict,
-    plan: str = "",
-    mode: str = "reason",
-    work_prompt: str = "",
-    work_mode: str = "draft",
-) -> dict:
-    """
-    兼容旧版命令行：
-      reason / write / idea 使用内置旧工具 system prompt；
-      新界面统一使用 assemble_mode()。
-    """
-    if mode == "work":
-        mode_obj = find_mode(db, work_mode)
-        if mode_obj is None:
-            modes = (db.get("modes") or {}).get("items") or []
-            mode_obj = modes[0] if modes else {
-                "id": "draft",
-                "system_prompt": prompts_mod.DRAFT_WORK_PROMPT,
-                "use_target_chars": True,
-            }
-        return assemble_mode(config, db, selection, mode_obj, work_prompt=work_prompt)
-
-    prompts = prompts or prompts_mod.default_prompts()
-    tool = "idea" if mode == "idea" else ("reason" if mode == "reason" else "write")
-    system = ((prompts.get("tools") or {}).get(tool) or "") + providers.provider_note(config)
-    mode_obj = {
-        "id": tool,
-        "use_target_chars": tool in ("reason", "write"),
-        "length_strict": tool != "reason",
-    }
-    user = build_user_message(
-        config, db, selection, mode=mode_obj,
-        plan=plan if mode == "write" else "",
-        work_prompt=work_prompt,
-        include_prompt=mode != "idea",
-    )
-    return {
-        "system": system,
-        "user": user,
-        "tool": tool,
-        "mode_id": "",
         "parts": 1,
     }

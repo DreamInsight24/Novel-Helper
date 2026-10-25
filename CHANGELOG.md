@@ -40,11 +40,9 @@
 
 ### Removed
 
-<!-- 已移除的功能。无内容时可删除本节。 -->
-
-### Fixed
-
-<!-- 缺陷修复。无内容时可删除本节。 -->
+- 移除旧版命令行工具 `app/tools/`（`writer.py`、`checker.py`、`fixer.py`、`idea_helper.py`、`md2txt.py`）。写稿、重排、定点修复与灵感功能由「AI 工作站」与「稿件处理」页承接，`.md` 转 `.txt` 由稿件处理页的文本操作承接。
+- 移除仅为旧命令行工具存在的兼容符号：`ai.tool_settings`、`ai.chat`、`context.assemble`、`prompts.default_prompts` 及 `prompts` 中的 7 个旧工具提示词常量。显式参数调用统一走 `ai.chat_settings`，上下文组装统一走 `context.assemble_mode`。
+- 网页端仍在使用的记忆压缩等内置工具改由新增的 `novelhelper.tool_prompts` 模块提供，`/api/ai/run` 接口行为不变。
 
 ### Security
 

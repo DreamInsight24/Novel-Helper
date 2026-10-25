@@ -55,6 +55,7 @@ app/novelhelper/
   logger.py            # 日志，保持独立模块
   prompts.py           # 默认模式与提示词，保持独立模块
   providers.py         # 提供商目录，保持独立模块
+  tool_prompts.py      # 内置工具提示词与调用参数（记忆压缩等），保持独立模块
   app.py               # 应用入口，保持原位置
   web/                 # 前端资源（HTML/CSS/JS），任务 1 不改
 ```
@@ -84,7 +85,7 @@ app/novelhelper/
 | `store` | JSON 读写、默认数据、旧数据迁移、路径和备份 | `prompts`、`providers`、`elements`；包内按私有模块分层 | P1 已实施；接口见 `docs/api/store.md` |
 | `project` | 工作区文件、导入/导出与文本处理 | `store`、`elements`、`context`；包内按私有模块分层 | P2 已实施；接口见 `docs/api/project.md` |
 | `server` | HTTP 服务、静态资源和 API 编排 | `ai`、`context`、`history`、`logger`、`project`、`store` 等 | P3 已实施；接口见 `docs/api/server.md` |
-| `ai`、`context`、`elements`、`history`、`logger`、`prompts`、`providers` | 保留职责相对单一的模块，作为根包公开模块 | 依具体模块而定；依赖方向以迁移计划为准 | 已保留；符号基线见 `docs/restructure/public-api-baseline.md` |
+| `ai`、`context`、`elements`、`history`、`logger`、`prompts`、`providers`、`tool_prompts` | 保留职责相对单一的模块，作为根包公开模块 | 依具体模块而定；依赖方向以迁移计划为准 | 已保留；符号基线见 `docs/restructure/public-api-baseline.md` |
 
 `store`、`project` 与 `server` 均有接口说明。P1-P3 包内依赖如下；私有实现不反向导入所属包的 `__init__`：
 
@@ -123,7 +124,7 @@ app/novelhelper/
 | `_base` | `_helpers`、`_state`、`ai`、`logger`、`store` |
 | `_api` | `_helpers`、`_state`、`ai`、`context`、`history`、`logger`、`project`、`prompts`、`providers`、`store` |
 | `_records` | `elements`、`logger`、`project`、`store` |
-| `_generation` | `_helpers`、`_state`、`ai`、`context`、`history`、`logger`、`project`、`prompts`、`providers`、`store` |
+| `_generation` | `_helpers`、`_state`、`ai`、`context`、`history`、`logger`、`project`、`prompts`、`providers`、`store`、`tool_prompts` |
 | `_handler` | `_api`、`_base`、`_generation`、`_records`、`store` |
 | `__init__` | `_handler`、`_state`；保留 `ai` 模块属性兼容 |
 
@@ -171,6 +172,15 @@ app/novelhelper/
 -->
 
 P1 将 `app/novelhelper/store.py` 拆分为 `store/` 包，原公共接口由 `store/__init__.py` re-export；P2 将 `app/novelhelper/project.py` 拆分为 `project/` 包，原公共接口由 `project/__init__.py` re-export；P3 将 `app/novelhelper/server.py` 拆分为 `server/` 包，保留 `MAX_BODY`、`Handler`、`serve` 与 `server.ai` 兼容属性；P4 将版本常量集中到 `_version.py`，由根 `__init__.py` 兼容导出。以上阶段仅调整代码组织和包内依赖边界，没有修改原业务处理流程；详细映射见 `docs/restructure/migration-map.md`。
+
+旧版命令行工具（`app/tools/`）已移除。其中仍在使用的功能由根包模块承接，不改变对外行为：
+
+| 旧路径 | 新落点 | 说明 |
+|---|---|---|
+| `app/tools/`（`writer.py`、`checker.py`、`fixer.py`、`idea_helper.py`、`md2txt.py`、`common.py`） | 已删除 | 命令行入口不再提供；`md2txt.py` 的文本处理已由 `project.md_to_txt` / `project.apply_text_op` 覆盖，写稿与处理类操作由「AI 工作站」与「稿件处理」页承接 |
+| `app/tools/common.py` → `prompts.default_prompts()` / `prompts.TOOL_PROMPTS` | `tool_prompts` | 网页端仍在使用的内置工具提示词与调用参数改由该模块提供，`server/_generation.py` 的 `/api/ai/run` 直接调用 |
+| `ai.tool_settings()`、`ai.chat()`、`context.assemble()` | 已删除 | 仅为旧命令行工具存在的兼容符号，删除后没有调用方；显式参数调用统一走 `ai.chat_settings()`，上下文组装统一走 `context.assemble_mode()` |
+| `prompts.TOOL_PROMPTS`、`prompts.default_prompts()` 及 7 个旧工具提示词常量 | `tool_prompts` + 翻译表 | 提示词正式内容放在 `defaults.tool.*_prompt`（`zh-CN.yml` / `en-US.yml`），按当前语言取词；`tool_prompts` 内的常量只作缺词回退，与 `prompts.DEFAULT_MODES` 的做法一致 |
 
 ## 8. 变更流程
 

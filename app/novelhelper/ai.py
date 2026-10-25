@@ -108,23 +108,6 @@ def mode_settings(config: dict, mode: dict | None) -> dict:
     }
 
 
-def tool_settings(config: dict, tool: str, override: dict | None = None) -> dict:
-    """旧版命令行兼容：没有 tools 配置时使用默认模式参数。"""
-    tools = (config or {}).get("tools") or {}
-    base = dict(tools.get(tool) or {})
-    if not base:
-        base = mode_settings(config, {
-            "effort": "high" if tool in ("reason", "idea", "compress") else "low",
-            "max_tokens": {"write": 100000, "fix": 100000, "restyle": 100000}.get(tool, 32768),
-            "thinking": True,
-        })
-    if override:
-        for key, value in override.items():
-            if value not in (None, ""):
-                base[key] = value
-    return base
-
-
 def _payload(settings: dict, messages: list, api: dict) -> dict:
     provider = api["provider"]
     model_name = settings.get("model") or ""
@@ -262,11 +245,6 @@ def chat_settings(config: dict, settings: dict, messages: list) -> dict:
         "transport": transport,
         "provider": api["provider_id"],
     }
-
-
-def chat(config: dict, tool: str, messages: list, override: dict | None = None) -> dict:
-    """旧版工具调用入口。"""
-    return chat_settings(config, tool_settings(config, tool, override), messages)
 
 
 def ping(config: dict, model: str = "") -> dict:

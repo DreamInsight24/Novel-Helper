@@ -369,6 +369,67 @@ defaults.source.import: Import
 defaults.source.manuscript: Manuscript
 defaults.source.manuscript_workspace: Manuscript · Workspace
 defaults.text.draft_prefix: Draft_
+defaults.tool.compress_prompt: |-
+  Task: compress the given memories into shorter, denser form.
+
+  Requirements:
+  1. Keep every proper noun (character, place, item, organization) and every fact; compress only the wording.
+  2. Drop repetition, ornament, evaluation, and transitions.
+  3. Keep the original entry divisions and `### Heading`; keep each entry to within 1/3 of its original length.
+  4. Output only the compressed memories — no explanations, no preamble, no code fence.
+defaults.tool.fix_prompt: |-
+  Task: fix a given passage of prose at the specific points the user raises.
+
+  Core principles:
+  1. Fix only the problems the user explicitly points out; change nothing else.
+  2. Keep untouched passages as verbatim as possible — do not alter wording, syntax, dialogue, or narrative order on your own.
+  3. Fix the paragraph where the problem is, and fix what the problem is.
+  4. Do not cut existing plot, dialogue, characters, or foreshadowing; when something must be added, add only locally.
+  5. Do not add plot, characters, or settings the user did not ask for.
+  6. Keep the original point of view, tense, and voice; the fixed text must join the untouched parts seamlessly.
+  7. Keep the original Markdown structure.
+
+  Output requirements:
+  - Output the complete fixed prose, not just the changed part.
+  - Output no explanation, preamble, postscript, or diff.
+  - End with `## Fix summary` describing this fix in one sentence.
+
+  Priority: user's fix instructions > current state > story memories > world settings > original text.
+defaults.tool.restyle_prompt: |-
+  Task: adjust the formatting, pacing, and description density of the given text, and repair obvious plot contradictions; do not change the plot, the dialogue, the characters, the settings, or the timeline.
+
+  Specific changes:
+  1. Merge runs of one-sentence paragraphs into natural paragraphs of 3-8 sentences.
+  2. Add necessary action, expression, environment, and interior description around the dialogue.
+  3. Dialogue must not exceed 40% of the whole.
+  4. Keep every key piece of information: character names, place names, items, key lines, and plot turns.
+  5. Add no plot, characters, or settings, and cut nothing.
+  6. Keep the original point of view, tense, voice, and narrative order.
+  7. Make minimal corrections to obvious contradictions.
+
+  Forbidden: explanations, preambles, postscripts, summaries, or commentary; changes outside `## Body`.
+  Output format: output the restyled prose directly.
+defaults.tool.summarize_prompt: |-
+  Task: compress one chapter of prose into a memory entry that is as small as possible while still supporting later writing.
+
+  Compression principles:
+  1. Keep only hard information you will still need: time progression, location changes, who did what and with what result, relationship and state changes, newly introduced names of people, places, and items, and foreshadowing newly planted or resolved.
+  2. Drop atmosphere, description, metaphor, interior monologue, dialogue, and repeated information.
+  3. Do not comment or evaluate; do not write framing sentences like "this chapter covers…".
+  4. Use declarative sentences only; semicolons may join clauses; one short clause per point.
+  5. Do not invent information absent from the prose.
+  6. Maximum 400 characters; information density first.
+
+  Output format:
+  ### {Chapter title}
+  - Time & place:
+  - Key events:
+  - Character changes:
+  - New information:
+  - Foreshadowing:
+  - State updates:
+
+  Write "None" on lines with no content. Output no explanation or extra text, and do not wrap it in a code fence.
 
 elements.add_child: Add a child element under this one
 elements.add_top: + Top-level Element
@@ -487,6 +548,7 @@ errors.unknown_api: 'Unknown endpoint: {path}'
 errors.unknown_collection: 'Unknown collection: {name}'
 errors.unknown_import_target: 'Unknown import target: {name}'
 errors.unknown_surface: 'Unknown surface: {name}'
+errors.unknown_tool: 'Unknown built-in tool: {tool}'
 errors.workspace_empty: The workspace has no text to process.
 history.autosave_hint: Each generation creates a session automatically; history is saved per turn and can be revisited
   anytime.
