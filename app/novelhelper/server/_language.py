@@ -21,9 +21,11 @@ The localization runtime itself has no storage dependency; this module is the
 glue that reads and writes the ``language`` field of the user config
 (`store.load("config")` / `store.save("config", config)`). A config without the
 field counts as first run; a missing or damaged config is backed up (K2), logged,
-and treated the same way. The first saved language is also stored as
-``initial_language`` and used once to seed the language-sensitive built-in
-presets (`store.seed_localized_defaults`).
+and treated the same way. While the first-run wizard is still open the saved
+language is provisional: the latest choice updates ``initial_language`` and
+re-seeds the language-sensitive built-in presets, so a preview of English followed
+by 简体中文 ends up with Chinese presets. Once ``onboarding.done`` is true the
+initial preset files are never rewritten again.
 """
 from __future__ import annotations
 
@@ -98,12 +100,15 @@ def save_language(lang_id: str) -> str:
     resolved = resolve_language(lang_id)
     config = _load_config()
     is_first = LANGUAGE_KEY not in config
+    # Before the wizard is completed the choice is still provisional. Keep following
+    # the latest selection (English -> 简体中文 must not freeze English presets).
+    provisional = is_first or not bool((config.get("onboarding") or {}).get("done"))
     config[LANGUAGE_KEY] = resolved
-    if is_first and INITIAL_LANGUAGE_KEY not in config:
+    if provisional or INITIAL_LANGUAGE_KEY not in config:
         config[INITIAL_LANGUAGE_KEY] = resolved
     store.save("config", config)
     set_language(resolved)
-    if is_first:
+    if provisional:
         try:
             store.seed_localized_defaults(resolved)
         except Exception as exc:  # noqa: BLE001 - presets must not block the switch

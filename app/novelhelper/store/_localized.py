@@ -274,26 +274,28 @@ def _canonical(value) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True)
 
 
-def _default_language() -> str:
-    return get_languages()["default"]
+def _language_ids() -> list[str]:
+    return [str(entry["id"]) for entry in get_languages().get("languages", [])]
 
 
 def seed_localized_defaults(lang_id: str) -> None:
     """Rewrite untouched built-in collections in the first-run language.
 
-    A collection is only rewritten when it is missing or still exactly the
-    built-in default, so user data is never overwritten. The built-in default is
-    compared in the configured default language, because ``ensure_dirs`` writes it
-    before any persisted language is applied.
+    A collection is only rewritten when it is missing or still exactly one of the
+    built-in localized defaults, so user data is never overwritten. Comparing
+    against every configured language (not only the default one) matters while the
+    first-run wizard is still provisional: a previous preview may already have
+    seeded English presets, and choosing 简体中文 afterwards must replace them
+    instead of leaving a mixed-language initial setup.
     """
-    default_lang = _default_language()
     for name in LOCALIZED_COLLECTIONS:
         try:
-            pristine = _canonical(localized_default_for(name, default_lang))
+            pristine = {_canonical(localized_default_for(name, lang))
+                        for lang in _language_ids()}
             path = _path(name)
             stored = _canonical(load(name)) if path.exists() else None
         except Exception:  # noqa: BLE001 - unreadable data is left untouched
             continue
-        if stored is not None and stored != pristine:
+        if stored is not None and stored not in pristine:
             continue
         save(name, localized_default_for(name, lang_id))

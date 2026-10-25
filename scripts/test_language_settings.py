@@ -36,7 +36,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 # Redirect the store data dir before importing novelhelper (DATA_DIR is read at import).
-TEMP_DATA = Path(tempfile.mkdtemp(prefix="nh_language_data_"))
+# NOVELHELPER_TEST_DATA lets CI reuse a pre-created directory (some sandboxes deny
+# access to directories freshly created by tempfile with owner-only permissions).
+TEMP_DATA = Path(os.environ.get("NOVELHELPER_TEST_DATA")
+                 or tempfile.mkdtemp(prefix="nh_language_data_"))
 os.environ["NOVELHELPER_DATA"] = str(TEMP_DATA)
 sys.path.insert(0, str(ROOT / "app"))
 
@@ -63,6 +66,18 @@ def _clear_collections() -> None:
 
 def _fresh_config(lang: str | None = None) -> None:
     config = store.default_config()
+    # Keep every derived workspace/log directory inside the temporary data dir so a
+    # test run never writes into the source tree (and works under confined sandboxes).
+    config["paths"] = {
+        "data_dir": str(TEMP_DATA),
+        "import_dir": str(TEMP_DATA / "workspace" / "import"),
+        "export_dir": str(TEMP_DATA / "workspace" / "export"),
+        "output_dir": str(TEMP_DATA / "workspace" / "output"),
+        "plan_dir": str(TEMP_DATA / "workspace" / "output" / "plan"),
+        "txt_dir": str(TEMP_DATA / "workspace" / "output" / "txt"),
+        "text_dir": str(TEMP_DATA / "workspace" / "text"),
+        "log_dir": str(TEMP_DATA / "log"),
+    }
     if lang is not None:
         config["language"] = lang
     store.save("config", config)
@@ -171,11 +186,39 @@ class LanguagePersistenceTests(unittest.TestCase):
         self.assertNotIn("##", zh)
         self.assertNotIn("##", en)
 
+    def test_provisional_switch_reseeds_presets_in_final_language(self):
+        # 向导未完成时语言仍是“预览”：先点 English 再点简体中文，最终预设必须是中文，
+        # 不能被中途的 English 抢先固化。
+        _clear_collections()
+        _fresh_config(None)
+        _language.save_language("en-US")
+        self.assertEqual(store.load("schema")["characters"]["label"], "Character profiles")
+        self.assertEqual(_language.save_language("zh-CN"), "zh-CN")
+        config = store.load("config")
+        self.assertEqual(config["language"], "zh-CN")
+        self.assertEqual(config["initial_language"], "zh-CN")
+        self.assertEqual(store.load("schema")["characters"]["label"], "人物档案")
+        self.assertEqual(store.load("schema")["characters"]["elements"][0]["key"], "身份")
+        self.assertEqual(store.load("sections")["items"][0]["label"], "世界观")
+        self.assertEqual(store.load("modes")["items"][0]["label"], "逻辑写作")
+        self.assertTrue(store.load("modes")["items"][0]["system_prompt"].startswith("任务："))
+        self.assertEqual(store.load("memories")["categories"][0], "短期记忆")
+        self.assertEqual(store.load("items")["categories"][0], "道具")
+        self.assertEqual(store.load("equipment")["slots"][0], "头部")
+        self.assertEqual(store.load("other")["categories"][0], "其他设定")
+        self.assertEqual(store.load("worldmap")["name"], "世界地图")
+        self.assertEqual(store.load("worldmap")["rows"][:2], ["北5", "北4"])
+
     def test_later_switch_does_not_rewrite_presets(self):
         _clear_collections()
         _fresh_config(None)
         _language.save_language("en-US")
+        # 完成引导后语言成为正式选择，之后的切换不再改写初始化预设。
+        config = store.load("config")
+        config["onboarding"] = {"done": True, "version": 1}
+        store.save("config", config)
         _language.save_language("zh-CN")
+        self.assertEqual(store.load("config")["initial_language"], "en-US")
         self.assertEqual(store.load("schema")["characters"]["label"], "Character profiles")
         self.assertEqual(store.load("sections")["items"][0]["label"], "Worldview")
 
@@ -192,6 +235,10 @@ class LanguagePersistenceTests(unittest.TestCase):
         _fresh_config(None)
         _language.save_language("en-US")  # first run records initial_language
         self.assertIn("Currently", providers.provider_note(store.load("config")))
+        # 完成引导后切换界面语言，不应改变已固定为初始语言的接口说明。
+        config = store.load("config")
+        config["onboarding"] = {"done": True, "version": 1}
+        store.save("config", config)
         _language.save_language("zh-CN")
         self.assertIn("Currently", providers.provider_note(store.load("config")))
 
@@ -207,8 +254,20 @@ class LanguagePersistenceTests(unittest.TestCase):
         self.assertEqual(merged["language"], "en-US")
         self.assertEqual(merged["initial_language"], "en-US")
         self.assertEqual(merged["onboarding"], {"done": True, "version": 1})
+        # 过期副本即使带着旧语言，也不能把服务端刚写入的语言回滚。
+        stale_with_old_language = {**stale, "language": "zh-CN", "initial_language": "zh-CN"}
+        merged = _api._preserve_language_fields(dict(stale_with_old_language))
+        self.assertEqual(merged["language"], "en-US")
+        self.assertEqual(merged["initial_language"], "en-US")
+        # 服务端尚无语言时，通用保存不能自行写入/凭空造出语言字段。
+        _clear_collections()
+        _fresh_config(None)
+        merged = _api._preserve_language_fields({"version": 4, "language": "zh-CN"})
+        self.assertNotIn("language", merged)
+        self.assertNotIn("initial_language", merged)
 
     def test_http_switch_endpoint_and_first_run_flag(self):
+        _fresh_config(None)  # keep workspace/log dirs inside the temporary data dir
         httpd = server.serve("127.0.0.1", _free_port())
         thread = threading.Thread(target=httpd.serve_forever, daemon=True)
         thread.start()

@@ -897,36 +897,48 @@ function showOnboarding(force) {
   let dialog = null;
   let step = 1;
   let lang = cfg.language || i18n.defaults.current || 'zh-CN';
+  let finishing = false;
 
   const finish = async configured => {
+    if (finishing) return;
+    finishing = true;
     cfg.onboarding = cfg.onboarding || {};
     cfg.onboarding.done = true;
     cfg.onboarding.version = 1;
     try {
+      // 这里才把最终语言写入后端：首次写入会同时记录 initial_language，并用最终
+      // 语言生成一次内置预设。第 1 步的点击只做预览，避免用户先点 English 再点
+      // 简体中文时，预设被中途的 English 抢先固化。
+      const res = await apiCall('/api/settings/language', { method: 'POST', body: { language: lang } });
+      const applied = res.language || lang;
+      lang = applied;
+      i18n.defaults.current = applied;
+      // 语言由后端写入，必须同步回本地配置，否则随后保存 config 会覆盖掉它，
+      // 刷新后首次引导会再次弹出。
+      cfg.language = applied;
+      if (!cfg.initial_language) cfg.initial_language = applied;
       if (configured) saveProviderProfile(cfg, cfg.api.provider);
       await saveNow('config');
       if (dialog) dialog.close();
       // 语言与内置预设按整页刷新统一生效。
       location.reload();
     } catch (e) {
+      finishing = false;
       toast(i18n.t('common.save_failed_reason', { reason: e.message }), 'err');
     }
   };
 
-  // 选中即写入并即时预览；最后一步再整页刷新，让所有顶层文案一起生效。
+  // 选中即即时预览；持久化留到 finish，确保最终语言与首次预设一致。
   const selectLanguage = async id => {
     if (id === lang) return;
+    const previous = lang;
     lang = id;
     try {
-      const res = await apiCall('/api/settings/language', { method: 'POST', body: { language: id } });
-      const applied = res.language || id;
+      const applied = await i18n.load(id);
+      lang = applied;
       i18n.defaults.current = applied;
-      await i18n.load(applied);
-      // 语言是服务端写入的字段，必须同步回本地配置，否则最后一步保存会把
-      // language / initial_language 覆盖掉，刷新后引导会再次弹出。
-      cfg.language = applied;
-      if (!cfg.initial_language) cfg.initial_language = applied;
     } catch (err) {
+      lang = previous;
       toast(i18n.t('language.switch_failed_reason', { reason: err.message }), 'err');
     }
     draw();
