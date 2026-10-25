@@ -1,5 +1,22 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# Copyright (C) 2026 DreamInsight24 and NovelHelper contributors
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 """
 novelhelper/ai.py
 OpenAI Chat Completions 兼容接口封装。
@@ -10,6 +27,8 @@ OpenAI Chat Completions 兼容接口封装。
 * 优先使用 openai SDK，未安装时自动退回标准库 urllib。
 """
 from __future__ import annotations
+
+from .localization import t
 
 import json
 import os
@@ -52,7 +71,7 @@ def _api_settings(config: dict) -> dict:
     provider = providers.provider_for_config(config)
     base_url = providers.normalize_base_url(api.get("base_url") or provider.get("base_url") or "")
     if not base_url:
-        raise AIError("未配置接口 URL。请在「模型设置」中填写，或选择一个提供商预设。")
+        raise AIError(t('errors.no_api_url'))
     api_key = (api.get("api_key") or "").strip() or _env_api_key(provider)
     timeout = api.get("timeout") or 899
     return {
@@ -80,8 +99,7 @@ def _ensure_key(api: dict) -> None:
         return
     provider = api["provider"]
     raise AIError(
-        f"未配置 API Key。请到「模型设置」填写，或设置环境变量 "
-        f"{provider.get('key_env') or 'OPENAI_API_KEY'}。"
+        t('errors.no_api_key', env=provider.get('key_env') or 'OPENAI_API_KEY')
     )
 
 
@@ -105,23 +123,6 @@ def mode_settings(config: dict, mode: dict | None) -> dict:
         "temperature": mode.get("temperature"),
         "thinking": bool(mode.get("thinking")),
     }
-
-
-def tool_settings(config: dict, tool: str, override: dict | None = None) -> dict:
-    """旧版命令行兼容：没有 tools 配置时使用默认模式参数。"""
-    tools = (config or {}).get("tools") or {}
-    base = dict(tools.get(tool) or {})
-    if not base:
-        base = mode_settings(config, {
-            "effort": "high" if tool in ("reason", "idea", "compress") else "low",
-            "max_tokens": {"write": 100000, "fix": 100000, "restyle": 100000}.get(tool, 32768),
-            "thinking": True,
-        })
-    if override:
-        for key, value in override.items():
-            if value not in (None, ""):
-                base[key] = value
-    return base
 
 
 def _payload(settings: dict, messages: list, api: dict) -> dict:
@@ -170,13 +171,13 @@ def _post_raw(api: dict, body: dict) -> dict:
     try:
         return json.loads(raw)
     except json.JSONDecodeError as exc:
-        raise AIError(f"返回内容不是合法 JSON: {raw[:600]}") from exc
+        raise AIError(t('errors.not_json', detail=raw[:600])) from exc
 
 
 def _extract_content(payload: dict) -> str:
     choices = payload.get("choices") or []
     if not choices:
-        raise AIError(f"返回中没有 choices: {json.dumps(payload, ensure_ascii=False)[:600]}")
+        raise AIError(t('errors.no_choices', detail=json.dumps(payload, ensure_ascii=False)[:600]))
     message = choices[0].get("message") or {}
     content = message.get("content")
     if isinstance(content, list):
@@ -187,7 +188,7 @@ def _extract_content(payload: dict) -> str:
         reasoning = message.get("reasoning_content") or ""
         if reasoning:
             return reasoning.strip()
-        raise AIError("模型返回内容为空。")
+        raise AIError(t('errors.empty_response'))
     return str(content).strip()
 
 
@@ -199,7 +200,7 @@ def chat_settings(config: dict, settings: dict, messages: list) -> dict:
     if not settings.get("model"):
         settings["model"] = providers.default_model(config)
     if not settings.get("model"):
-        raise AIError("未选择模型。请先在「模型设置」获取模型列表，或手动填写模型名。")
+        raise AIError(t('errors.no_model'))
     body = _payload(settings, messages, api)
     started = time.time()
     usage: dict = {}
@@ -263,11 +264,6 @@ def chat_settings(config: dict, settings: dict, messages: list) -> dict:
     }
 
 
-def chat(config: dict, tool: str, messages: list, override: dict | None = None) -> dict:
-    """旧版工具调用入口。"""
-    return chat_settings(config, tool_settings(config, tool, override), messages)
-
-
 def ping(config: dict, model: str = "") -> dict:
     """轻量连通性测试，不附带 AI 生成声明。"""
     settings = mode_settings(config, {
@@ -298,16 +294,16 @@ def list_models(config: dict) -> dict:
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")[:800]
         if exc.code == 401:
-            raise AIError(f"获取模型失败：API Key 无效或无权限（HTTP 401）。{detail}") from exc
+            raise AIError(t('errors.fetch_401', detail=detail)) from exc
         if exc.code == 404:
-            raise AIError("获取模型失败：该接口没有 /models 端点，请手动填写模型名。") from exc
-        raise AIError(f"获取模型失败（HTTP {exc.code}）：{detail}") from exc
+            raise AIError(t('errors.fetch_no_endpoint')) from exc
+        raise AIError(t('errors.fetch_http', code=exc.code, detail=detail)) from exc
     except Exception as exc:  # noqa: BLE001
-        raise AIError(f"获取模型失败：{type(exc).__name__}: {exc}") from exc
+        raise AIError(t('errors.fetch_generic', type=type(exc).__name__, detail=exc)) from exc
     try:
         data = json.loads(raw)
     except json.JSONDecodeError as exc:
-        raise AIError("获取模型失败：接口返回的不是合法 JSON。") from exc
+        raise AIError(t('errors.fetch_bad_json')) from exc
 
     items = data.get("data") if isinstance(data, dict) else data
     if not isinstance(items, list):
@@ -322,7 +318,7 @@ def list_models(config: dict) -> dict:
                 ids.append(str(value))
     models = sorted({value for value in ids if value})
     if not models:
-        raise AIError("接口返回了模型列表，但没有识别到模型 id；请手动填写。")
+        raise AIError(t('errors.fetch_no_ids'))
     return {
         "models": models,
         "provider": api["provider_id"],

@@ -1,208 +1,77 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# Copyright (C) 2026 DreamInsight24 and NovelHelper contributors
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 """
 novelhelper/prompts.py
 内置提示词与拼装文案。
 
 新版界面的「模式管理」直接编辑 data/modes.json；本文件只提供：
   · DEFAULT_MODES  首次启动时写入 data/modes.json 的默认工作模式
-  · TOOL_PROMPTS   旧版命令行工具的兼容提示词
   · AI_NOTICE      所有 AI 输出末尾自动附加的生成声明
+
+工作模式与新增模式的系统提示词提供中英两份，放在翻译表
+（defaults.mode.*_prompt）里，按当前语言取词；本文件的常量是中文原文，
+仅在翻译表缺词时兜底。旧版命令行工具的兼容提示词已移到 tool_prompts 模块。
 """
 from __future__ import annotations
 
 from copy import deepcopy
 
-
-# ─────────────────────────────────────────────
-# 旧版工具提示词（命令行与兼容接口）
-# ─────────────────────────────────────────────
-REASON_SYSTEM_PROMPT = """任务：在正文动笔前核对设定、记忆、当前状态与用户指令的一致性，并给出本节（本章）可执行的剧情方向。
-
-输出固定分为两部分：
-
-## 一、写作前逻辑核对
-1. 时间与地点：本节发生的时间、地点是否与当前状态和故事记忆一致。给出结论。
-2. 人物状态：涉及人物的位置、伤势、情绪、目标是否连贯。逐条列出关键状态。
-3. 承接的伏笔：本节需要呼应或推进的既有伏笔；没有就写“无”。
-4. 逻辑风险：用户指令与设定、记忆冲突之处；没有就写“无”。
-5. 写作约束：本节不得违反的边界，例如人物不能出现在某地、不能使用某能力、不能提前暴露某信息。
-
-## 二、本节剧情梗概与写作方向
-1. 梗概：3–8 句，说明从哪个场景起、经过什么、在哪里收束，以及情绪曲线。
-2. 关键节点：按发生顺序列出必须出现的信息点、动作与转折，并注明触发者。
-3. 信息释放顺序：哪些信息先给、哪些后给、哪些只能暗示。
-4. 优化后的写作提示词：保留用户全部原始意图与硬性要求，补齐视角、节奏、描写密度、对话比例等约束，并写明“不得新增未授权设定”。
-
-要求：
-1. 只输出结论，不展示思维链。
-2. 直接输出 Markdown，使用上述两个二级标题，不加前言后语。
-3. 不写正文、不写对白、不写成段描写。
-4. 不杜撰设定中不存在的信息；信息不足时明确写“信息不足，无法判定”。
-5. 当前状态与故事记忆冲突时，指出冲突并以当前状态为准。
-6. 第二部分控制在 600 字以内，信息密度优先。
-
-内容边界：遵守适用法律法规与平台内容规范；不生成色情、过度暴力或仇恨内容。
-"""
-
-WRITE_SYSTEM_PROMPT = """任务：根据用户提供的设定、当前状态、故事记忆与写作指令，完成小说正文。
-
-核心原则：
-1. 严格遵循用户提供的所有设定、当前状态、故事记忆与写作指令。
-2. 不自行添加设定、人物、情节转折或用户未要求的内容。
-3. 保持文风、叙事节奏与人称视角统一；设定未明确时，以故事记忆中的风格为准。
-4. 输出分为三部分：写作思路、小说正文、写作建议。各部分用 `---` 分隔，并以 `## 写作思路`、`## 正文`、`## 写作建议` 开头。
-5. 用户指令与既有设定冲突时，优先遵循用户指令，并在写作建议中简要说明。
-6. 不输出问候、自我介绍、状态说明等与创作无关的内容。
-
-信息优先级：用户本次指令 > 当前状态 > 故事记忆 > 世界观设定。
-
-当前状态描述“此刻”的场景、人物、位置、状态与情绪。写作必须从当前状态出发，不倒退、不跳过关键情境。
-
-如果用户消息包含“已确认的写作方案”，其中的时间、地点、人物状态、伏笔、约束、梗概、节点顺序与优化后的提示词均具有强制力。
-
-叙事规范：
-1. 每段 3–8 句，避免一句一段。
-2. 对话不超过全文 40%。
-3. 环境、动作、心理描写要占一定篇幅。
-4. 允许放慢节奏，写场景、氛围与人物感受。
-5. 避免排比堆砌、每段收尾点题，以及高频使用“仿佛”“似乎”填充。
-6. 严格遵守用户给出的字数要求。
-
-内容边界：遵守适用法律法规与平台内容规范；亲密关系点到为止，不生成色情、过度暴力或仇恨内容。
-"""
-
-SUMMARIZE_SYSTEM_PROMPT = """任务：把一节小说正文压缩成一条体积尽可能小、但足以支撑后续写作的记忆条目。
-
-压缩原则：
-1. 只保留以后还用得上的硬信息：时间推进、地点转移、谁做了什么、结果、关系与状态变化、新出现的人名地名物品、新埋或回收的伏笔。
-2. 删除氛围、描写、比喻、心理独白、对话原文与重复信息。
-3. 不评论、不评价，不写“本节讲述了……”这类包装句。
-4. 只用陈述句，可用分号并列，一条一小句。
-5. 不杜撰正文中没有的信息。
-6. 篇幅上限 400 字，信息密度优先。
-
-输出格式：
-### {章节标题}
-- 时间地点：
-- 关键事件：
-- 人物变化：
-- 新增信息：
-- 伏笔：
-- 状态更新：
-
-没有内容的行写“无”。不要输出解释或额外文字，不要用代码块包裹。
-"""
-
-COMPRESS_SYSTEM_PROMPT = """任务：把用户给出的若干条记忆压缩为更短、更密的形式。
-
-要求：
-1. 保留全部专有名词（人名、地名、物品名、组织名）与事实，只压缩表达。
-2. 删除重复、修饰、评价与过渡句。
-3. 保持原有条目划分与 `### 标题`，每条控制在原文长度的 1/3 以内。
-4. 只输出压缩后的记忆内容，不解释、不加前言、不用代码块包裹。
-"""
-
-IDEA_SYSTEM_PROMPT = """任务：基于当前状态、已有故事脉络与设定，为创作者提供若干条可行的后续写作思路。你不写正文，只提供方案。
-
-每条思路必须包含：
-1. 标题：一句话概括方向（不超过 20 字）。
-2. 切入点：从当前状态的哪个细节或人物出发。
-3. 大致走向：会发生什么、怎么推进，2–4 句。
-4. 与已有伏笔的关系：承接或呼应了哪条伏笔、哪个人物。
-5. 收益：人物成长、感情推进、世界观展开、悬念升级或节奏调节。
-6. 风险：可能拖慢节奏、与设定冲突、需要新人物或容易写崩。
-7. 难度：低 / 中 / 高。
-
-原则：
-1. 思路从当前状态出发，不凭空跳到别处。
-2. 不违反世界观设定与已有故事记忆。
-3. 优先使用已有的人物、地点、伏笔；必须引入新元素时，在风险中标注。
-4. 思路之间要有差异，至少覆盖两种类型。
-5. 不写正文、对白或描写。
-6. 信息不足时直接说明缺什么，不编造。
-
-输出使用 Markdown，每条以 `### 思路N：标题` 开头。
-"""
-
-FIX_SYSTEM_PROMPT = """任务：针对用户提出的具体问题，对给定正文进行定点修复。
-
-核心原则：
-1. 只修复用户明确指出的问题，不改动其他内容。
-2. 未涉及的部分尽可能逐字保留，措辞、句式、对话与叙述顺序都不要擅自改动。
-3. 问题在哪一段就改哪一段，问题是什么就修什么。
-4. 不删减原有情节、对话、人物与伏笔；需要补充时只做局部增补。
-5. 不新增用户没有要求的情节、人物或设定。
-6. 保持原文的叙事视角、时态与文风；修复后的文本应与未改动部分无缝衔接。
-7. 保留原文的 Markdown 结构。
-
-输出要求：
-- 直接输出修复后的完整正文，不只输出改动部分。
-- 不输出解释、前言、后记或 diff。
-- 最后输出 `## 修复内容`，一句话描述本次修复。
-
-信息优先级：用户修复指令 > 当前状态 > 故事记忆 > 世界观设定 > 原文。
-"""
-
-RESTYLE_SYSTEM_PROMPT = """任务：调整给定文本的排版、节奏与描写密度，并修复明显的剧情矛盾；不改动情节、对话内容、人物、设定与时间线。
-
-具体改动：
-1. 合并连续的一句一段，形成 3–8 句的自然段。
-2. 在对话前后补充必要的动作、神态、环境与心理描写。
-3. 对话不超过全文 40%。
-4. 保留所有关键信息：人物名、地名、物品、关键台词与情节转折。
-5. 不新增情节、人物或设定，不删减已有内容。
-6. 保持原有视角、时态、文风与叙事顺序。
-7. 对明显的前后矛盾做最小修正。
-
-禁止：输出解释、前言、后记、总结或点评；改动 `## 正文` 之外的部分。
-输出格式：直接输出重排后的正文。
-"""
+from .localization import t
 
 
 # ─────────────────────────────────────────────
 # AI 工作站：工作模式
 # ─────────────────────────────────────────────
-LOGIC_WORK_PROMPT = """任务：对用户提供的设定、当前状态、记忆与写作需求做一次“逻辑写作”分析。
+# 系统提示词提供中英两份，正式内容放在翻译表（defaults.mode.*_prompt）里，
+# 界面与生成按当前语言取词；下面的常量是中文原文，仅在翻译表缺词时兜底。
+LOGIC_WORK_PROMPT = """任务：对用户提供的设定、当前状态、记忆与写作需求做一次「逻辑写作」分析。
 
-请输出：
-## 一、一致性核对
-- 时间、地点、人物位置与状态是否连贯。
-- 用户提示词与设定、记忆之间是否存在冲突。
-- 缺失但会影响写作的信息。
+请输出三部分：
 
-## 二、可执行约束
-- 本次写作必须遵守的边界。
-- 不得提前暴露或擅自新增的信息。
+一、一致性核对
+时间、地点、人物位置与状态是否连贯；用户提示词与设定、记忆之间是否存在冲突；缺失但会影响写作的信息。
 
-## 三、推进建议
-- 3–6 个按顺序排列的关键节点。
-- 每个节点由谁触发、产生什么变化。
-- 建议的情绪曲线与信息释放顺序。
+二、可执行约束
+本次写作必须遵守的边界；不得提前暴露或擅自新增的信息。
+
+三、推进建议
+3–6 个按顺序排列的关键节点，每个节点由谁触发、产生什么变化，以及建议的情绪曲线与信息释放顺序。
 
 只做分析，不写正文。信息不足时明确写出，不猜测。
 """
 
-OUTLINE_WORK_PROMPT = """任务：根据用户提供的设定、当前状态、记忆与写作需求，输出一份可直接执行的“框架写作”方案。
+OUTLINE_WORK_PROMPT = """任务：根据用户提供的设定、当前状态、记忆与写作需求，输出一份可直接执行的「框架写作」方案。
 
-请输出：
-## 一、章节目标
-- 本节要完成的核心叙事任务。
-- 与前后文的衔接点。
+请输出四部分：
 
-## 二、场景框架
-按顺序列出 2–6 个场景，每个场景写明：
-- 地点、时间、出场人物。
-- 场景目标与冲突。
-- 关键动作或信息点。
-- 场景结束时的状态变化。
+一、章节目标
+本节要完成的核心叙事任务；与前后文的衔接点。
 
-## 三、节拍与节奏
-- 开场钩子、推进、转折、收束。
-- 哪些段落放慢，哪些段落加速。
+二、场景框架
+按顺序列出 2–6 个场景，每个场景写明：地点、时间、出场人物；场景目标与冲突；关键动作或信息点；场景结束时的状态变化。
 
-## 四、写作提示词
-把上述框架整理成一段可直接交给正文写作模型执行的提示词，保留用户的硬性要求，并注明“不得新增未授权设定”。
+三、节拍与节奏
+开场钩子、推进、转折、收束；哪些段落放慢，哪些段落加速。
+
+四、写作提示词
+把上述框架整理成一段可直接交给正文写作模型执行的提示词，保留用户的硬性要求，并注明「不得新增未授权设定」。
 
 不写完整正文，不写大段对白，不展示思维链。
 """
@@ -214,7 +83,7 @@ DRAFT_WORK_PROMPT = """任务：根据用户提供的设定、当前状态、记
 2. 保持视角、时态、文风与叙事节奏统一。
 3. 从当前状态出发，不倒退、不跳过关键情境。
 4. 按本次补充要求的体裁与结构输出；若补充要求没有特别说明，直接输出完整正文。
-5. 输出只包含作品内容。需要分节时使用 Markdown 标题，不加解释性前言、后记或“以下是正文”之类的话。
+5. 输出只包含作品内容。需要分节时使用标题分隔，不加解释性前言、后记或「以下是正文」之类的话。
 6. 严格遵守字数要求；用户没有给字数时，以内容完整为先。
 
 内容边界：遵守适用法律法规与平台内容规范；亲密关系点到为止，不生成色情、过度暴力或仇恨内容。
@@ -241,7 +110,7 @@ DEFAULT_MODES = [
     {
         "id": "logic", "label": "逻辑写作", "kind": "write",
         "desc": "核对设定一致性，整理约束、风险与推进节点",
-        "system_prompt": LOGIC_WORK_PROMPT,
+        "prompt_key": "defaults.mode.logic_prompt", "fallback_prompt": LOGIC_WORK_PROMPT,
         "model": "", "effort": "high", "max_tokens": 8192,
         "top_p": 0.95, "temperature": None, "thinking": True, "use_target_chars": False,
         "builtin": True,
@@ -249,7 +118,7 @@ DEFAULT_MODES = [
     {
         "id": "outline", "label": "框架写作", "kind": "write",
         "desc": "输出场景框架、节拍与可直接执行的写作提示词",
-        "system_prompt": OUTLINE_WORK_PROMPT,
+        "prompt_key": "defaults.mode.outline_prompt", "fallback_prompt": OUTLINE_WORK_PROMPT,
         "model": "", "effort": "high", "max_tokens": 32768,
         "top_p": 0.95, "temperature": None, "thinking": True, "use_target_chars": False,
         "builtin": True,
@@ -257,7 +126,7 @@ DEFAULT_MODES = [
     {
         "id": "draft", "label": "完整写作", "kind": "write",
         "desc": "根据设定与提示词生成完整正文",
-        "system_prompt": DRAFT_WORK_PROMPT,
+        "prompt_key": "defaults.mode.draft_prompt", "fallback_prompt": DRAFT_WORK_PROMPT,
         "model": "", "effort": "low", "max_tokens": 100000,
         "top_p": 0.95, "temperature": None, "thinking": True, "use_target_chars": True,
         "builtin": True,
@@ -265,7 +134,7 @@ DEFAULT_MODES = [
     {
         "id": "polish", "label": "润色修订", "kind": "process",
         "desc": "按指定问题修订文本，保留事实与情节",
-        "system_prompt": POLISH_WORK_PROMPT,
+        "prompt_key": "defaults.mode.polish_prompt", "fallback_prompt": POLISH_WORK_PROMPT,
         "model": "", "effort": "medium", "max_tokens": 100000,
         "top_p": 0.95, "temperature": None, "thinking": False, "use_target_chars": False,
         "builtin": True,
@@ -273,23 +142,12 @@ DEFAULT_MODES = [
     {
         "id": "brainstorm", "label": "灵感方案", "kind": "write",
         "desc": "给出多条有差异的后续方向供选择",
-        "system_prompt": BRAINSTORM_WORK_PROMPT,
+        "prompt_key": "defaults.mode.brainstorm_prompt", "fallback_prompt": BRAINSTORM_WORK_PROMPT,
         "model": "", "effort": "high", "max_tokens": 32768,
         "top_p": 0.95, "temperature": None, "thinking": False, "use_target_chars": False,
         "builtin": True,
     },
 ]
-
-
-TOOL_PROMPTS = {
-    "reason": REASON_SYSTEM_PROMPT,
-    "write": WRITE_SYSTEM_PROMPT,
-    "summarize": SUMMARIZE_SYSTEM_PROMPT,
-    "compress": COMPRESS_SYSTEM_PROMPT,
-    "idea": IDEA_SYSTEM_PROMPT,
-    "fix": FIX_SYSTEM_PROMPT,
-    "restyle": RESTYLE_SYSTEM_PROMPT,
-}
 
 
 AI_NOTICE = "\n\n---\n\n> 本内容由 AI 生成，仅供创作参考，请自行核对与修改后使用。"
@@ -312,11 +170,13 @@ def without_notice(text: str) -> str:
 
 
 def default_modes() -> list:
-    return deepcopy(DEFAULT_MODES)
+    """内置工作模式；系统提示词按当前语言从翻译表取词，缺词时回退中文原文。"""
+    modes = deepcopy(DEFAULT_MODES)
+    for mode in modes:
+        key = mode.pop("prompt_key")
+        text = t(key)
+        mode["system_prompt"] = mode.pop("fallback_prompt") if text == key else text
+    return modes
 
-
-def default_prompts() -> dict:
-    """旧版命令行兼容：只保留工具 system prompt，不再用于界面配置。"""
-    return {"tools": dict(TOOL_PROMPTS)}
 
 
