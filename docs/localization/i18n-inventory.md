@@ -21,9 +21,10 @@
 
 | 位置 | 内容 | 理由 |
 |---|---|---|
-| `app/novelhelper/prompts.py`（工作模式部分） | 默认模式的系统提示词 | 已改为中英双语 key→val（`defaults.mode.*_prompt`），并移除原有 Markdown 标记；`TOOL_PROMPTS`（旧版命令行兼容）保留原文 |
+| `app/novelhelper/prompts.py`（工作模式部分） | 默认模式的系统提示词 | 已改为中英双语 key→val（`defaults.mode.*_prompt`），并移除原有 Markdown 标记 |
+| `app/novelhelper/tool_prompts.py` | 内置工具的兼容提示词（记忆压缩等） | 已改为翻译表 key→val（`defaults.tool.*_prompt`），按当前语言取词；本文件的常量是中文原文，仅在翻译表缺词时兜底。命令行工具已移除，网页端仍在使用的功能由本模块承接 |
 | `app/novelhelper/context.py` 大部分 | 提示词组装区块（`## 人物档案`、`## 当前状态` 等）及渲染进模型文本的标签 | 模型上下文，非界面 |
-| `app/novelhelper/ai.py:281` | `你是连通性测试助手，只回复 OK。` | 测试提示词 |
+| `app/novelhelper/ai.py:260` | `你是连通性测试助手，只回复 OK。` | 测试提示词 |
 | `server/_generation.py:27` | `（章节：{chapter}）` | 提示词片段 |
 | `providers.py:155-157` | `【接口】当前使用 …` 提示词组装文本 | 提示词组装（同文件 `prompt_note` 见第 4 节 Q1） |
 | `store/_defaults.py`（全文） | 内置元素模板、默认记录名、分类、schema 栏目（`人物档案`/`外貌`/`新角色`/`短期记忆`…） | 内置默认数据，随数据文件存储；翻译会改变数据内容 |

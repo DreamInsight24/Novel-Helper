@@ -13,7 +13,7 @@
 |---|---|---|
 | 既有回归自检 | `python -B app/selftest.py` | 69 项通过，0 项失败；新增历史标题公开别名回归断言 |
 | HTTP 冒烟 | `python -B scripts/smoke_test.py` | 15 项通过 |
-| 静态依赖与隔离导入 | `python -X utf8 -B scripts/check_dependencies.py` | 扫描 35 个 `novelhelper` 模块、117 条项目内依赖边及 4 处函数体内导入；未发现依赖环或跨包私有模块导入。两种关键模块顺序和 `app/tools/common.py` 导入均在独立进程通过；服务端历史标题调用已使用公开别名 |
+| 静态依赖与隔离导入 | `python -X utf8 -B scripts/check_dependencies.py` | 扫描 35 个 `novelhelper` 模块、117 条项目内依赖边及 4 处函数体内导入；未发现依赖环或跨包私有模块导入。两种关键模块顺序均在独立进程通过；服务端历史标题调用已使用公开别名 |
 | 前端未变 | `git diff --name-only release/v2610.2-dev...HEAD -- app/novelhelper/web` | 无输出；前端目录相对基线无提交差异 |
 | 公共 API 与文档导航 | `docs/api/README.md` 及 `docs/api/{store,project,server}.md` | 已建立索引；三个包文档均为中文，并注明 `server.ai` 兼容属性；索引记录 `history.title_from_prompt` 公开别名及 `store._migrate_mode_kinds` 兼容出口 |
 | PyInstaller 构建 | `python -m PyInstaller --clean --noconfirm --distpath <临时目录>\dist --workpath <临时目录>\work NovelHelper.spec` | PyInstaller 6.22.3 / Python 3.12.14 / Windows 11；成功生成 9,802,105 字节的单文件 `NovelHelper.exe` |

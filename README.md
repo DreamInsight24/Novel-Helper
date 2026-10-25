@@ -174,21 +174,6 @@ python app/run.py --clean-debug
 
 `app/debug/` 已加入 `.gitignore`。
 
-## 命令行工具
-
-在 `app/` 目录下运行：
-
-```bash
-python tools/writer.py --dry-run
-python tools/writer.py -r
-python tools/checker.py --all
-python tools/fixer.py --text "第3段改成……"
-python tools/idea_helper.py -n 5 --save
-python tools/md2txt.py --newest
-```
-
-模型、API Key 和目录来自 `app/data/config.json`；界面里的写稿模式与稿件处理模式以 `app/data/modes.json` 为准。
-
 ## 自检
 
 ```bash

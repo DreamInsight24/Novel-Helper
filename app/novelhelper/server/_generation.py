@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from ..localization import t
 
-from .. import ai, context, history, logger, project, prompts as prompts_mod, providers, store
+from .. import ai, context, history, logger, project, prompts as prompts_mod, providers, store, tool_prompts
 from ._helpers import _compact_selection, _surface_error
 from ._state import _RUN_LOCK, _RUN_STATE
 
@@ -10,14 +10,15 @@ from ._state import _RUN_LOCK, _RUN_STATE
 class _GenerationMixin:
     def _ai_run(self):
         body = self._body()
-        tool = body.get("tool") or "write"
+        tool = body.get("tool") or "compress"
         db = store.load_all()
         config = body.get("config") or db.get("config") or store.default_config()
-        prm = prompts_mod.default_prompts()
-        selection = body.get("selection") or {}
-        plan = body.get("plan") or ""
         override = body.get("override") or {}
         text = body.get("text") or ""
+
+        if tool not in tool_prompts.TOOL_IDS:
+            self._error(t('errors.unknown_tool', tool=tool))
+            return
 
         if tool == "summarize":
             content = project.extract_body(text) if body.get("from_output", True) else text
@@ -27,21 +28,21 @@ class _GenerationMixin:
             user = content.strip()
             if body.get("chapter"):
                 user = f"（章节：{body['chapter']}）\n\n{user}"
-            messages = [{"role": "system", "content": prm["tools"].get("summarize", "")},
-                        {"role": "user", "content": user}]
-        elif tool in ("compress", "restyle", "fix"):
-            messages = [{"role": "system", "content": prm["tools"].get(tool, "")},
-                        {"role": "user", "content": text}]
         else:
-            mode = "reason" if tool == "reason" else ("idea" if tool == "idea" else "write")
-            assembled = context.assemble(config, db, prm, selection, plan=plan, mode=mode)
-            messages = [{"role": "system", "content": assembled["system"]},
-                        {"role": "user", "content": assembled["user"]}]
+            if not text.strip():
+                self._error(t('errors.workspace_empty'))
+                return
+            user = text
 
-        logger.log_event("AI", "legacy_request", tool=tool, input_chars=len(text))
-        result = ai.chat(config, tool if tool in prm["tools"] else "write", messages, override=override)
+        messages = [
+            {"role": "system", "content": tool_prompts.prompt(tool)},
+            {"role": "user", "content": user},
+        ]
+
+        logger.log_event("AI", "tool_request", tool=tool, input_chars=len(text))
+        result = ai.chat_settings(config, tool_prompts.settings(config, override), messages)
         result["text"] = prompts_mod.with_notice(result.get("text", ""))
-        logger.log_event("AI", "legacy_response", tool=tool, model=result.get("model"),
+        logger.log_event("AI", "tool_response", tool=tool, model=result.get("model"),
                          elapsed=result.get("elapsed"),
                          tokens=(result.get("usage") or {}).get("total_tokens"),
                          output_chars=len(result.get("text") or ""))

@@ -24,7 +24,8 @@
         "providers",
         "prompts",
         "server",
-        "store"
+        "store",
+        "tool_prompts"
       ]
     },
     "ai": {
@@ -38,16 +39,8 @@
           "arguments": "config: dict, mode: dict | None",
           "returns": "dict"
         },
-        "tool_settings": {
-          "arguments": "config: dict, tool: str, override: dict | None=None",
-          "returns": "dict"
-        },
         "chat_settings": {
           "arguments": "config: dict, settings: dict, messages: list",
-          "returns": "dict"
-        },
-        "chat": {
-          "arguments": "config: dict, tool: str, messages: list, override: dict | None=None",
           "returns": "dict"
         },
         "ping": {
@@ -156,10 +149,6 @@
         },
         "assemble_mode": {
           "arguments": "config: dict, db: dict, selection: dict, mode: dict, work_prompt: str='', source_text: str=''",
-          "returns": "dict"
-        },
-        "assemble": {
-          "arguments": "config: dict, db: dict, prompts: dict | None, selection: dict, plan: str='', mode: str='reason', work_prompt: str='', work_mode: str='draft'",
           "returns": "dict"
         }
       },
@@ -488,28 +477,16 @@
         "default_modes": {
           "arguments": "",
           "returns": "list"
-        },
-        "default_prompts": {
-          "arguments": "",
-          "returns": "dict"
         }
       },
       "classes": {},
       "constant_expressions": {
-        "REASON_SYSTEM_PROMPT": "'任务：在正文动笔前核对设定、记忆、当前状态与用户指令的一致性，并给出本节（本章）可执行的剧情方向。\\n\\n输出固定分为两部分：\\n\\n## 一、写作前逻辑核对\\n1. 时间与地点：本节发生的时间、地点是否与当前状态和故事记忆一致。给出结论。\\n2. 人物状态：涉及人物的位置、伤势、情绪、目标是否连贯。逐条列出关键状态。\\n3. 承接的伏笔：本节需要呼应或推进的既有伏笔；没有就写“无”。\\n4. 逻辑风险：用户指令与设定、记忆冲突之处；没有就写“无”。\\n5. 写作约束：本节不得违反的边界，例如人物不能出现在某地、不能使用某能力、不能提前暴露某信息。\\n\\n## 二、本节剧情梗概与写作方向\\n1. 梗概：3–8 句，说明从哪个场景起、经过什么、在哪里收束，以及情绪曲线。\\n2. 关键节点：按发生顺序列出必须出现的信息点、动作与转折，并注明触发者。\\n3. 信息释放顺序：哪些信息先给、哪些后给、哪些只能暗示。\\n4. 优化后的写作提示词：保留用户全部原始意图与硬性要求，补齐视角、节奏、描写密度、对话比例等约束，并写明“不得新增未授权设定”。\\n\\n要求：\\n1. 只输出结论，不展示思维链。\\n2. 直接输出 Markdown，使用上述两个二级标题，不加前言后语。\\n3. 不写正文、不写对白、不写成段描写。\\n4. 不杜撰设定中不存在的信息；信息不足时明确写“信息不足，无法判定”。\\n5. 当前状态与故事记忆冲突时，指出冲突并以当前状态为准。\\n6. 第二部分控制在 600 字以内，信息密度优先。\\n\\n内容边界：遵守适用法律法规与平台内容规范；不生成色情、过度暴力或仇恨内容。\\n'",
-        "WRITE_SYSTEM_PROMPT": "'任务：根据用户提供的设定、当前状态、故事记忆与写作指令，完成小说正文。\\n\\n核心原则：\\n1. 严格遵循用户提供的所有设定、当前状态、故事记忆与写作指令。\\n2. 不自行添加设定、人物、情节转折或用户未要求的内容。\\n3. 保持文风、叙事节奏与人称视角统一；设定未明确时，以故事记忆中的风格为准。\\n4. 输出分为三部分：写作思路、小说正文、写作建议。各部分用 `---` 分隔，并以 `## 写作思路`、`## 正文`、`## 写作建议` 开头。\\n5. 用户指令与既有设定冲突时，优先遵循用户指令，并在写作建议中简要说明。\\n6. 不输出问候、自我介绍、状态说明等与创作无关的内容。\\n\\n信息优先级：用户本次指令 > 当前状态 > 故事记忆 > 世界观设定。\\n\\n当前状态描述“此刻”的场景、人物、位置、状态与情绪。写作必须从当前状态出发，不倒退、不跳过关键情境。\\n\\n如果用户消息包含“已确认的写作方案”，其中的时间、地点、人物状态、伏笔、约束、梗概、节点顺序与优化后的提示词均具有强制力。\\n\\n叙事规范：\\n1. 每段 3–8 句，避免一句一段。\\n2. 对话不超过全文 40%。\\n3. 环境、动作、心理描写要占一定篇幅。\\n4. 允许放慢节奏，写场景、氛围与人物感受。\\n5. 避免排比堆砌、每段收尾点题，以及高频使用“仿佛”“似乎”填充。\\n6. 严格遵守用户给出的字数要求。\\n\\n内容边界：遵守适用法律法规与平台内容规范；亲密关系点到为止，不生成色情、过度暴力或仇恨内容。\\n'",
-        "SUMMARIZE_SYSTEM_PROMPT": "'任务：把一节小说正文压缩成一条体积尽可能小、但足以支撑后续写作的记忆条目。\\n\\n压缩原则：\\n1. 只保留以后还用得上的硬信息：时间推进、地点转移、谁做了什么、结果、关系与状态变化、新出现的人名地名物品、新埋或回收的伏笔。\\n2. 删除氛围、描写、比喻、心理独白、对话原文与重复信息。\\n3. 不评论、不评价，不写“本节讲述了……”这类包装句。\\n4. 只用陈述句，可用分号并列，一条一小句。\\n5. 不杜撰正文中没有的信息。\\n6. 篇幅上限 400 字，信息密度优先。\\n\\n输出格式：\\n### {章节标题}\\n- 时间地点：\\n- 关键事件：\\n- 人物变化：\\n- 新增信息：\\n- 伏笔：\\n- 状态更新：\\n\\n没有内容的行写“无”。不要输出解释或额外文字，不要用代码块包裹。\\n'",
-        "COMPRESS_SYSTEM_PROMPT": "'任务：把用户给出的若干条记忆压缩为更短、更密的形式。\\n\\n要求：\\n1. 保留全部专有名词（人名、地名、物品名、组织名）与事实，只压缩表达。\\n2. 删除重复、修饰、评价与过渡句。\\n3. 保持原有条目划分与 `### 标题`，每条控制在原文长度的 1/3 以内。\\n4. 只输出压缩后的记忆内容，不解释、不加前言、不用代码块包裹。\\n'",
-        "IDEA_SYSTEM_PROMPT": "'任务：基于当前状态、已有故事脉络与设定，为创作者提供若干条可行的后续写作思路。你不写正文，只提供方案。\\n\\n每条思路必须包含：\\n1. 标题：一句话概括方向（不超过 20 字）。\\n2. 切入点：从当前状态的哪个细节或人物出发。\\n3. 大致走向：会发生什么、怎么推进，2–4 句。\\n4. 与已有伏笔的关系：承接或呼应了哪条伏笔、哪个人物。\\n5. 收益：人物成长、感情推进、世界观展开、悬念升级或节奏调节。\\n6. 风险：可能拖慢节奏、与设定冲突、需要新人物或容易写崩。\\n7. 难度：低 / 中 / 高。\\n\\n原则：\\n1. 思路从当前状态出发，不凭空跳到别处。\\n2. 不违反世界观设定与已有故事记忆。\\n3. 优先使用已有的人物、地点、伏笔；必须引入新元素时，在风险中标注。\\n4. 思路之间要有差异，至少覆盖两种类型。\\n5. 不写正文、对白或描写。\\n6. 信息不足时直接说明缺什么，不编造。\\n\\n输出使用 Markdown，每条以 `### 思路N：标题` 开头。\\n'",
-        "FIX_SYSTEM_PROMPT": "'任务：针对用户提出的具体问题，对给定正文进行定点修复。\\n\\n核心原则：\\n1. 只修复用户明确指出的问题，不改动其他内容。\\n2. 未涉及的部分尽可能逐字保留，措辞、句式、对话与叙述顺序都不要擅自改动。\\n3. 问题在哪一段就改哪一段，问题是什么就修什么。\\n4. 不删减原有情节、对话、人物与伏笔；需要补充时只做局部增补。\\n5. 不新增用户没有要求的情节、人物或设定。\\n6. 保持原文的叙事视角、时态与文风；修复后的文本应与未改动部分无缝衔接。\\n7. 保留原文的 Markdown 结构。\\n\\n输出要求：\\n- 直接输出修复后的完整正文，不只输出改动部分。\\n- 不输出解释、前言、后记或 diff。\\n- 最后输出 `## 修复内容`，一句话描述本次修复。\\n\\n信息优先级：用户修复指令 > 当前状态 > 故事记忆 > 世界观设定 > 原文。\\n'",
-        "RESTYLE_SYSTEM_PROMPT": "'任务：调整给定文本的排版、节奏与描写密度，并修复明显的剧情矛盾；不改动情节、对话内容、人物、设定与时间线。\\n\\n具体改动：\\n1. 合并连续的一句一段，形成 3–8 句的自然段。\\n2. 在对话前后补充必要的动作、神态、环境与心理描写。\\n3. 对话不超过全文 40%。\\n4. 保留所有关键信息：人物名、地名、物品、关键台词与情节转折。\\n5. 不新增情节、人物或设定，不删减已有内容。\\n6. 保持原有视角、时态、文风与叙事顺序。\\n7. 对明显的前后矛盾做最小修正。\\n\\n禁止：输出解释、前言、后记、总结或点评；改动 `## 正文` 之外的部分。\\n输出格式：直接输出重排后的正文。\\n'",
         "LOGIC_WORK_PROMPT": "'任务：对用户提供的设定、当前状态、记忆与写作需求做一次“逻辑写作”分析。\\n\\n请输出：\\n## 一、一致性核对\\n- 时间、地点、人物位置与状态是否连贯。\\n- 用户提示词与设定、记忆之间是否存在冲突。\\n- 缺失但会影响写作的信息。\\n\\n## 二、可执行约束\\n- 本次写作必须遵守的边界。\\n- 不得提前暴露或擅自新增的信息。\\n\\n## 三、推进建议\\n- 3–6 个按顺序排列的关键节点。\\n- 每个节点由谁触发、产生什么变化。\\n- 建议的情绪曲线与信息释放顺序。\\n\\n只做分析，不写正文。信息不足时明确写出，不猜测。\\n'",
         "OUTLINE_WORK_PROMPT": "'任务：根据用户提供的设定、当前状态、记忆与写作需求，输出一份可直接执行的“框架写作”方案。\\n\\n请输出：\\n## 一、章节目标\\n- 本节要完成的核心叙事任务。\\n- 与前后文的衔接点。\\n\\n## 二、场景框架\\n按顺序列出 2–6 个场景，每个场景写明：\\n- 地点、时间、出场人物。\\n- 场景目标与冲突。\\n- 关键动作或信息点。\\n- 场景结束时的状态变化。\\n\\n## 三、节拍与节奏\\n- 开场钩子、推进、转折、收束。\\n- 哪些段落放慢，哪些段落加速。\\n\\n## 四、写作提示词\\n把上述框架整理成一段可直接交给正文写作模型执行的提示词，保留用户的硬性要求，并注明“不得新增未授权设定”。\\n\\n不写完整正文，不写大段对白，不展示思维链。\\n'",
         "DRAFT_WORK_PROMPT": "'任务：根据用户提供的设定、当前状态、记忆、用户提示词与本次补充要求，完成本次小说写作。\\n\\n执行原则：\\n1. 严格遵循用户选择的设定与本次提示词；不擅自新增设定、人物或情节。\\n2. 保持视角、时态、文风与叙事节奏统一。\\n3. 从当前状态出发，不倒退、不跳过关键情境。\\n4. 按本次补充要求的体裁与结构输出；若补充要求没有特别说明，直接输出完整正文。\\n5. 输出只包含作品内容。需要分节时使用 Markdown 标题，不加解释性前言、后记或“以下是正文”之类的话。\\n6. 严格遵守字数要求；用户没有给字数时，以内容完整为先。\\n\\n内容边界：遵守适用法律法规与平台内容规范；亲密关系点到为止，不生成色情、过度暴力或仇恨内容。\\n'",
         "POLISH_WORK_PROMPT": "'任务：根据用户提示词与本次补充要求，对「待处理文本」进行润色或修订。\\n\\n要求：\\n1. 只修改用户指定的问题与范围，保留原有事实、人物、设定与情节。\\n2. 改善语言、节奏、描写密度与段落结构，但不改变叙事视角与时态。\\n3. 不擅自扩写成长篇，不添加未授权的新设定。\\n4. 输出修订后的完整文本；若用户只要求局部修改，也输出可直接替换的完整版本。\\n5. 不输出解释、diff 或修改说明，除非用户明确要求。\\n'",
         "BRAINSTORM_WORK_PROMPT": "'任务：基于用户选择的设定、当前状态、记忆与用户提示词，提供若干条有差异的后续写作方案。\\n\\n每条方案包含：标题、切入点、大致走向、承接的伏笔、收益、风险、难度。\\n优先使用已有的人物、地点与伏笔；必须引入新元素时明确标注。\\n不写正文，不写对白，不展示思维链。信息不足时说明缺什么。\\n'",
         "DEFAULT_MODES": "[{'id': 'logic', 'label': '逻辑写作', 'kind': 'write', 'desc': '核对设定一致性，整理约束、风险与推进节点', 'prompt_key': 'defaults.mode.logic_prompt', 'fallback_prompt': LOGIC_WORK_PROMPT, 'model': '', 'effort': 'high', 'max_tokens': 8192, 'top_p': 0.95, 'temperature': None, 'thinking': True, 'use_target_chars': False, 'builtin': True}, {'id': 'outline', 'label': '框架写作', 'kind': 'write', 'desc': '输出场景框架、节拍与可直接执行的写作提示词', 'prompt_key': 'defaults.mode.outline_prompt', 'fallback_prompt': OUTLINE_WORK_PROMPT, 'model': '', 'effort': 'high', 'max_tokens': 32768, 'top_p': 0.95, 'temperature': None, 'thinking': True, 'use_target_chars': False, 'builtin': True}, {'id': 'draft', 'label': '完整写作', 'kind': 'write', 'desc': '根据设定与提示词生成完整正文', 'prompt_key': 'defaults.mode.draft_prompt', 'fallback_prompt': DRAFT_WORK_PROMPT, 'model': '', 'effort': 'low', 'max_tokens': 100000, 'top_p': 0.95, 'temperature': None, 'thinking': True, 'use_target_chars': True, 'builtin': True}, {'id': 'polish', 'label': '润色修订', 'kind': 'process', 'desc': '按指定问题修订文本，保留事实与情节', 'prompt_key': 'defaults.mode.polish_prompt', 'fallback_prompt': POLISH_WORK_PROMPT, 'model': '', 'effort': 'medium', 'max_tokens': 100000, 'top_p': 0.95, 'temperature': None, 'thinking': False, 'use_target_chars': False, 'builtin': True}, {'id': 'brainstorm', 'label': '灵感方案', 'kind': 'write', 'desc': '给出多条有差异的后续方向供选择', 'prompt_key': 'defaults.mode.brainstorm_prompt', 'fallback_prompt': BRAINSTORM_WORK_PROMPT, 'model': '', 'effort': 'high', 'max_tokens': 32768, 'top_p': 0.95, 'temperature': None, 'thinking': False, 'use_target_chars': False, 'builtin': True}]",
-        "TOOL_PROMPTS": "{'reason': REASON_SYSTEM_PROMPT, 'write': WRITE_SYSTEM_PROMPT, 'summarize': SUMMARIZE_SYSTEM_PROMPT, 'compress': COMPRESS_SYSTEM_PROMPT, 'idea': IDEA_SYSTEM_PROMPT, 'fix': FIX_SYSTEM_PROMPT, 'restyle': RESTYLE_SYSTEM_PROMPT}",
         "AI_NOTICE": "'\\n\\n---\\n\\n> 本内容由 AI 生成，仅供创作参考，请自行核对与修改后使用。'"
       },
       "all": []
@@ -566,6 +543,30 @@
       "constant_expressions": {
         "EFFORTS": "['none', 'low', 'medium', 'high', 'max']",
         "PROVIDERS": "[{'id': 'deepseek', 'label': 'DeepSeek', 'base_url': 'https://api.deepseek.com', 'models': ['deepseek-flash', 'deepseek-v4-pro'], 'default_model': 'deepseek-flash', 'default_effort': 'low', 'key_env': 'DEEPSEEK_API_KEY', 'prompt_note': '当前使用 DeepSeek 的 OpenAI 兼容接口。', 'supports_effort': True, 'supports_thinking': True}, {'id': 'openai', 'label': 'OpenAI', 'base_url': 'https://api.openai.com/v1', 'models': ['gpt-4.1', 'gpt-4.1-mini', 'o4-mini'], 'default_model': 'gpt-4.1-mini', 'default_effort': 'medium', 'key_env': 'OPENAI_API_KEY', 'prompt_note': '当前使用 OpenAI 的 Chat Completions 接口。', 'supports_effort': True, 'supports_thinking': False, 'max_tokens_field': 'max_completion_tokens'}, {'id': 'openrouter', 'label': 'OpenRouter', 'base_url': 'https://openrouter.ai/api/v1', 'models': ['openai/gpt-4.1-mini', 'anthropic/claude-sonnet-4', 'google/gemini-2.5-pro'], 'default_model': 'openai/gpt-4.1-mini', 'default_effort': 'medium', 'key_env': 'OPENROUTER_API_KEY', 'prompt_note': '当前使用 OpenRouter 的 OpenAI 兼容接口。', 'supports_effort': True, 'supports_thinking': False}, {'id': 'siliconflow', 'label': 'SiliconFlow', 'base_url': 'https://api.siliconflow.cn/v1', 'models': ['deepseek-ai/DeepSeek-V3', 'Qwen/Qwen3-235B-A22B'], 'default_model': 'deepseek-ai/DeepSeek-V3', 'default_effort': 'high', 'key_env': 'SILICONFLOW_API_KEY', 'prompt_note': '当前使用 SiliconFlow 的 OpenAI 兼容接口。', 'supports_effort': True, 'supports_thinking': True}, {'id': 'moonshot', 'label': 'Moonshot / Kimi', 'base_url': 'https://api.moonshot.cn/v1', 'models': ['moonshot-v1-8k', 'moonshot-v1-32k', 'kimi-k2-0711-preview'], 'default_model': 'moonshot-v1-32k', 'default_effort': 'medium', 'key_env': 'MOONSHOT_API_KEY', 'prompt_note': '当前使用 Moonshot / Kimi 的 OpenAI 兼容接口。', 'supports_effort': False, 'supports_thinking': False}, {'id': 'dashscope', 'label': '阿里云百炼 / DashScope', 'base_url': 'https://dashscope.aliyuncs.com/compatible-mode/v1', 'models': ['qwen-plus', 'qwen-max', 'qwen-turbo'], 'default_model': 'qwen-plus', 'default_effort': 'medium', 'key_env': 'DASHSCOPE_API_KEY', 'prompt_note': '当前使用阿里云百炼的 OpenAI 兼容接口。', 'supports_effort': False, 'supports_thinking': False}, {'id': 'zhipu', 'label': '智谱 GLM', 'base_url': 'https://open.bigmodel.cn/api/paas/v4', 'models': ['glm-4-plus', 'glm-4-air', 'glm-4-flash'], 'default_model': 'glm-4-plus', 'default_effort': 'medium', 'key_env': 'ZHIPU_API_KEY', 'prompt_note': '当前使用智谱 GLM 的 OpenAI 兼容接口。', 'supports_effort': False, 'supports_thinking': False}, {'id': 'custom', 'label': '自定义 / OpenAI 兼容', 'base_url': '', 'models': [], 'default_model': '', 'default_effort': 'medium', 'key_env': 'CUSTOM_API_KEY', 'prompt_note': '当前使用自定义 OpenAI 兼容接口；不要假定具体模型名称、厂商或特殊能力。', 'supports_effort': False, 'supports_thinking': False, 'generic': True}]"
+      },
+      "all": []
+    },
+    "tool_prompts": {
+      "source_sha256": "a69a492802ac3e42a2d1555db252aea3aff538745e52bbb8d36b2e2ce13a5563",
+      "functions": {
+        "prompt": {
+          "arguments": "tool: str",
+          "returns": "str"
+        },
+        "settings": {
+          "arguments": "config: dict, override: dict | None=None",
+          "returns": "dict"
+        }
+      },
+      "classes": {},
+      "constant_expressions": {
+        "SUMMARIZE_SYSTEM_PROMPT": "'任务：把一节小说正文压缩成一条体积尽可能小、但足以支撑后续写作的记忆条目。'",
+        "COMPRESS_SYSTEM_PROMPT": "'任务：把用户给出的若干条记忆压缩为更短、更密的形式。'",
+        "RESTYLE_SYSTEM_PROMPT": "'任务：调整给定文本的排版、节奏与描写密度，并修复明显的剧情矛盾。'",
+        "FIX_SYSTEM_PROMPT": "'任务：针对用户提出的具体问题，对给定正文进行定点修复。'",
+        "TOOL_PROMPTS": "{'summarize': SUMMARIZE_SYSTEM_PROMPT, 'compress': COMPRESS_SYSTEM_PROMPT, 'restyle': RESTYLE_SYSTEM_PROMPT, 'fix': FIX_SYSTEM_PROMPT}",
+        "TOOL_KEYS": "{'summarize': 'defaults.tool.summarize_prompt', 'compress': 'defaults.tool.compress_prompt', 'restyle': 'defaults.tool.restyle_prompt', 'fix': 'defaults.tool.fix_prompt'}",
+        "TOOL_IDS": "('summarize', 'compress', 'restyle', 'fix')"
       },
       "all": []
     },

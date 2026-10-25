@@ -7,5 +7,5 @@ from ._version import APP_VERSION, __version__
 __all__ = [
     "APP_VERSION",
     "ai", "app", "context", "elements", "history", "logger", "project", "providers",
-    "prompts", "server", "store",
+    "prompts", "server", "store", "tool_prompts",
 ]
