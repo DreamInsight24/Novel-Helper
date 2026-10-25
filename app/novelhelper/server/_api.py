@@ -32,9 +32,10 @@ from ._state import _RUN_STATE
 def _preserve_language_fields(data: dict) -> dict:
     """Keep language/initial_language (managed by server/_language.py) across generic saves.
 
-    A stale client may POST a config copy captured before the language was saved;
-    without this guard that save would silently drop the language and the first-run
-    wizard would reappear after a reload.
+    A stale client may POST a config copy captured before a language switch; without
+    this guard that save could drop or roll back the stored language, and the
+    first-run wizard would reappear after a reload. These fields only change through
+    POST /api/settings/language.
     """
     try:
         existing = store.load("config")
@@ -43,8 +44,14 @@ def _preserve_language_fields(data: dict) -> dict:
     if not isinstance(existing, dict):
         return data
     for key in ("language", "initial_language"):
-        if key in existing and key not in data:
+        # These fields are owned by the dedicated language endpoint. Prefer the
+        # stored values even when a stale client posts older ones, otherwise a
+        # debounced save captured before a switch could roll the language back and
+        # make the first-run wizard reappear after a reload.
+        if key in existing:
             data[key] = existing[key]
+        else:
+            data.pop(key, None)
     return data
 
 

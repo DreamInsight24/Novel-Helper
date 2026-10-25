@@ -85,7 +85,7 @@ settings:
 | `get_translations(lang_id) -> dict` | 返回指定语言的完整翻译表，供接口层使用 |
 | `language_context(lang_id)` | 临时覆盖本次请求语言的上下文管理器 |
 
-`POST /api/settings/language` 写入 `config.language`；首次保存时同时写入 `config.initial_language`，并用该语言生成一次内置初始化预设（`store/_localized.py`）。初始化预设只在该集合仍是未改动的内置默认值时写入，之后切换语言不再改写。
+`POST /api/settings/language` 写入 `config.language`；引导未完成时语言仍是暂定选择，同时写入 `config.initial_language`，并按最新语言重新生成仍是内置默认值的初始化预设（`store/_localized.py`）——先预览 English 再选简体中文，最终预设为中文。引导完成后切换语言不再改写这些文件。
 
 提供商预设的接口说明（`providers.provider_note`）固定使用 `config.initial_language`，未记录时用当前语言。
 
