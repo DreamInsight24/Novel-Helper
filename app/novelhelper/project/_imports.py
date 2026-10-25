@@ -9,8 +9,9 @@ from ..store import new_id, now_str
 from ._parsers import _nested_to_elements, parse_name_tag, split_sections
 
 
-def records_from_md(text: str, source: str, category: str = "导入") -> list:
+def records_from_md(text: str, source: str, category: str = "") -> list:
     """把一份 md 按最细一级小节切分，原文整体收进 other（不做猜测性解析）。"""
+    category = category or t("defaults.source.import")
     sections = split_sections(text)
     records = []
     for sec in sections:
@@ -40,7 +41,7 @@ def records_from_md(text: str, source: str, category: str = "导入") -> list:
         if body:
             records.append({
                 "id": new_id("ot"),
-                "name": Path(source).stem or "未命名导入",
+                "name": Path(source).stem or t("defaults.record.unnamed_import"),
                 "tag": "",
                 "category": category,
                 "elements": [],
@@ -103,7 +104,7 @@ def import_json(text: str, target: str) -> list:
                 base["title"] = name
                 base["content"] = (body.get("content") or body.get("内容")
                                    or json.dumps(body, ensure_ascii=False))
-                base["category"] = body.get("category") or body.get("分类") or "短期记忆"
+                base["category"] = body.get("category") or body.get("分类") or t("defaults.memory.short")
                 base.pop("name", None)
             else:
                 base["elements"] = _nested_to_elements(body)
@@ -131,14 +132,14 @@ def validate_import_records(records: list, target: str) -> list:
         if target == "memories":
             if not (rec.get("title") or rec.get("content")):
                 raise ValueError(t('errors.memory_missing_fields', index=index))
-            rec.setdefault("title", rec.get("content", "")[:30] or "未命名记忆")
-            rec.setdefault("category", "短期记忆")
+            rec.setdefault("title", rec.get("content", "")[:30] or t("defaults.memory.unnamed"))
+            rec.setdefault("category", t("defaults.memory.short"))
             rec.setdefault("chapter", "")
             rec.setdefault("content", "")
         else:
             if not (rec.get("name") or rec.get("title")):
                 raise ValueError(t('errors.record_missing_name', index=index))
-            rec.setdefault("name", rec.get("title") or "未命名")
+            rec.setdefault("name", rec.get("title") or t("defaults.record.unnamed"))
             rec.setdefault("elements", [])
             rec.setdefault("content", "")
         if not isinstance(rec.get("elements"), list):
@@ -207,7 +208,7 @@ def import_worldmap_json(text: str, name: str = "") -> dict:
             raise ValueError(t('errors.cells_bad_ref', id=rid))
         normalized_cells[key] = rid
     return {
-        "name": name or data.get("name") or "世界地图",
+        "name": name or data.get("name") or t("defaults.map.name"),
         "rows": list(rows),
         "cols": list(cols),
         "cells": normalized_cells,

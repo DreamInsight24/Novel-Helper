@@ -21,6 +21,7 @@ from ._defaults import (
     default_sections, default_state, default_worldmap, default_workstation,
 )
 from ._repository import load, save
+from ._localized import localized_default_for, seed_localized_defaults
 from ._directories import (
     io_in,
     io_out,
@@ -50,5 +51,6 @@ __all__ = [
     'default_other', 'default_memory', 'default_worldmap', 'default_meta', 'default_sections',
     'section_store_name', 'section_key', 'is_section', 'section_names',
     'default_memory_categories', 'default_history', 'default_for', 'load', 'save',
+    'localized_default_for', 'seed_localized_defaults',
     'load_all', 'load_all_names', 'schema_for', 'known_collection', 'backup_all',
 ]

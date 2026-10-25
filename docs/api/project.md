@@ -32,7 +32,7 @@ output = project.write_output("一个新场景")
 | `split_sections(text: str) -> list` | 按标题拆分 Markdown，返回包含级别、标题、父标题和内容的章节字典列表。 |
 | `strip_code_fence(text: str) -> str` | 存在外围 Markdown 代码围栏时，将其移除一层。 |
 | `parse_name_tag(title: str) -> tuple` | 从标题末尾拆出括号标签，返回 `(name, tag)`。 |
-| `records_from_md(text: str, source: str, category: str = "导入") -> list` | 将 Markdown 叶子章节转换为 `other` 记录；若没有符合条件的章节，则将非空文档整体作为一条记录。 |
+| `records_from_md(text: str, source: str, category: str = "") -> list` | 将 Markdown 叶子章节转换为 `other` 记录；若没有符合条件的章节，则将非空文档整体作为一条记录。`category` 留空时使用当前语言的「导入」分类。 |
 | `import_memories(text: str, source: str = "") -> list` | 将现有的 `# / ## / ###` 记忆格式转换为记忆记录。 |
 | `parse_worldmap(text: str, name: str = "") -> dict \| None` | 解析现有 Markdown 世界地图表格；输入不符合已识别的表格格式时返回 `None`。 |
 | `merge_records(existing: list, incoming: list, key: str = "name", key_fields: list \| None = None) -> tuple` | 原地合并记录到 `existing`，返回 `(records, added_count, updated_count)`。匹配记录时沿用现有更新规则。 |

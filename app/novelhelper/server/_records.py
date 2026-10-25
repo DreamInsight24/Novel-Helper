@@ -147,14 +147,14 @@ class _RecordMixin:
             rec = next((r for r in src_items if r.get("id") == rid), None)
             if not rec:
                 continue
-            name = rec.get("name") or rec.get("title") or "未命名"
+            name = rec.get("name") or rec.get("title") or t("defaults.record.unnamed")
             body_text = (rec.get("content") or "").strip()
             if dst_coll == "memories":
                 new_rec = {
                     "id": store.new_id("mm"), "title": name,
-                    "category": body.get("category") or "设定备忘",
+                    "category": body.get("category") or t("defaults.memory.note"),
                     "chapter": "", "content": body_text or rec.get("notes") or "",
-                    "source": rec.get("source") or f"来自{src_coll}", "tags": [],
+                    "source": rec.get("source") or t("defaults.source.from", source=src_coll), "tags": [],
                     "created": store.now_str(), "updated": store.now_str(),
                 }
             elif dst_coll in ("characters", "factions", "items", "equipment"):
@@ -163,13 +163,15 @@ class _RecordMixin:
                     "id": store.new_id(prefix), "name": name, "tag": rec.get("tag") or "",
                     "elements": el.from_preset(store.schema_for(dst_coll)),
                     "notes": body_text, "tags": [],
-                    "source": rec.get("source") or f"来自{src_coll}",
+                    "source": rec.get("source") or t("defaults.source.from", source=src_coll),
                     "created": store.now_str(), "updated": store.now_str(),
                 }
                 if dst_coll in ("items", "equipment"):
-                    new_rec["category"] = rec.get("category") or ("服饰" if dst_coll == "equipment" else "道具")
+                    new_rec["category"] = rec.get("category") or (
+                        t("defaults.category.apparel") if dst_coll == "equipment"
+                        else t("defaults.category.item"))
                 if dst_coll == "equipment":
-                    new_rec["slot"] = "上衣"
+                    new_rec["slot"] = t("defaults.slot.top")
                 if dst_coll == "characters":
                     new_rec["inventory"] = []
                     new_rec["equipment"] = []
@@ -177,7 +179,7 @@ class _RecordMixin:
                     new_rec["members"] = []
             else:
                 # 其他设定 / 自定义栏目：原文保留，元素树留空
-                label = "其他设定"
+                label = t("defaults.category.other_setting")
                 if store.is_section(dst_coll):
                     wanted_key = store.section_key(dst_coll)
                     for section in (store.load("sections").get("items") or []):
@@ -188,7 +190,7 @@ class _RecordMixin:
                     "id": store.new_id("ot"), "name": name, "tag": rec.get("tag") or "",
                     "category": label, "elements": [], "content": body_text,
                     "tags": [],
-                    "source": rec.get("source") or f"来自{src_coll}",
+                    "source": rec.get("source") or t("defaults.source.from", source=src_coll),
                     "created": store.now_str(), "updated": store.now_str(),
                 }
             dst_items.append(new_rec)

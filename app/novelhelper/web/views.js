@@ -128,17 +128,17 @@ function viewInventory(main) {
        { label: i18n.t('collections.singular_equipment'), listKey: 'equipment', coll: 'equipment', idKey: 'equip_id', qty: false, carried: false }]));
 
     card.appendChild(h('div', { class: 'sep' }));
-    const lines = ['### ' + recordName(rec) + ' · 完整外貌拼装'].concat(renderElementsMd(rec.elements, 0));
+    const lines = ['### ' + i18n.t('inventory.assembly_title', { name: recordName(rec) })].concat(renderElementsMd(rec.elements, 0));
     const worn = (rec.equipment || []).map(e => findById('equipment', e.equip_id)).filter(Boolean);
     if (worn.length) {
-      lines.push('- 穿戴：' + worn.map(w => {
+      lines.push('- ' + i18n.t('inventory.worn_line') + ' ' + worn.map(w => {
         const look = flatValues(elementToNested(w.elements || [])).slice(0, 2).join('，');
         return w.name + (look ? '（' + look + '）' : '');
       }).join('；'));
     }
     const items = (rec.inventory || []).map(e => findById('items', e.item_id)).filter(Boolean);
-    if (items.length) lines.push('- 随身：' + items.map(t => t.name).join('、'));
-    if ((rec.purse || '').trim()) lines.splice(1, 0, '- 钱袋：' + rec.purse.trim());
+    if (items.length) lines.push('- ' + i18n.t('inventory.carried_line') + ' ' + items.map(t => t.name).join('、'));
+    if ((rec.purse || '').trim()) lines.splice(1, 0, '- ' + i18n.t('inventory.purse_line') + ' ' + rec.purse.trim());
     card.appendChild(h('div', { class: 'md', html: md(lines.join('\n')) }));
     right.appendChild(card);
   };
@@ -175,7 +175,11 @@ function worldChain(world, id) {
 
 /** 新子表格：默认 3×3，行列名用方位（北/中/南 × 西/中/东）。 */
 function newBoard() {
-  return { rows: ['北', '中', '南'], cols: ['西', '中', '东'], cells: {} };
+  return {
+    rows: [i18n.t('defaults.axis.north'), i18n.t('defaults.axis.center'), i18n.t('defaults.axis.south')],
+    cols: [i18n.t('defaults.axis.west'), i18n.t('defaults.axis.center'), i18n.t('defaults.axis.east')],
+    cells: {}
+  };
 }
 
 /** 表格里真正有内容的格子（"行|列" → 区域 id）。 */
@@ -218,7 +222,15 @@ function subtreeHeight(world, id, guard) {
 
 /** 新行/新列的建议名字：跟着现有命名风格走（北6 / 南6 或 北 / 南）。 */
 function nextAxisLabel(list, side, kind) {
-  const prefix = kind === 'row' ? (side === 'start' ? '北' : '南') : (side === 'start' ? '西' : '东');
+  // 优先沿用现有名字的前缀（非数字部分），兼容初始化时冻结的方位命名；
+  // 没有可参考的名字时用当前语言的方位词。
+  const sample = (list || []).find(x => /^[^\d]*\d+$/.test(x));
+  let prefix = sample ? sample.replace(/\d+$/, '') : '';
+  if (!prefix) {
+    prefix = kind === 'row'
+      ? (side === 'start' ? i18n.t('defaults.axis.north') : i18n.t('defaults.axis.south'))
+      : (side === 'start' ? i18n.t('defaults.axis.west') : i18n.t('defaults.axis.east'));
+  }
   const numbered = list.some(x => new RegExp('^' + prefix + '\\d+$').test(x));
   if (!numbered) return list.includes(prefix) ? prefix + '2' : prefix;
   let n = 1;
@@ -229,7 +241,7 @@ function nextAxisLabel(list, side, kind) {
 function newRegionRecord(name) {
   const stamp = nowStr();
   return {
-    id: newId('rg'), name: (name || '').trim() || '未命名区域', summary: '', details: '',
+    id: newId('rg'), name: (name || '').trim() || i18n.t('defaults.region.unnamed'), summary: '', details: '',
     elements: [], parent: '', tags: [], created: stamp, updated: stamp
   };
 }
@@ -699,7 +711,7 @@ function viewWorld(main) {
 function viewMemories(main) {
   const coll = state.db.memories;
   coll.items = coll.items || [];
-  coll.categories = coll.categories || ['短期记忆'];
+  coll.categories = coll.categories || [i18n.t('defaults.memory.short')];
   state.ui.memories = state.ui.memories || { sel: null, q: '', cat: '' };
   const ui = state.ui.memories;
   if (!coll.items.some(r => r.id === ui.sel)) ui.sel = coll.items.length ? coll.items[0].id : null;
@@ -713,7 +725,7 @@ function viewMemories(main) {
         class: 'primary', text: i18n.t('memories.new'),
         onclick: () => {
           const stamp = nowStr();
-          const rec = { id: newId('mm'), title: '新记忆', category: '短期记忆', chapter: '', content: '', tags: [], created: stamp, updated: stamp };
+          const rec = { id: newId('mm'), title: i18n.t('defaults.memory.new_title'), category: i18n.t('defaults.memory.short'), chapter: '', content: '', tags: [], created: stamp, updated: stamp };
           coll.items.unshift(rec); ui.sel = rec.id; touch('memories'); renderMain();
         }
       }))));
@@ -815,8 +827,8 @@ async function compressMemories(records) {
         onclick: () => {
           const stamp = nowStr();
           state.db.memories.items.unshift({
-            id: newId('mm'), title: (records[0].title || '压缩记忆') + '（压缩）',
-            category: records[0].category || '长期记忆', chapter: records[0].chapter || '',
+            id: newId('mm'), title: (records[0].title || i18n.t('defaults.memory.compress_title')) + i18n.t('memories.compressed_suffix'),
+            category: records[0].category || i18n.t('defaults.memory.long'), chapter: records[0].chapter || '',
             content: ta.value, tags: [], created: stamp, updated: stamp
           });
           touch('memories'); renderMain(); m.close(); toast(i18n.t('memories.saved_new'), 'ok');

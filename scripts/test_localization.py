@@ -158,12 +158,20 @@ class LocalizationTests(unittest.TestCase):
 
     def test_provider_ui_does_not_mutate_prompts(self):
         from novelhelper import providers
-        original = providers.provider_note({})
         loc.set_language("en-US")
         public = providers.public_providers()
         self.assertIn("Using", public[0]["prompt_note"])
-        self.assertEqual(providers.provider_note({}), original)
         self.assertIn("当前", providers.PROVIDERS[0]["prompt_note"])
+        # 接口说明固定使用初始语言：之后切换当前语言不会改变它。
+        self.assertIn("当前", providers.provider_note({"initial_language": "zh-CN"}))
+        self.assertIn("Currently", providers.provider_note({"initial_language": "en-US"}))
+        loc.set_language("en-US")
+        self.assertIn("Currently", providers.provider_note({"initial_language": "en-US"}))
+        # 未记录初始语言时退化为当前语言。
+        loc.set_language("en-US")
+        self.assertIn("Currently", providers.provider_note({}))
+        loc.set_language("zh-CN")
+        self.assertIn("当前", providers.provider_note({}))
 
 
 if __name__ == "__main__":

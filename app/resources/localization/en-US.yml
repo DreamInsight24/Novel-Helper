@@ -103,6 +103,273 @@ common.title: Title
 common.unknown_page: Unknown page
 common.unnamed: Unnamed
 common.unnamed_paren: (Unnamed)
+# Built-in initialization presets (written in the language chosen at first run; later language switches do not rewrite them)
+defaults.axis.center: Center
+defaults.axis.east: E
+defaults.axis.north: N
+defaults.axis.south: S
+defaults.axis.west: W
+defaults.category.apparel: Apparel
+defaults.category.consumable: Consumable
+defaults.category.item: Item
+defaults.category.material: Material
+defaults.category.monster: Monster
+defaults.category.other: Other
+defaults.category.other_setting: Other settings
+defaults.category.pending: To tidy up
+defaults.category.weapon: Weapon
+defaults.element.ability: Abilities
+defaults.element.acquisition: Acquisition
+defaults.element.age: Age
+defaults.element.appearance: Appearance
+defaults.element.appearance_desc: Appearance description
+defaults.element.background: Background
+defaults.element.basic: Basics
+defaults.element.behavior: Behavior traits
+defaults.element.birthday: Birthday
+defaults.element.build: Build
+defaults.element.casual_wear: Casual wear
+defaults.element.character_anchor: Character anchor
+defaults.element.clothing: Clothing
+defaults.element.color_preference: Color preference
+defaults.element.color_scheme: Color scheme
+defaults.element.combat_style: Combat style
+defaults.element.core_personality: Core personality
+defaults.element.core_power: Core power
+defaults.element.cost: Cost
+defaults.element.durability: Durability
+defaults.element.effect: Effect
+defaults.element.external_relations: External relations
+defaults.element.eye_color: Eye color
+defaults.element.foot_structure: Foot structure
+defaults.element.founded: Founded
+defaults.element.gender: Gender
+defaults.element.goal: Goal
+defaults.element.grade: Grade
+defaults.element.hair_color: Hair color
+defaults.element.hair_eyes: Hair & eye color
+defaults.element.hand_structure: Hand structure
+defaults.element.hands_feet: Hands & feet
+defaults.element.heart_knot: Emotional knot
+defaults.element.height: Height
+defaults.element.hidden_setting: Hidden setting
+defaults.element.history: History
+defaults.element.history_status: History & status
+defaults.element.holder: Holder
+defaults.element.horns_ears: Horns & ears
+defaults.element.identity: Identity
+defaults.element.identity_tag: Identity tags
+defaults.element.leader: Leader
+defaults.element.limit: Limit
+defaults.element.magic_affinity: Magic affinity
+defaults.element.main_effect: Main effect
+defaults.element.marks_scars: Marks & scars
+defaults.element.material: Material
+defaults.element.occupation: Occupation
+defaults.element.orientation: Orientation
+defaults.element.origin: Origin
+defaults.element.overall: Overall
+defaults.element.own_story: Own story
+defaults.element.pattern: Pattern
+defaults.element.paw_pads: Paw pads
+defaults.element.personality: Personality
+defaults.element.pet_peeve: Pet peeves
+defaults.element.power_rating: Power rating
+defaults.element.price: Price
+defaults.element.quirk: Quirks
+defaults.element.real_name: Real name
+defaults.element.relationship_list: Relationship list
+defaults.element.relationships: Relationships
+defaults.element.shape: Shape
+defaults.element.shoe_habit: Shoe habits
+defaults.element.signature_skill: Signature skill
+defaults.element.size: Size
+defaults.element.size_value: Size
+defaults.element.slot: Slot
+defaults.element.species: Species
+defaults.element.spells: Spells
+defaults.element.stance: Stance
+defaults.element.stance_goals: Stance & goals
+defaults.element.status: Status
+defaults.element.strength: Strength
+defaults.element.tail: Tail
+defaults.element.territory: Territory
+defaults.element.type: Type
+defaults.element.weakness: Weaknesses
+defaults.element.weapon: Preferred weapon
+defaults.element.weight: Weight
+defaults.element.worn_effect: Worn effect
+defaults.map.name: World map
+defaults.memory.compress_title: Compressed memory
+defaults.memory.foreshadow: Key foreshadowing
+defaults.memory.import_title: Manuscript memory
+defaults.memory.long: Long-term memory
+defaults.memory.new_title: New memory
+defaults.memory.note: Setting notes
+defaults.memory.short: Short-term memory
+defaults.memory.unnamed: Untitled memory
+defaults.mode.brainstorm: Brainstorm
+defaults.mode.brainstorm_desc: Offer several distinct directions to choose from
+defaults.mode.brainstorm_prompt: |-
+  Task: based on the settings the user selected, the current state, the memories, and the user's prompt, provide several distinct directions for what to write next.
+
+  Each direction must include: title, entry point, general direction, the foreshadowing it carries, its payoff, its risk, and its difficulty.
+  Prefer existing characters, places, and foreshadowing; clearly mark any new elements you must introduce.
+  Do not write prose or dialogue, and do not show your reasoning. State what is missing when information is insufficient.
+defaults.mode.draft: Full draft
+defaults.mode.draft_desc: Generate full prose from settings and prompts
+defaults.mode.draft_prompt: |-
+  Task: complete this piece of fiction using the settings, current state, memories, user prompt, and additional requirements provided.
+
+  Execution principles:
+  1. Follow the settings the user selected and this prompt strictly; do not add settings, characters, or plot without authorization.
+  2. Keep point of view, tense, voice, and narrative pacing consistent.
+  3. Start from the current state; do not move backwards or skip key situations.
+  4. Output in the genre and structure requested in the additional requirements; if they say nothing specific, output the full prose directly.
+  5. The output contains only the work itself. Use headings to separate sections when needed; do not add explanatory preambles, postscripts, or phrases like "here is the text".
+  6. Respect the length requirement strictly; if the user gave no length, prioritize completeness.
+
+  Content boundaries: comply with applicable laws, regulations, and platform content rules; keep intimate content suggestive at most; do not generate pornographic, excessively violent, or hateful content.
+defaults.mode.logic: Logic writing
+defaults.mode.logic_desc: Check setting consistency; organize constraints, risks, and plot beats
+defaults.mode.logic_prompt: |-
+  Task: perform a "logic writing" analysis of the settings, current state, memories, and writing requirements provided by the user.
+
+  Output three parts:
+
+  1. Consistency check
+  Whether time, place, character positions and states are coherent; whether the user's prompt conflicts with the settings or memories; information that is missing but would affect the writing.
+
+  2. Enforceable constraints
+  The boundaries this piece of writing must respect; information that must not be revealed early or added without authorization.
+
+  3. Progress suggestions
+  3-6 key beats in order, who triggers each one and what changes it produces, plus a suggested emotional curve and information-release order.
+
+  Analysis only — do not write prose. State clearly when information is insufficient; do not guess.
+defaults.mode.new_process: New manuscript mode
+defaults.mode.new_process_prompt: |-
+  Task: process the "text to process" provided by the user.
+
+  Requirements:
+  1. Follow the processing method and requirements the user selected.
+  2. Keep the original facts, characters, settings, and plot; do not add anything without authorization.
+  3. Output the complete processed text directly, without preambles or postscripts.
+defaults.mode.new_write: New writing mode
+defaults.mode.new_write_prompt: |-
+  Task: complete this task using the settings, current state, memories, and prompt provided by the user.
+
+  Requirements:
+  1. Follow the settings and prompt provided by the user strictly.
+  2. Do not add unauthorized settings, characters, or plot.
+  3. Output the result of this task directly, without irrelevant preambles or postscripts.
+defaults.mode.outline: Outline writing
+defaults.mode.outline_desc: Output scene outlines, beats, and ready-to-use writing prompts
+defaults.mode.outline_prompt: |-
+  Task: based on the settings, current state, memories, and writing requirements provided by the user, produce a ready-to-execute "outline writing" plan.
+
+  Output four parts:
+
+  1. Chapter goal
+  The core narrative task this section must accomplish; how it connects to the previous and next sections.
+
+  2. Scene framework
+  List 2-6 scenes in order. For each scene, state: place, time, and characters present; the scene's goal and conflict; key actions or information points; the state change at the end of the scene.
+
+  3. Beats and pacing
+  Opening hook, progression, turn, and resolution; which passages should slow down and which should speed up.
+
+  4. Writing prompt
+  Turn the framework above into a single prompt that can be handed directly to a prose-writing model, keeping the user's hard requirements and noting "do not add unauthorized settings".
+
+  Do not write full prose, long dialogue, or show your reasoning.
+defaults.mode.polish: Polish & revise
+defaults.mode.polish_desc: Revise text per the given issues, keeping facts and plot
+defaults.mode.polish_prompt: |-
+  Task: polish or revise the "text to process" according to the user's prompt and additional requirements.
+
+  Requirements:
+  1. Modify only the issues and scope the user specified; keep the original facts, characters, settings, and plot.
+  2. Improve language, pacing, description density, and paragraph structure, but do not change the narrative point of view or tense.
+  3. Do not expand into a long piece without authorization, and do not add unauthorized new settings.
+  4. Output the complete revised text; if the user only asked for a local change, still output a complete version that can be swapped in directly.
+  5. Do not output explanations, diffs, or revision notes unless the user explicitly asks.
+defaults.record.new_character: New character
+defaults.record.new_equipment: New apparel/equipment
+defaults.record.new_faction: New faction
+defaults.record.new_item: New item
+defaults.record.new_other: New entry
+defaults.record.unnamed: Untitled
+defaults.record.unnamed_import: Untitled import
+defaults.region.unnamed: Unnamed region
+defaults.schema.characters: Character profiles
+defaults.schema.equipment: Apparel & equipment
+defaults.schema.factions: Factions
+defaults.schema.items: Items
+defaults.schema.memories: Memories
+defaults.schema.other: Other settings
+defaults.section.ability_tendency: Ability tendency
+defaults.section.branch: Branch
+defaults.section.cause: Cause
+defaults.section.course: Course
+defaults.section.deity: Deity
+defaults.section.details: Details
+defaults.section.doctrine: Doctrine
+defaults.section.dress_preference: Dress preference
+defaults.section.economy: Economy & prices
+defaults.section.features: Features
+defaults.section.history: History & timeline
+defaults.section.impact: Impact
+defaults.section.location: Location
+defaults.section.magic: Magic & skills
+defaults.section.notes: Notes
+defaults.section.organization: Organization
+defaults.section.overview: Overview
+defaults.section.physiology: Physiology
+defaults.section.places: Places & cities
+defaults.section.religion: Religion & faith
+defaults.section.result: Result
+defaults.section.rules: Rules & diseases
+defaults.section.rules_fields: Rules
+defaults.section.social_status: Social status
+defaults.section.society: Society
+defaults.section.species: Species
+defaults.section.subspecies: Subspecies
+defaults.section.summary: Summary
+defaults.section.symptoms: Symptoms
+defaults.section.time: Time
+defaults.section.treatment: Treatment
+defaults.section.world: Worldview
+defaults.sections.about_world: About the world
+defaults.sections.currency_from: Currency
+defaults.sections.disease_from: Special diseases
+defaults.sections.economy_desc: Currency, prices, trade
+defaults.sections.history_desc: Major events, wars, treaties, prophecies
+defaults.sections.history_from: Historical events
+defaults.sections.magic_desc: Attributes, sources, skill types, learning
+defaults.sections.magic_from: Magic
+defaults.sections.religion_desc: Churches, pantheons, beliefs
+defaults.sections.religion_from: Religion
+defaults.sections.rules_desc: World rules, diseases, customs
+defaults.sections.setting: Setting
+defaults.sections.species_desc: Races, physiology, social status, subspecies
+defaults.sections.species_from: Species
+defaults.sections.timeline_from: Timeline and major events
+defaults.sections.world_desc: World background, continents, overall setting
+defaults.sections.world_from: World background
+defaults.slot.accessory: Accessory
+defaults.slot.armor: Armor
+defaults.slot.bottom: Bottom
+defaults.slot.cloak: Cloak
+defaults.slot.head: Head
+defaults.slot.shoes: Shoes & boots
+defaults.slot.top: Top
+defaults.source.from: 'From {source}'
+defaults.source.import: Import
+defaults.source.manuscript: Manuscript
+defaults.source.manuscript_workspace: Manuscript · Workspace
+defaults.text.draft_prefix: Draft_
+
 elements.add_child: Add a child element under this one
 elements.add_top: + Top-level Element
 elements.applied_count: Added {count} elements in total
@@ -255,6 +522,7 @@ inventory.add_item: Add from Items
 inventory.assembly_title: '{name} · Full appearance assembly'
 inventory.carried_hint: Carry (on person / worn); uncheck = put into "Owned"
 inventory.carried_label: Carried
+inventory.carried_line: 'Carried:'
 inventory.carried_status: being carried
 inventory.carried_title: Carried items
 inventory.no_characters: The inventory only edits existing characters' carried items and worn equipment. No characters
@@ -266,13 +534,19 @@ inventory.page_desc: The inventory is edited only here (no longer on the Charact
   add to inventory / wear; pointers point directly to Items and Outfits & Equipment; the purse is a special inventory
   field — enter an amount or wealthy / average / tight, empty = not shown.
 inventory.purse_label: Purse
+inventory.purse_line: 'Purse:'
 inventory.purse_placeholder: Empty = not shown; or enter wealthy / average / tight
 inventory.remove: Remove from inventory
 inventory.title: '{name} · Inventory'
+inventory.worn_line: 'Worn:'
 inventory.worn_status: being worn
 inventory.worn_title: Worn & Equipment
+language.back: Back
 language.first_run_hint: Takes effect immediately; you can change it later in Model Settings.
 language.first_run_title: Choose your language
+language.initial_presets_hint: 'Note: some built-in presets change language with the language chosen at first run; switching language later will not change them.'
+language.next: Next
+language.step_of: 'Step {step} of {total}'
 language.switch_failed_reason: 'Failed to switch language: {reason}'
 manuscript.access_failed_reason: 'Cannot access: {reason}'
 manuscript.ai_assist: AI Assist
@@ -494,6 +768,9 @@ nav.settings: Model Settings
 nav.text: Manuscript
 nav.worldmap: World Map
 nav.writer: AI Workstation
+providers.note: '【API】Currently using the {name} OpenAI-compatible API.'
+providers.note_generic: 【API】Currently using a custom OpenAI-compatible API. Do not assume a specific model, vendor,
+  or special capability; rely on the settings and prompts provided by the user.
 records.add_category: Add category
 records.add_from: + Add from {list}
 records.apply_template: Apply Template

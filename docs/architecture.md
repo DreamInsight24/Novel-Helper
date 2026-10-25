@@ -23,6 +23,7 @@ app/novelhelper/
     _paths.py          # 路径锚点与集合常量
     _names.py          # ID/栏目名称助手
     _defaults.py       # 默认配置与集合
+    _localized.py      # 内置预设的首次语言本地化与落盘
     _repository.py     # JSON 读写与记录清理
     _directories.py   # 从配置解析工作区/日志目录
     _bootstrap.py      # 初始化与既有配置迁移
@@ -45,6 +46,7 @@ app/novelhelper/
     _api.py            # API 路由 mixin
     _records.py        # 导入、自动归类和集合搬运 mixin
     _generation.py     # AI 与工作站生成 mixin
+    _language.py       # 语言持久化、首次判定与损坏配置恢复
     _handler.py        # Handler 组合及 serve 生命周期
   ai.py                # 模型 API 适配，保持独立模块
   context.py           # 模型上下文组装，保持独立模块
@@ -92,6 +94,7 @@ app/novelhelper/
 | `_names` | `_paths` |
 | `_defaults` | `_names`、`_paths`、`prompts`、`providers` |
 | `_repository` | `_defaults`、`_names`、`_paths`、`elements` |
+| `_localized` | `_defaults`、`_repository`、`localization` |
 | `_directories` | `_paths`、`_repository` |
 | `_collections` | `_names`、`_paths`、`_repository` |
 | `_bootstrap` | `_defaults`、`_directories`、`_paths`、`_repository`、`prompts`、`providers` |

@@ -12,6 +12,25 @@ from ._language import first_run, save_language
 from ._state import _RUN_STATE
 
 
+def _preserve_language_fields(data: dict) -> dict:
+    """Keep language/initial_language (managed by server/_language.py) across generic saves.
+
+    A stale client may POST a config copy captured before the language was saved;
+    without this guard that save would silently drop the language and the first-run
+    wizard would reappear after a reload.
+    """
+    try:
+        existing = store.load("config")
+    except Exception:  # noqa: BLE001 - fall back to the posted data
+        return data
+    if not isinstance(existing, dict):
+        return data
+    for key in ("language", "initial_language"):
+        if key in existing and key not in data:
+            data[key] = existing[key]
+    return data
+
+
 class _ApiMixin:
     def _api(self, method: str, path: str, query: dict):
         if method == "GET" and path == "/api/i18n":
@@ -86,7 +105,10 @@ class _ApiMixin:
                 self._json({"ok": True, "name": name, "data": store.load(name)})
                 return
             body = self._body()
-            saved = store.save(name, body.get("data"))
+            data = body.get("data")
+            if name == "config" and isinstance(data, dict):
+                data = _preserve_language_fields(data)
+            saved = store.save(name, data)
             logger.log_event("DATA", "save", collection=name, path=str(saved))
             self._json({"ok": True, "saved": str(saved)})
             return

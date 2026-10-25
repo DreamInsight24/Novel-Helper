@@ -350,11 +350,11 @@ function subtreeStat(item) {
 // ═══════════════════════════════════════════
 function newRecord(def) {
   const stamp = nowStr();
-  const rec = { id: newId(def.idPrefix), name: '未命名', elements: [], tags: [], created: stamp, updated: stamp };
+  const rec = { id: newId(def.idPrefix), name: i18n.t('defaults.record.unnamed'), elements: [], tags: [], created: stamp, updated: stamp };
   if (def.tagLabel) rec.tag = '';
   if (def.notesLabel) rec.notes = '';
-  if (def.hasCategory) rec.category = ((state.db[def.coll].categories || [])[0]) || '其他';
-  if (def.hasSlot) rec.slot = ((state.db.equipment.slots || [])[0]) || '其他';
+  if (def.hasCategory) rec.category = ((state.db[def.coll].categories || [])[0]) || i18n.t('defaults.category.other');
+  if (def.hasSlot) rec.slot = ((state.db.equipment.slots || [])[0]) || i18n.t('defaults.category.other');
   if (def.hasContent) rec.content = '';
   if (def.hasInventory) { rec.inventory = []; rec.equipment = []; }
   if (def.hasMembers) rec.members = [];

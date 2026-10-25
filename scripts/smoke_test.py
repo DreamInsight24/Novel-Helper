@@ -264,6 +264,16 @@ def run() -> None:
                     after_switch["current"] == "en-US"
                     and after_switch.get("first_run") is False,
                 )
+                _, switched_state = _json_request(base_url, "/api/state")
+                _check(
+                    "first-run presets follow the initial language",
+                    switched_state["collections"]["schema"]["characters"]["label"]
+                    == "Character profiles"
+                    and switched_state["collections"]["sections"]["items"][0]["label"]
+                    == "Worldview"
+                    and switched_state["collections"]["modes"]["items"][0]["label"]
+                    == "Logic writing",
+                )
                 try:
                     _json_request(
                         base_url,
