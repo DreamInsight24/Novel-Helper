@@ -1,5 +1,22 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# Copyright (C) 2026 DreamInsight24 and NovelHelper contributors
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 """
 常见 OpenAI 兼容接口预设。
 
@@ -8,7 +25,10 @@ URL 都可以手动修改；当 URL 与预设不一致时，按“自定义接�
 """
 from __future__ import annotations
 
+from contextlib import nullcontext
 from copy import deepcopy
+
+from .localization import language_context, t
 
 
 EFFORTS = ["none", "low", "medium", "high", "max"]
@@ -116,9 +136,23 @@ PROVIDERS = [
 ]
 
 
+def provider_label(provider_id: str) -> str:
+    """Translated display label for a provider (UI and prompt notes)."""
+    provider = get_provider(provider_id)
+    if provider["id"] == "custom":
+        return t("settings.custom_preset")
+    if provider["id"] in ("dashscope", "zhipu"):
+        return t("settings.provider_label_" + provider["id"])
+    return provider["label"]
+
+
 def public_providers() -> list:
     """给前端的预设（不包含任何密钥）。"""
-    return deepcopy(PROVIDERS)
+    result = deepcopy(PROVIDERS)
+    for provider in result:
+        provider["prompt_note"] = t("settings.provider_note_" + provider["id"])
+        provider["label"] = provider_label(provider["id"])
+    return result
 
 
 def get_provider(provider_id: str) -> dict:
@@ -150,11 +184,14 @@ def provider_for_config(config: dict) -> dict:
 
 
 def provider_note(config: dict) -> str:
-    provider = provider_for_config(config)
-    if provider.get("generic") or provider["id"] == "custom":
-        return ("\n\n【接口】当前使用自定义 OpenAI 兼容接口。"
-                "不要假定具体模型名称、厂商或特殊能力；以用户提供的设定与提示词为准。")
-    return f"\n\n【接口】当前使用 {provider['label']} 的 OpenAI 兼容接口。"
+    """接口说明，进入模型提示词；语言固定为初始语言（未记录时用当前语言）。"""
+    initial = (config or {}).get("initial_language")
+    context = language_context(initial) if initial else nullcontext()
+    with context:
+        provider = provider_for_config(config)
+        if provider.get("generic") or provider["id"] == "custom":
+            return t("providers.note_generic")
+        return t("providers.note", name=provider_label(provider["id"]))
 
 
 def provider_models(config: dict) -> list:

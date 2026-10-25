@@ -1,0 +1,1218 @@
+# Copyright (C) 2026 DreamInsight24 and NovelHelper contributors
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+browse.user_dir: User directory
+chapters.col_actions: Actions
+chapters.col_dir: Directory
+chapters.col_file: File
+chapters.col_mtime: Modified
+chapters.col_size: Size
+chapters.convert_failed_reason: 'Conversion failed: {reason}'
+chapters.generated: Generated {path}
+chapters.page_desc: Manuscripts, plans, and conversion results under workspace/output/. Preview, convert to txt,
+  or send straight to the Manuscript page for further work.
+chapters.send_to_manuscript: Send to Manuscript
+chapters.to_txt: Convert to txt
+collections.alias: Alias
+collections.characters.desc: 'Multidimensional settings are organized as an "element tree": appearance, personality,
+  abilities… can each be broken down further. Inventory and worn items are edited on the Inventory page.'
+collections.characters.tag_label: Identity note (text in parentheses)
+collections.equipment.desc: Wearables based on items; not sent on their own — only included as explanation when
+  referenced in a character's inventory.
+collections.factions.desc: Organizations / families / camps; members point directly to Characters.
+collections.factions.tag_label: Type note
+collections.items.desc: Things that can go into the inventory; not sent on their own — only included as explanation
+  when referenced in a character's inventory.
+collections.notes: Additional notes
+collections.other.desc: Worldbuilding, species, and rules go here; anything without a dedicated section can live
+  here and be moved elsewhere anytime.
+collections.singular_character: Character
+collections.singular_entry: Entry
+collections.singular_equipment: Outfit / Equipment
+collections.singular_faction: Faction
+collections.singular_item: Item
+common.appended_to_workspace: Appended to the manuscript workspace.
+common.assembling: Assembling…
+common.autosave: Auto-save
+common.cancel: Cancel
+common.category: Category
+common.clear: Clear
+common.close: Close
+common.compress_done: Compression complete
+common.compressing: Compressing…
+common.confirm: OK
+common.content: Content
+common.copied: Copied to clipboard
+common.copy: Copy
+common.copy_failed: Copy failed; select the text manually.
+common.data_content: User data, built-in examples, and default prompts keep their original language.
+common.debug_badge: DEBUG mode
+common.debug_banner: DEBUG mode · data, output, and logs are isolated from the release build
+common.default_content: Example / default content (original language preserved)
+common.delete: Delete
+common.delete_confirm: Delete "{name}"?
+common.delete_failed_reason: 'Delete failed: {reason}'
+common.deleted: Deleted.
+common.disabled_name: '{name} (disabled)'
+common.disabled_suffix: ' (disabled)'
+common.doc_title: NovelHelper · AI Fiction Writing Studio
+common.doc_title_debug: NovelHelper [DEBUG] · AI Fiction Writing Studio
+common.empty_paren: (empty)
+common.export: Export
+common.export_failed_reason: 'Export failed: {reason}'
+common.exported_to: 'Exported: {path}'
+common.fetching: Fetching…
+common.field_notes: Field description
+common.file_count: '{count} files'
+common.filename: File name
+common.find: Find
+common.generating: AI generating…
+common.help: Help
+common.import: Import
+common.importing: Importing…
+common.list: List
+common.load_failed_reason: 'Load failed: {reason}'
+common.loading: Loading…
+common.missing: (Missing)
+common.move_down: Move down
+common.move_up: Move up
+common.name: Name
+common.note: Note
+common.one_line_desc: One-line description
+common.other: Other
+common.preview: Preview
+common.processing: AI processing…
+common.read_failed_reason: 'Failed to read: {reason}'
+common.ready: Ready
+common.refresh: Refresh
+common.refresh_failed_reason: 'Refresh failed: {reason}'
+common.replace: Replace
+common.replace_with: Replace with
+common.save: Save
+common.save_failed: Save failed
+common.save_failed_reason: 'Save failed: {reason}'
+common.saved: Saved
+common.saved_at: Saved {time}
+common.saved_to: 'Saved: {path}'
+common.saving: Saving…
+common.search: Search…
+common.select_all: Select all
+common.side_note: Data is stored in app/data/; output and import/export live in app/workspace/
+common.sorting: Sorting…
+common.source_prefix: 'Source: {source}'
+common.tagline: A local-first novel writing tool · {version}
+common.testing: Testing…
+common.title: Title
+common.unknown_page: Unknown page
+common.unnamed: Unnamed
+common.unnamed_paren: (Unnamed)
+# Built-in initialization presets (written in the language chosen at first run; later language switches do not rewrite them)
+defaults.axis.center: Center
+defaults.axis.east: E
+defaults.axis.north: N
+defaults.axis.south: S
+defaults.axis.west: W
+defaults.category.apparel: Apparel
+defaults.category.consumable: Consumable
+defaults.category.item: Item
+defaults.category.material: Material
+defaults.category.monster: Monster
+defaults.category.other: Other
+defaults.category.other_setting: Other settings
+defaults.category.pending: To tidy up
+defaults.category.weapon: Weapon
+defaults.element.ability: Abilities
+defaults.element.acquisition: Acquisition
+defaults.element.age: Age
+defaults.element.appearance: Appearance
+defaults.element.appearance_desc: Appearance description
+defaults.element.background: Background
+defaults.element.basic: Basics
+defaults.element.behavior: Behavior traits
+defaults.element.birthday: Birthday
+defaults.element.build: Build
+defaults.element.casual_wear: Casual wear
+defaults.element.character_anchor: Character anchor
+defaults.element.clothing: Clothing
+defaults.element.color_preference: Color preference
+defaults.element.color_scheme: Color scheme
+defaults.element.combat_style: Combat style
+defaults.element.core_personality: Core personality
+defaults.element.core_power: Core power
+defaults.element.cost: Cost
+defaults.element.durability: Durability
+defaults.element.effect: Effect
+defaults.element.external_relations: External relations
+defaults.element.eye_color: Eye color
+defaults.element.foot_structure: Foot structure
+defaults.element.founded: Founded
+defaults.element.gender: Gender
+defaults.element.goal: Goal
+defaults.element.grade: Grade
+defaults.element.hair_color: Hair color
+defaults.element.hair_eyes: Hair & eye color
+defaults.element.hand_structure: Hand structure
+defaults.element.hands_feet: Hands & feet
+defaults.element.heart_knot: Emotional knot
+defaults.element.height: Height
+defaults.element.hidden_setting: Hidden setting
+defaults.element.history: History
+defaults.element.history_status: History & status
+defaults.element.holder: Holder
+defaults.element.horns_ears: Horns & ears
+defaults.element.identity: Identity
+defaults.element.identity_tag: Identity tags
+defaults.element.leader: Leader
+defaults.element.limit: Limit
+defaults.element.magic_affinity: Magic affinity
+defaults.element.main_effect: Main effect
+defaults.element.marks_scars: Marks & scars
+defaults.element.material: Material
+defaults.element.occupation: Occupation
+defaults.element.orientation: Orientation
+defaults.element.origin: Origin
+defaults.element.overall: Overall
+defaults.element.own_story: Own story
+defaults.element.pattern: Pattern
+defaults.element.paw_pads: Paw pads
+defaults.element.personality: Personality
+defaults.element.pet_peeve: Pet peeves
+defaults.element.power_rating: Power rating
+defaults.element.price: Price
+defaults.element.quirk: Quirks
+defaults.element.real_name: Real name
+defaults.element.relationship_list: Relationship list
+defaults.element.relationships: Relationships
+defaults.element.shape: Shape
+defaults.element.shoe_habit: Shoe habits
+defaults.element.signature_skill: Signature skill
+defaults.element.size: Size
+defaults.element.size_value: Size
+defaults.element.slot: Slot
+defaults.element.species: Species
+defaults.element.spells: Spells
+defaults.element.stance: Stance
+defaults.element.stance_goals: Stance & goals
+defaults.element.status: Status
+defaults.element.strength: Strength
+defaults.element.tail: Tail
+defaults.element.territory: Territory
+defaults.element.type: Type
+defaults.element.weakness: Weaknesses
+defaults.element.weapon: Preferred weapon
+defaults.element.weight: Weight
+defaults.element.worn_effect: Worn effect
+defaults.map.name: World map
+defaults.memory.compress_title: Compressed memory
+defaults.memory.foreshadow: Key foreshadowing
+defaults.memory.import_title: Manuscript memory
+defaults.memory.long: Long-term memory
+defaults.memory.new_title: New memory
+defaults.memory.note: Setting notes
+defaults.memory.short: Short-term memory
+defaults.memory.unnamed: Untitled memory
+defaults.mode.brainstorm: Brainstorm
+defaults.mode.brainstorm_desc: Offer several distinct directions to choose from
+defaults.mode.brainstorm_prompt: |-
+  Task: based on the settings the user selected, the current state, the memories, and the user's prompt, provide several distinct directions for what to write next.
+
+  Each direction must include: title, entry point, general direction, the foreshadowing it carries, its payoff, its risk, and its difficulty.
+  Prefer existing characters, places, and foreshadowing; clearly mark any new elements you must introduce.
+  Do not write prose or dialogue, and do not show your reasoning. State what is missing when information is insufficient.
+defaults.mode.draft: Full draft
+defaults.mode.draft_desc: Generate full prose from settings and prompts
+defaults.mode.draft_prompt: |-
+  Task: complete this piece of fiction using the settings, current state, memories, user prompt, and additional requirements provided.
+
+  Execution principles:
+  1. Follow the settings the user selected and this prompt strictly; do not add settings, characters, or plot without authorization.
+  2. Keep point of view, tense, voice, and narrative pacing consistent.
+  3. Start from the current state; do not move backwards or skip key situations.
+  4. Output in the genre and structure requested in the additional requirements; if they say nothing specific, output the full prose directly.
+  5. The output contains only the work itself. Use headings to separate sections when needed; do not add explanatory preambles, postscripts, or phrases like "here is the text".
+  6. Respect the length requirement strictly; if the user gave no length, prioritize completeness.
+
+  Content boundaries: comply with applicable laws, regulations, and platform content rules; keep intimate content suggestive at most; do not generate pornographic, excessively violent, or hateful content.
+defaults.mode.logic: Logic writing
+defaults.mode.logic_desc: Check setting consistency; organize constraints, risks, and plot beats
+defaults.mode.logic_prompt: |-
+  Task: perform a "logic writing" analysis of the settings, current state, memories, and writing requirements provided by the user.
+
+  Output three parts:
+
+  1. Consistency check
+  Whether time, place, character positions and states are coherent; whether the user's prompt conflicts with the settings or memories; information that is missing but would affect the writing.
+
+  2. Enforceable constraints
+  The boundaries this piece of writing must respect; information that must not be revealed early or added without authorization.
+
+  3. Progress suggestions
+  3-6 key beats in order, who triggers each one and what changes it produces, plus a suggested emotional curve and information-release order.
+
+  Analysis only — do not write prose. State clearly when information is insufficient; do not guess.
+defaults.mode.new_process: New manuscript mode
+defaults.mode.new_process_prompt: |-
+  Task: process the "text to process" provided by the user.
+
+  Requirements:
+  1. Follow the processing method and requirements the user selected.
+  2. Keep the original facts, characters, settings, and plot; do not add anything without authorization.
+  3. Output the complete processed text directly, without preambles or postscripts.
+defaults.mode.new_write: New writing mode
+defaults.mode.new_write_prompt: |-
+  Task: complete this task using the settings, current state, memories, and prompt provided by the user.
+
+  Requirements:
+  1. Follow the settings and prompt provided by the user strictly.
+  2. Do not add unauthorized settings, characters, or plot.
+  3. Output the result of this task directly, without irrelevant preambles or postscripts.
+defaults.mode.outline: Outline writing
+defaults.mode.outline_desc: Output scene outlines, beats, and ready-to-use writing prompts
+defaults.mode.outline_prompt: |-
+  Task: based on the settings, current state, memories, and writing requirements provided by the user, produce a ready-to-execute "outline writing" plan.
+
+  Output four parts:
+
+  1. Chapter goal
+  The core narrative task this section must accomplish; how it connects to the previous and next sections.
+
+  2. Scene framework
+  List 2-6 scenes in order. For each scene, state: place, time, and characters present; the scene's goal and conflict; key actions or information points; the state change at the end of the scene.
+
+  3. Beats and pacing
+  Opening hook, progression, turn, and resolution; which passages should slow down and which should speed up.
+
+  4. Writing prompt
+  Turn the framework above into a single prompt that can be handed directly to a prose-writing model, keeping the user's hard requirements and noting "do not add unauthorized settings".
+
+  Do not write full prose, long dialogue, or show your reasoning.
+defaults.mode.polish: Polish & revise
+defaults.mode.polish_desc: Revise text per the given issues, keeping facts and plot
+defaults.mode.polish_prompt: |-
+  Task: polish or revise the "text to process" according to the user's prompt and additional requirements.
+
+  Requirements:
+  1. Modify only the issues and scope the user specified; keep the original facts, characters, settings, and plot.
+  2. Improve language, pacing, description density, and paragraph structure, but do not change the narrative point of view or tense.
+  3. Do not expand into a long piece without authorization, and do not add unauthorized new settings.
+  4. Output the complete revised text; if the user only asked for a local change, still output a complete version that can be swapped in directly.
+  5. Do not output explanations, diffs, or revision notes unless the user explicitly asks.
+defaults.record.new_character: New character
+defaults.record.new_equipment: New apparel/equipment
+defaults.record.new_faction: New faction
+defaults.record.new_item: New item
+defaults.record.new_other: New entry
+defaults.record.unnamed: Untitled
+defaults.record.unnamed_import: Untitled import
+defaults.region.unnamed: Unnamed region
+defaults.schema.characters: Character profiles
+defaults.schema.equipment: Apparel & equipment
+defaults.schema.factions: Factions
+defaults.schema.items: Items
+defaults.schema.memories: Memories
+defaults.schema.other: Other settings
+defaults.section.ability_tendency: Ability tendency
+defaults.section.branch: Branch
+defaults.section.cause: Cause
+defaults.section.course: Course
+defaults.section.deity: Deity
+defaults.section.details: Details
+defaults.section.doctrine: Doctrine
+defaults.section.dress_preference: Dress preference
+defaults.section.economy: Economy & prices
+defaults.section.features: Features
+defaults.section.history: History & timeline
+defaults.section.impact: Impact
+defaults.section.location: Location
+defaults.section.magic: Magic & skills
+defaults.section.notes: Notes
+defaults.section.organization: Organization
+defaults.section.overview: Overview
+defaults.section.physiology: Physiology
+defaults.section.places: Places & cities
+defaults.section.religion: Religion & faith
+defaults.section.result: Result
+defaults.section.rules: Rules & diseases
+defaults.section.rules_fields: Rules
+defaults.section.social_status: Social status
+defaults.section.society: Society
+defaults.section.species: Species
+defaults.section.subspecies: Subspecies
+defaults.section.summary: Summary
+defaults.section.symptoms: Symptoms
+defaults.section.time: Time
+defaults.section.treatment: Treatment
+defaults.section.world: Worldview
+defaults.sections.about_world: About the world
+defaults.sections.currency_from: Currency
+defaults.sections.disease_from: Special diseases
+defaults.sections.economy_desc: Currency, prices, trade
+defaults.sections.history_desc: Major events, wars, treaties, prophecies
+defaults.sections.history_from: Historical events
+defaults.sections.magic_desc: Attributes, sources, skill types, learning
+defaults.sections.magic_from: Magic
+defaults.sections.religion_desc: Churches, pantheons, beliefs
+defaults.sections.religion_from: Religion
+defaults.sections.rules_desc: World rules, diseases, customs
+defaults.sections.setting: Setting
+defaults.sections.species_desc: Races, physiology, social status, subspecies
+defaults.sections.species_from: Species
+defaults.sections.timeline_from: Timeline and major events
+defaults.sections.world_desc: World background, continents, overall setting
+defaults.sections.world_from: World background
+defaults.slot.accessory: Accessory
+defaults.slot.armor: Armor
+defaults.slot.bottom: Bottom
+defaults.slot.cloak: Cloak
+defaults.slot.head: Head
+defaults.slot.shoes: Shoes & boots
+defaults.slot.top: Top
+defaults.source.from: 'From {source}'
+defaults.source.import: Import
+defaults.source.manuscript: Manuscript
+defaults.source.manuscript_workspace: Manuscript · Workspace
+defaults.text.draft_prefix: Draft_
+defaults.tool.compress_prompt: |-
+  Task: compress the given memories into shorter, denser form.
+
+  Requirements:
+  1. Keep every proper noun (character, place, item, organization) and every fact; compress only the wording.
+  2. Drop repetition, ornament, evaluation, and transitions.
+  3. Keep the original entry divisions and `### Heading`; keep each entry to within 1/3 of its original length.
+  4. Output only the compressed memories — no explanations, no preamble, no code fence.
+defaults.tool.fix_prompt: |-
+  Task: fix a given passage of prose at the specific points the user raises.
+
+  Core principles:
+  1. Fix only the problems the user explicitly points out; change nothing else.
+  2. Keep untouched passages as verbatim as possible — do not alter wording, syntax, dialogue, or narrative order on your own.
+  3. Fix the paragraph where the problem is, and fix what the problem is.
+  4. Do not cut existing plot, dialogue, characters, or foreshadowing; when something must be added, add only locally.
+  5. Do not add plot, characters, or settings the user did not ask for.
+  6. Keep the original point of view, tense, and voice; the fixed text must join the untouched parts seamlessly.
+  7. Keep the original Markdown structure.
+
+  Output requirements:
+  - Output the complete fixed prose, not just the changed part.
+  - Output no explanation, preamble, postscript, or diff.
+  - End with `## Fix summary` describing this fix in one sentence.
+
+  Priority: user's fix instructions > current state > story memories > world settings > original text.
+defaults.tool.restyle_prompt: |-
+  Task: adjust the formatting, pacing, and description density of the given text, and repair obvious plot contradictions; do not change the plot, the dialogue, the characters, the settings, or the timeline.
+
+  Specific changes:
+  1. Merge runs of one-sentence paragraphs into natural paragraphs of 3-8 sentences.
+  2. Add necessary action, expression, environment, and interior description around the dialogue.
+  3. Dialogue must not exceed 40% of the whole.
+  4. Keep every key piece of information: character names, place names, items, key lines, and plot turns.
+  5. Add no plot, characters, or settings, and cut nothing.
+  6. Keep the original point of view, tense, voice, and narrative order.
+  7. Make minimal corrections to obvious contradictions.
+
+  Forbidden: explanations, preambles, postscripts, summaries, or commentary; changes outside `## Body`.
+  Output format: output the restyled prose directly.
+defaults.tool.summarize_prompt: |-
+  Task: compress one chapter of prose into a memory entry that is as small as possible while still supporting later writing.
+
+  Compression principles:
+  1. Keep only hard information you will still need: time progression, location changes, who did what and with what result, relationship and state changes, newly introduced names of people, places, and items, and foreshadowing newly planted or resolved.
+  2. Drop atmosphere, description, metaphor, interior monologue, dialogue, and repeated information.
+  3. Do not comment or evaluate; do not write framing sentences like "this chapter covers…".
+  4. Use declarative sentences only; semicolons may join clauses; one short clause per point.
+  5. Do not invent information absent from the prose.
+  6. Maximum 400 characters; information density first.
+
+  Output format:
+  ### {Chapter title}
+  - Time & place:
+  - Key events:
+  - Character changes:
+  - New information:
+  - Foreshadowing:
+  - State updates:
+
+  Write "None" on lines with no content. Output no explanation or extra text, and do not wrap it in a code fence.
+
+elements.add_child: Add a child element under this one
+elements.add_top: + Top-level Element
+elements.applied_count: Added {count} elements in total
+elements.apply_confirm: Complete {count} records in "{collection}" with template elements? (Existing content is
+  not overwritten)
+elements.apply_to_all: Apply to all records
+elements.collapse_all: Collapse all
+elements.delete_confirm: Delete element "{key}"? Its child elements will be deleted too.
+elements.delete_title: Delete this element
+elements.doc_hint: Document overview; switch to Tree to add / delete / rename
+elements.doc_mode: Overview
+elements.doc_mode_title: 'Document view: see all elements at once and edit only what you need'
+elements.edit_which: Edit template for which collection
+elements.empty: (No elements yet — click "+ Top-level Element" to add)
+elements.empty_group: (empty group)
+elements.expand_all: Expand all
+elements.export_json: Export template JSON
+elements.group_hint: 'Tip: append / to a name to create a "group"; groups can nest further (subsets of subsets).'
+elements.group_tip: Append / to the name to make it a group that can nest further
+elements.help: '- Checked elements + elements with content → appear in the prompt sent to the model and in the exported
+  JSON / TXT.
+
+  - Unchecked (or empty) elements do not appear; the exported JSON won''t contain the key, and no blank lines are
+  left.
+
+  - Element names can be renamed freely: "Appearance", "Combat ability", whatever — changes only affect future export
+  and send headings.
+
+  - To give all characters a set of elements: add them here, then click "Apply to all records".'
+elements.help_1: Checked elements + elements with content → appear in the prompt sent to the model and in the exported
+  JSON / TXT.
+elements.help_2: Unchecked (or empty) elements do not appear; the exported JSON won't contain the key, and no blank
+  lines are left.
+elements.help_3: 'Element names can be renamed freely: "Appearance", "Combat ability", whatever — changes only affect
+  future export and send headings.'
+elements.help_4: 'To give all characters a set of elements: add them here, then click "Apply to all records".'
+elements.help_title: How elements affect output and JSON
+elements.need_hint: Whether this element is needed (unchecked = ignored on export and send)
+elements.new_element_title: New element name
+elements.new_group_prompt: 'New element (under "{group}")
+
+  End the name with / to create a group that can contain nested elements'
+elements.new_prompt: 'New element
+
+  End the name with / to create a group that can contain nested elements'
+elements.no_records: This collection has no records yet.
+elements.page_desc: Define which elements each setting type contains by default. New entries are created from the
+  template; existing entries can be completed with "Apply Template". Unchecking means the element is not needed
+  by default and is ignored on export and send.
+elements.stat_empty: '{total} entries'
+elements.stat_line: '{total} entries · {filled} filled'
+elements.toggle_group: Expand / collapse this group
+elements.tree_hint: Click ▸ to expand a group; element names can be edited inline
+elements.tree_mode: Tree
+elements.tree_mode_title: 'Structured: collapse groups, add child elements, reorder, rename elements'
+elements.under_group: (added under "{group}")
+elements.value_placeholder: Content (multiline)
+errors.body_too_large: Request body too large
+errors.cells_bad_ref: 'cells references a nonexistent region id: {id}'
+errors.cells_key_invalid: Map cell keys must be "row|col" strings
+errors.collection_unsupported: Unsupported collection
+errors.debug_path: 'Debug paths must be within {root}: {path}'
+errors.dir_missing: 'Directory does not exist: {path}'
+errors.elements_not_array: 'The elements of record #{index} must be an array'
+errors.empty_not_saved: Content is empty; not saved
+errors.empty_response: The model returned empty content.
+errors.fetch_401: 'Failed to fetch models: invalid or unauthorized API key (HTTP 401). {detail}'
+errors.fetch_bad_json: 'Failed to fetch models: the API did not return valid JSON.'
+errors.fetch_generic: 'Failed to fetch models: {type}: {detail}'
+errors.fetch_http: 'Failed to fetch models (HTTP {code}): {detail}'
+errors.fetch_no_endpoint: 'Failed to fetch models: this API has no /models endpoint; enter model names manually.'
+errors.fetch_no_ids: The API returned a model list, but no model ids were recognized; enter them manually.
+errors.file_missing: 'File not found: {detail}'
+errors.generation_locked: AI is generating; the workstation is locked. Please wait for the current generation to
+  finish.
+errors.invalid_path: Invalid path
+errors.invalid_session_id: Invalid session id
+errors.is_process_mode: '"{label}" is a manuscript mode and cannot be used in the AI Workstation.'
+errors.language_required: Language is required
+errors.json_format: 'JSON format error: {detail}'
+errors.json_no_records: 'No importable records in the JSON (need an array, or {"items": [...]})'
+errors.map_cells_invalid: Map cells must be an object
+errors.map_cols_invalid: Map cols must be a non-empty array of strings
+errors.map_missing_fields: 'Map JSON is missing fields: {fields} (rows, cols, cells, regions required)'
+errors.map_not_object: Map JSON must be an object
+errors.map_regions_invalid: Map regions must be an object
+errors.map_rows_invalid: Map rows must be a non-empty array of strings
+errors.map_table_format: 'Map table format error: no Markdown table with a "Position" header found'
+errors.md_import_target: Markdown (.md) can currently only be imported into "Other Settings"; after import, use
+  "Move to…" to convert entries into a custom section.
+errors.memory_missing_fields: 'Memory #{index} is missing title or content'
+errors.mode_missing: 'Mode does not exist: {id}'
+errors.no_api_key: No API key configured. Enter one in Model Settings, or set the environment variable {env}.
+errors.no_api_url: No API URL configured. Enter one in Model Settings, or choose a provider preset.
+errors.no_choices: 'Response has no choices: {detail}'
+errors.no_model: No model selected. Fetch the model list in Model Settings first, or enter a model name manually.
+errors.no_text_summary: No text content to summarize
+errors.not_json: 'Response is not valid JSON: {detail}'
+errors.not_process_mode: '"{label}" is not a manuscript mode and cannot be used on the Manuscript page.'
+errors.not_utf8: '{file} is not UTF-8 encoded'
+errors.parse_failed: Unable to parse response
+errors.parse_failed_reason: '{file} parse failed: {detail}'
+errors.path_outside: 'Path is outside the project directory: {path}'
+errors.record_missing_name: 'Record #{index} is missing name or title'
+errors.record_not_object: 'Record #{index} is not a JSON object'
+errors.region_board_invalid: The board of region {id} must be an object
+errors.region_elements_invalid: The elements of region {id} must be an array
+errors.region_missing_id: Region is missing id
+errors.region_not_object: Region {id} must be an object
+errors.resource_missing: 'Resource not found: {path}'
+errors.serialize_failed: 'Cannot serialize: {type}'
+errors.session_missing: The conversation does not exist or has been deleted
+errors.this_mode: this mode
+errors.unknown_api: 'Unknown endpoint: {path}'
+errors.unknown_collection: 'Unknown collection: {name}'
+errors.unknown_import_target: 'Unknown import target: {name}'
+errors.unknown_surface: 'Unknown surface: {name}'
+errors.unknown_tool: 'Unknown built-in tool: {tool}'
+errors.workspace_empty: The workspace has no text to process.
+history.autosave_hint: Each generation creates a session automatically; history is saved per turn and can be revisited
+  anytime.
+history.broken_pointers: '{count} setting pointers are broken and were skipped when viewing.'
+history.current: Current conversation
+history.delete_confirm: Delete this conversation? This cannot be undone.
+history.empty: No conversations yet. Each generation is saved here automatically.
+history.input_prefix: 'Input: {text}'
+history.item_meta: '{turns} turns · {updated}'
+history.list_meta: '{turns} turns · {updated} · current'
+history.new: + New Conversation
+history.new_confirm: Start a new conversation? The current one is saved in history and can be revisited anytime.
+history.new_failed_reason: 'Failed to start new conversation: {reason}'
+history.not_started: not started
+history.output_prefix: 'Output: {text}'
+history.requirements_label: Requirements for this run
+history.return: Back to current conversation
+history.set_current: Set as current conversation
+history.started_new: New conversation started; previous ones remain in history.
+history.switch_failed_reason: 'Switch failed: {reason}'
+history.switched: Current conversation switched.
+history.title: Conversation History
+history.turn_chars: '{input} → {output} chars'
+history.turn_count: '{count} turns'
+history.untitled: Untitled conversation
+history.view: View this conversation
+history.view_all: View all history
+history.viewing: 'Viewing history conversation: {title}. The input on the left is still your current draft; history
+  is not overwritten.'
+history.viewing_short: 'History conversation: {title}'
+inventory.add_equipment: Add from Outfits/Equipment
+inventory.add_item: Add from Items
+inventory.assembly_title: '{name} · Full appearance assembly'
+inventory.carried_hint: Carry (on person / worn); uncheck = put into "Owned"
+inventory.carried_label: Carried
+inventory.carried_line: 'Carried:'
+inventory.carried_status: being carried
+inventory.carried_title: Carried items
+inventory.no_characters: The inventory only edits existing characters' carried items and worn equipment. No characters
+  yet — create one on the Characters page or import character JSON there.
+inventory.note_label: Note (the explanation sent to the model for this entry)
+inventory.owned_status: owned but not carried
+inventory.owned_title: Owned (not carried)
+inventory.page_desc: The inventory is edited only here (no longer on the Characters page). Select a character →
+  add to inventory / wear; pointers point directly to Items and Outfits & Equipment; the purse is a special inventory
+  field — enter an amount or wealthy / average / tight, empty = not shown.
+inventory.purse_label: Purse
+inventory.purse_line: 'Purse:'
+inventory.purse_placeholder: Empty = not shown; or enter wealthy / average / tight
+inventory.remove: Remove from inventory
+inventory.title: '{name} · Inventory'
+inventory.worn_line: 'Worn:'
+inventory.worn_status: being worn
+inventory.worn_title: Worn & Equipment
+language.back: Back
+language.first_run_hint: Takes effect immediately; you can change it later in Model Settings.
+language.first_run_title: Choose your language
+language.initial_presets_hint: 'Note: some built-in presets change language with the language chosen at first run; switching language later will not change them.'
+language.next: Next
+language.step_of: 'Step {step} of {total}'
+language.switch_failed_reason: 'Failed to switch language: {reason}'
+manuscript.access_failed_reason: 'Cannot access: {reason}'
+manuscript.ai_assist: AI Assist
+manuscript.ai_question: What should we do with the text?
+manuscript.ai_result_warning: The workspace still has an unapplied AI result; continuing will clear it.
+manuscript.ai_scope: Will process the entire workspace text, {count} chars. The result appears below the text; edit
+  it before deciding to overwrite, delete, or save elsewhere.
+manuscript.ai_title: AI Assist · Manuscript
+manuscript.autosaved: Auto-saved {name}
+manuscript.autosaving: Auto-saving…
+manuscript.busy: AI is processing; please wait.
+manuscript.clean_cn_quotes: Chinese quotes → straight quotes
+manuscript.clean_fullwidth_space: Full-width space → half-width
+manuscript.clean_merge_breaks: Merge line breaks within paragraphs
+manuscript.clean_merge_empty: Merge empty lines into one
+manuscript.clean_remove_empty: Remove all empty lines
+manuscript.clean_tools: Text cleaning tools
+manuscript.clean_trim: Trim whitespace
+manuscript.clean_trim_indent: Remove leading indentation
+manuscript.cleared: Cleared; you'll pick a file name when saving
+manuscript.current_dir: Current directory
+manuscript.delete_result: Delete Result
+manuscript.delete_result_confirm: Delete this AI result? The workspace text is not affected.
+manuscript.dir_label: Target directory (click through, or edit the path directly)
+manuscript.dir_status: 'Directory: {dir} · Current: {file}'
+manuscript.draft_staged: Draft auto-staged (unnamed — click "Save" to make it a file)
+manuscript.editor_placeholder: Write or paste your manuscript here…
+manuscript.empty_not_saved: Content is empty; not saved.
+manuscript.empty_unnamed: Empty (unnamed)
+manuscript.enc_gbk: GBK (needed by some Chinese sites)
+manuscript.enc_utf8: UTF-8 (recommended)
+manuscript.enc_utf8_bom: UTF-8 with BOM (some editors)
+manuscript.encoding: Encoding
+manuscript.export_memory: Export to Memory
+manuscript.export_title: '{base} · {date}'
+manuscript.export_txt: Export as txt
+manuscript.export_txt_btn: Save as / export txt…
+manuscript.exported_size: 'Exported: {path} ({size}KB)'
+manuscript.file_overwrite_confirm: '"{name}" already exists. Overwrite?'
+manuscript.filename_placeholder: filename.txt
+manuscript.find_replace: Find & Replace
+manuscript.find_replace_btn: Find and replace…
+manuscript.folder_title: Text folder
+manuscript.import_other_btn: Import from elsewhere…
+manuscript.import_output: Import from output (workspace/output/)
+manuscript.import_output_btn: Import from output…
+manuscript.imported: 'Imported: {path}'
+manuscript.lock_hint: The text and actions cannot be changed until completion.
+manuscript.lock_title: AI is processing
+manuscript.memory_content_label: Content (editable)
+manuscript.meta_elapsed: Time {elapsed}s
+manuscript.meta_line: Model {model} · Effort {effort}
+manuscript.meta_model: Model {model}
+manuscript.mode_fallback: AI processing
+manuscript.new_text: New text file
+manuscript.no_mode: No manuscript modes yet. Create one under Mode Management → Manuscript modes, e.g. "Polish &
+  Revise".
+manuscript.no_outputs: No outputs under workspace/output/ yet.
+manuscript.no_text_files: This directory has no text files yet.
+manuscript.nothing_export: The workspace has no text to export.
+manuscript.nothing_process: The workspace has no text to process yet.
+manuscript.open_failed_reason: 'Open failed: {reason}'
+manuscript.open_file: Open text file
+manuscript.overwrite: Overwrite workspace
+manuscript.overwrite_confirm: Overwrite the workspace with this result? The original text will be replaced.
+manuscript.overwritten_draft: Workspace overwritten (it's an unnamed draft — remember to save).
+manuscript.overwritten_file: Workspace overwritten; the file will auto-save.
+manuscript.page_desc: 'A standalone large-text workspace: the toolbar above offers AI assist, the text folder, and
+  export to Memory. Content is auto-staged; once bound to a file, it auto-saves 1.5s after you stop typing.'
+manuscript.pending_save: pending auto-save…
+manuscript.process_done: Processing complete
+manuscript.process_done_hint: Processing complete; the result is below the text and can be edited before applying.
+manuscript.process_failed: Processing failed
+manuscript.process_failed_reason: 'Processing failed: {reason}'
+manuscript.replace_all: Replace all
+manuscript.req_hint: Optional; the mode's own instructions will be followed. The result appears below the text and
+  can be edited before applying.
+manuscript.req_label: Processing instructions (optional)
+manuscript.req_placeholder: e.g. Adjust only the pacing of paragraph 3; unify to third person; keep all dialogue
+  and plot.
+manuscript.result_deleted: AI result deleted.
+manuscript.result_empty: Result is empty; cannot overwrite.
+manuscript.result_empty_save: Result is empty; cannot save to Memory.
+manuscript.result_placeholder: The AI result appears here and can be edited directly.
+manuscript.result_stat: Original {before} chars → result {after} chars · editable before applying.
+manuscript.result_title: AI Result
+manuscript.result_warning: Generated by AI; verify before applying
+manuscript.save_prompt: File name to save in {folder}/
+manuscript.save_result_memory: Save result to Memory
+manuscript.save_to_memory: Save to Memory
+manuscript.saved_status: Saved {name}
+manuscript.saved_to_memory: Saved to Memories.
+manuscript.source_ai: Manuscript · AI result · {mode}
+manuscript.source_workspace: Manuscript · workspace
+manuscript.start: Start processing
+manuscript.stat_line: Chars {chars} · Han {han} · Lines {lines} · Paras {paras} · {save}
+manuscript.too_big: Content too large; draft not staged (auto-save to file still works once bound)
+manuscript.try_another: ← Try another action
+manuscript.unnamed_draft: (Unnamed draft)
+manuscript.unsaved_clear: Content not yet saved in "(Unnamed)" will be cleared. Continue?
+manuscript.unsaved_discard: Content not yet saved in "(Unnamed)" will be discarded. Continue?
+manuscript.up_level: ⬆ Up one level
+manuscript.workspace_title: Manuscript workspace
+memories.all_categories: All categories
+memories.category_label: Category
+memories.chapter_label: Chapter / time
+memories.compress_all: Compress all memories
+memories.compress_failed: Compression failed
+memories.compress_failed_reason: 'Compression failed: {reason}'
+memories.compress_one: Compress this one
+memories.compress_result: Compression result (editable)
+memories.compress_stat: Original {before} chars → compressed {after} chars
+memories.compress_title: Memory compression result
+memories.compressed_suffix: ' (compressed)'
+memories.delete_confirm: Delete this memory?
+memories.edit_title: Edit Memory
+memories.import_json: Import memory JSON
+memories.meta_line: '{category} · {count} chars'
+memories.new: + New Memory
+memories.nothing_compress: No memories to compress.
+memories.page_desc: Manage short-term memories, long-term memories, foreshadowing, and setting notes in one place.
+  On the left of the AI Workstation you can check exactly the entries to send for the current task.
+memories.pick_hint: Select a memory on the left.
+memories.replace_original: Replace original content
+memories.save_as_new: Save as new entry
+memories.saved_new: Saved as new entry
+memories.updated: Memory updated
+messages.auto_sort_line: '{section} ← {count} entries'
+messages.auto_sort_none: No entries matched for auto-sorting
+messages.auto_sorted: 'Sorted: {report}'
+messages.imported_other: '{source} → Other Settings: {added} added, {updated} updated'
+messages.imported_stats: '{source} → {target}: {added} added, {updated} updated'
+messages.map_imported: 'Map imported: {count} regions'
+messages.memory_imported: '{source}: {added} memories added, {updated} updated'
+messages.moved: Moved {count} entries → {target}
+modes.add_kind: + New {kind}
+modes.add_kind_title: New {kind}
+modes.added: Added {kind}; you can start editing the prompt.
+modes.advanced: Advanced parameters
+modes.api_default: API default
+modes.autosave_hint: Auto-saved; model and reasoning are at the top
+modes.brainstorm_desc: Offer several distinct directions for what comes next
+modes.brainstorm_label: Ideas
+modes.count: '{count} modes'
+modes.delete: Delete Mode
+modes.delete_confirm: Delete mode "{label}"?
+modes.deleted: Mode deleted
+modes.draft_desc: Generate full text from settings and prompts
+modes.draft_label: Full Writing
+modes.effort_label: Reasoning effort
+modes.follow_default: Follow default model ({name})
+modes.follow_default_empty: Follow default model
+modes.group_empty: This group has no modes yet. Create one, or change another mode's purpose to this group.
+modes.keep_one: Keep at least one mode.
+modes.kind_hint: Writing modes appear only in the AI Workstation; manuscript modes only on the Manuscript page.
+  After changing the purpose, the mode moves to the matching group immediately.
+modes.kind_label: Purpose
+modes.kind_process: Manuscript mode
+modes.kind_process_desc: Used by the Manuscript page
+modes.kind_write: Writing mode
+modes.kind_write_desc: Used by the AI Workstation
+modes.list_title: '{kind} list'
+modes.logic_desc: Check setting consistency; organize constraints, risks, and progress points
+modes.logic_label: Logic Writing
+modes.meta_line: '{model} · {effort}'
+modes.model_hint: Model options come from the current API's model list; choosing "Follow default model" uses the
+  default model above.
+modes.model_label: Model
+modes.name_label: Mode name
+modes.new_process: New manuscript mode
+modes.new_write: New writing mode
+modes.no_builtin: This is a custom mode; there is no built-in version.
+modes.no_models: The current API has no model list yet. Go to Model Settings to fetch or enter models manually,
+  or modes cannot generate.
+modes.not_in_list: '{model} (not in current model list)'
+modes.outline_desc: Output scene framework, beats, and ready-to-execute writing prompts
+modes.outline_label: Framework Writing
+modes.page_desc: 'The two kinds are managed separately: writing modes appear only in the AI Workstation, manuscript
+  modes only on the Manuscript page. Each mode is an independent system prompt with its own model and reasoning
+  effort.'
+modes.pick_hint: Select a mode on the left, or create one.
+modes.prompt_saved_hint: The prompt is used by this mode immediately after saving; the old prompt groups and tool
+  descriptions are gone.
+modes.restore_builtin: Restore built-in prompt
+modes.restore_confirm: Restore the built-in system prompt and default parameters of "{label}"?
+modes.restored: Built-in settings restored
+modes.stale_warning: '{count} modes use models not available on the current API; generation will fall back to the
+  default model.'
+modes.sync_button: Sync to current API
+modes.sync_one: Sync now
+modes.sync_title: Set every mode's model to follow the current API default model and reset reasoning effort to the
+  default
+modes.synced: Synced to the current API's default model and reasoning effort.
+modes.system_prompt_label: System prompt (the core of this mode)
+modes.target_chars_option: Include target word count
+modes.target_chars_process_hint: Manuscript modes do not include a target word count; write length requirements
+  into "Processing instructions" instead.
+modes.target_chars_write_hint: Word count settings only apply to writing modes; manuscript modes do not include
+  a target word count.
+modes.temp_label: temperature (optional)
+modes.thinking_option: Send thinking parameter (supported by some APIs only)
+nav.chapters: Chapters & Export
+nav.characters: Characters
+nav.elements: Element Templates
+nav.equipment: Outfits & Equipment
+nav.factions: Factions
+nav.group_core: Core Settings
+nav.group_custom: Custom Settings
+nav.group_memory: Memory
+nav.group_system: System
+nav.group_writing: Writing
+nav.inventory: Inventory
+nav.items: Items
+nav.memories: Memories
+nav.modes: Mode Management
+nav.other: Other Settings
+nav.sections: Custom Sections
+nav.settings: Model Settings
+nav.text: Manuscript
+nav.worldmap: World Map
+nav.writer: AI Workstation
+providers.note: '【API】Currently using the {name} OpenAI-compatible API.'
+providers.note_generic: 【API】Currently using a custom OpenAI-compatible API. Do not assume a specific model, vendor,
+  or special capability; rely on the settings and prompts provided by the user.
+records.add_category: Add category
+records.add_from: + Add from {list}
+records.apply_template: Apply Template
+records.apply_template_title: Add missing elements from the Element Templates page (existing content is not overwritten)
+records.autosave_hint: Auto-saved after editing
+records.broken_pointer: ⚠ Broken pointer
+records.choose_file_first: Choose a file to import first.
+records.clear_selection: Clear selection
+records.content_label: Content (original text / long text)
+records.count_selected: '{total} entries · {selected} selected'
+records.custom_prefix: 'Custom: {label}'
+records.elem_stat: '{total} elements, {filled} filled'
+records.elements_label: Elements
+records.export_json: Export JSON
+records.export_json_title: Contains only enabled, filled elements; absent elements are omitted
+records.export_txt: Export TXT
+records.filled_suffix: '{count} filled'
+records.import_done: Import complete
+records.import_failed: Import failed
+records.import_failed_reason: 'Import failed: {reason}'
+records.import_panel_title: '{title}　(files in {path})'
+records.import_title: Import JSON into {label}
+records.import_title_other: Import Markdown / JSON into Other Settings
+records.inventory_hint: 'Carried items and worn equipment are not edited here: open the Inventory page on the left,
+  select a character, then add to inventory / wear (both places share the same data).'
+records.json_format_hint: 'Supports NovelHelper-exported JSON, {"items": [...]}, or {"名称": {...}} structures; format
+  errors are reported.'
+records.json_to_current: JSON → current settings
+records.keep_original: Keep original entries (copy instead of move)
+records.map_json_hint: Map JSON must contain the four fields rows, cols, cells, regions; missing fields or invalid
+  region references will be reported.
+records.md_to_current: Markdown (.md) → current settings
+records.members_label: Members (pointers → Characters)
+records.move: Move to…
+records.move_desc: '{count} entries. Moving creates new entries from the target collection''s template; the original
+  text goes into "Additional notes"; custom sections appear below.'
+records.move_failed_reason: 'Move failed: {reason}'
+records.move_selected: Move selected entries to…
+records.new: + New {singular}
+records.new_category_prompt: New category
+records.no_import_files: (no importable files in {path})
+records.no_match: No matching entries
+records.pick_hint: Select a record on the left, or create one.
+records.pick_label: Choose entries to add ({label})
+records.pick_title: Choose entries to add
+records.preview: Preview output
+records.preview_title: '{name} · Content to be sent / exported'
+records.qty: Qty
+records.select_all: Select all (current list)
+records.select_first: Check the entries to move on the left first.
+records.selected_suffix: ', {count} selected'
+records.slot_label: Worn slot
+records.target_empty: The target collection is empty.
+records.template_added: Added {count} elements
+records.template_exists: All template elements already exist
+records.tidy_hint: Check entries to move them to Characters / Factions / Items / Equipment / Memories in one step,
+  or convert them into entries of any custom section
+records.tidy_title: Organize imported content
+records.total: '{count} entries total'
+sections.add: + New Section
+sections.auto_from_label: Sorting rules (original category names from "Other Settings", comma-separated)
+sections.auto_sort: Auto-sort by category
+sections.auto_sort_title: Move content from "Other Settings" into matching sections based on the "Sorting rules"
+  below
+sections.default_desc: Custom setting section (can be added, removed, or renamed on the Custom Sections page)
+sections.delete: Delete Section
+sections.delete_confirm: 'Delete section "{label}"?
+
+  The sidebar entry will disappear; data/section_{key}.json stays on disk (the file is not deleted).'
+sections.desc_label: One-line description (shown under the page title)
+sections.empty: (No sections yet)
+sections.enable: Enable
+sections.help: '- Each section is an ordinary settings collection: like "Other Settings", it can hold entries, element
+  trees, and JSON / TXT export.
+
+  - To give a section a default element template: open Element Templates and pick the section in the dropdown.
+
+  - "Auto-sort by category" moves entries from "Other Settings" whose category matches into the corresponding section;
+  original text and source are preserved.
+
+  - Deleting a section only removes the entry point, never the file; to remove it completely, delete data/section_<key>.json
+  yourself.'
+sections.help_1: 'Each section is an ordinary settings collection: like "Other Settings", it can hold entries, element
+  trees, and JSON / TXT export.'
+sections.help_2: 'To give a section a default element template: open Element Templates and pick the section in the
+  dropdown.'
+sections.help_3: '"Auto-sort by category" moves entries from "Other Settings" whose category matches into the corresponding
+  section; original text and source are preserved.'
+sections.help_4: Deleting a section only removes the entry point, never the file; to remove it completely, delete
+  data/section_<key>.json yourself.
+sections.hide_hint: Uncheck to hide temporarily (data is not deleted)
+sections.key_count: 'key: {key} · {count} entries'
+sections.key_exists: This key already exists.
+sections.key_invalid: Invalid key; auto-using {key}
+sections.key_prompt: English key (used for the filename; letters, digits, underscores; e.g. politics)
+sections.list_title: Section list
+sections.name_placeholder: Section name
+sections.name_prompt: Section name (e.g., politics / military / folklore)
+sections.open: Open this section
+sections.page_desc: Split settings into sections (worldbuilding, species, magic & skills…). New sections add a page
+  in the sidebar and their own JSON under data/.
+sections.sort_failed_reason: 'Sorting failed: {reason}'
+settings.about: About NovelHelper
+settings.about_author: '; author''s GitHub:'
+settings.about_oss: 'NovelHelper is a free, open-source tool. Source:'
+settings.advanced: Advanced request parameters
+settings.api_section: API & Providers
+settings.app_section: Application
+settings.backed_up_to: 'Backed up to: {path}'
+settings.backup_all: Back up all data
+settings.backup_failed_reason: 'Backup failed: {reason}'
+settings.custom_preset: Custom / OpenAI-compatible
+settings.custom_url_hint: 'Custom URL: uses the generic API prompt without assuming a specific model or vendor.'
+settings.data_dir_hint: The data directory is app/data/ by default and can be overridden with the NOVELHELPER_DATA
+  environment variable. Restart the server after changing directories.
+settings.default_effort_label: Default reasoning effort
+settings.default_model_label: Default model
+settings.dir_export: Export directory
+settings.dir_import: Import directory
+settings.dir_log: Log directory
+settings.dir_output: Output directory
+settings.dir_text: Manuscript workspace
+settings.dirs_hint: Relative to app/ ({root})
+settings.dirs_section: Directories
+settings.fetch_failed: Fetch failed
+settings.fetch_failed_reason: 'Failed to fetch models: {reason}'
+settings.fetch_models: Fetch available models
+settings.fetched_models: Fetched {count} models.
+settings.force_reasoning: Force-send reasoning_effort (may be needed by custom APIs)
+settings.force_thinking: Force-send thinking parameter
+settings.generic_prompt: Generic prompt
+settings.generic_prompt_hint: 'Generic API prompt: assumes no specific model name, vendor, or special capability.'
+settings.key_optional_hint: This is a custom or local API; the API key can be left empty. Fill it in only if the
+  API requires authentication.
+settings.key_placeholder: '{env} (optional)'
+settings.language: Language
+settings.language_hint: Takes effect immediately
+settings.license_body: 'This program is free software: you can redistribute it and/or modify it under the terms of the
+  GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your
+  option) any later version.'
+settings.license_copyright: Copyright (C) 2026 DreamInsight24 and NovelHelper contributors
+settings.license_title: License & Disclaimer
+settings.license_view: 'View the full license and the corresponding source:'
+settings.license_warranty: 'This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+  without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
+  Public License for more details.'
+settings.max_tokens_label: max_tokens field name
+settings.model_name_label: Model name (enter manually)
+settings.model_name_placeholder: e.g. gpt-4.1-mini / deepseek-flash
+settings.models_endpoint_hint: Requires the API to support the /models endpoint; if unsupported, enter models manually.
+settings.models_hint: The model list can be fetched from the API or entered manually
+settings.models_label: Available models (one per line)
+settings.models_section: Models & Default Parameters
+settings.models_updated: Model list updated
+settings.no_key_hint: No API key yet. Enter one manually, or set the environment variable {env}.
+settings.no_model_option: (Enter models first)
+settings.openai_compat_note: Currently using an OpenAI-compatible API.
+settings.page_desc: Supports many OpenAI-compatible providers and any custom URL. The API key is stored only in
+  the local data/config.json.
+settings.port_desc: Default 8765. The new port takes effect on the next start; the --port command-line flag overrides
+  it temporarily.
+settings.port_hint: Restart required after changing the port
+settings.port_label: Port (1–65535)
+settings.preset_hint: Uses the "{label}" preset API prompt.
+settings.provider_label: Provider preset
+settings.provider_label_dashscope: Alibaba Cloud / DashScope
+settings.provider_label_zhipu: Zhipu GLM
+settings.provider_note_custom: Using a custom OpenAI-compatible API; do not assume a specific model, vendor, or
+  special capabilities.
+settings.provider_note_dashscope: Using Alibaba Cloud DashScope's OpenAI-compatible API.
+settings.provider_note_deepseek: Using DeepSeek's OpenAI-compatible API.
+settings.provider_note_moonshot: Using Moonshot / Kimi's OpenAI-compatible API.
+settings.provider_note_openai: Using OpenAI Chat Completions API.
+settings.provider_note_openrouter: Using OpenRouter's OpenAI-compatible API.
+settings.provider_note_siliconflow: Using SiliconFlow's OpenAI-compatible API.
+settings.provider_note_zhipu: Using Zhipu GLM's OpenAI-compatible API.
+settings.provider_short: Provider
+settings.refresh_models: Refresh model options
+settings.save: Save configuration
+settings.saved: Configuration saved
+settings.target_chars_hint: The default is used as the initial target length in the Workstation; it can be changed
+  for each generation.
+settings.target_chars_label: Default target length (characters)
+settings.target_strict: Hard requirement by default
+settings.test: Test connection
+settings.test_failed: Test failed
+settings.test_failed_reason: 'Test failed: {reason}'
+settings.test_ok: 'Connected: {model} ({elapsed}s)'
+settings.test_ok_short: Connected
+settings.timeout_label: Timeout (seconds)
+settings.url_label: API URL (leave empty to use the preset, or enter your own)
+settings.wizard: Setup wizard
+settings.writing_section: Default writing preferences
+welcome.custom_url_note: 'Using a custom URL: the generic API prompt will be used.'
+welcome.desc: First choose an API and enter your API key. You can skip this; browsing and editing settings works
+  without it, but a model is required before generating.
+welcome.key_note: The API key is stored only in your local app/data/config.json and is never uploaded to NovelHelper's
+  own servers.
+welcome.key_placeholder: '{env} (can be entered later)'
+welcome.preset_note: Using the API prompt for the "{name}" preset.
+welcome.saved: Configuration saved. You're ready to go.
+welcome.skip: Skip for now
+welcome.skipped: Wizard skipped; you can configure it anytime in Model Settings.
+welcome.start: Save and start
+welcome.title: Welcome to NovelHelper {version}
+workstation.append_prompt: Append to user prompt
+workstation.appended: Appended to the user prompt (original content untouched).
+workstation.attach_hint: Put reference material into workspace/import/ and refresh to select it.
+workstation.attachments: Attachments
+workstation.char_count: '{count} chars'
+workstation.chip_characters: Characters {count}
+workstation.chip_factions: All factions
+workstation.chip_factions_label: Factions (whole section)
+workstation.chip_memory: Memories {count}
+workstation.chip_memory_label: Story memories
+workstation.chip_state: Current state
+workstation.chip_target: Target {count} chars
+workstation.chip_world: Worldbuilding {count}
+workstation.chip_world_label: Worldbuilding & custom sections
+workstation.clear_confirm: Clear the current input (prompt, current state, additional notes)? Setting selections
+  are kept.
+workstation.clear_input: Clear input
+workstation.dir_required: Enter a save directory.
+workstation.disclaimer: This tool is for lawful literary creation and learning exchange only. Do not use it to produce
+  or spread illegal content, or to engage in any conduct violating laws, regulations, or public order and morals.
+  Users bear responsibility for their own actions.
+workstation.disclaimer_label: 'Usage notice: '
+workstation.done: Generation complete
+workstation.done_saved: Generation complete; saved to conversation history.
+workstation.extra2_label: Additional notes (optional)
+workstation.extra2_placeholder: Extra style, restrictions, or reference information
+workstation.extra_label: Extra requirements for this run (optional; sent together with the writing mode)
+workstation.extra_placeholder: e.g. List 3 options first, then expand one; or "write only 1500 characters, ending
+  on a cliffhanger".
+workstation.extra_read_failed: 'Failed to read attachment: {path}'
+workstation.failed: Generation failed
+workstation.failed_reason: 'Generation failed: {reason}'
+workstation.filename_placeholder: filename.{fmt}
+workstation.follow_default: follow default
+workstation.go_modes: Go to Mode Management
+workstation.include_label: Which settings to include
+workstation.input_hint: Only checked items are sent; unchecked content never enters the prompt
+workstation.input_title: Input settings
+workstation.lock_hint: The workstation is fully locked; input and actions cannot be changed until completion.
+workstation.lock_title: AI is generating
+workstation.log_empty: (no calls yet)
+workstation.log_hint: Errors and call info
+workstation.log_title: Run log
+workstation.meta_line: 'Model: {model} · Reasoning effort: {effort}'
+workstation.mode_hint: The AI Workstation only shows writing modes
+workstation.no_characters: No characters yet. Create one on the Characters page, or import character JSON there.
+workstation.no_mode: No writing modes yet. Create one in Mode Management, or change an existing mode's purpose to
+  writing.
+workstation.no_mode_toast: No writing mode available yet; create one in Mode Management first.
+workstation.no_options: (no options yet)
+workstation.output_empty: Prepare the input on the left, pick a writing mode, then click "Start generating".
+workstation.output_empty_hint: Results appear here and are saved to the conversation history automatically.
+workstation.output_meta: Model {model} · reasoning {effort} · time {elapsed} · tokens {tokens}
+workstation.output_title: AI Output
+workstation.page_desc: Generate new content with a writing mode. On the left, pick settings and write your user
+  prompt; to work on existing text, use the Manuscript page. The workstation is fully locked during generation.
+workstation.preview_failed_reason: 'Preview failed: {reason}'
+workstation.preview_send: Preview what will be sent
+workstation.preview_title: What is actually sent to the model
+workstation.prompt_label: User prompt
+workstation.prompt_placeholder: 'Write what you want the AI to do this run: plot, scenes, character actions, style,
+  details that must appear…'
+workstation.raw_title: Raw AI output
+workstation.result_meta: Model {model} · Effort {effort} · Time {elapsed}s
+workstation.save_as: Save as {fmt}
+workstation.save_dir: Save directory
+workstation.save_md: Save as MD
+workstation.save_note: Saves the raw AI output currently displayed.
+workstation.save_txt: Save as TXT
+workstation.selected_of: '{count} / {total} selected'
+workstation.send_summary: 'This run will send: {list}'
+workstation.start: Start generating
+workstation.state_label: Current state (time, place, character status right now…)
+workstation.state_placeholder: e.g. current time, place, character positions and mood…
+workstation.strict: Hard requirement
+workstation.system_label: system ({count} chars)
+workstation.target_default: Default {count} chars
+workstation.target_label: Target length this run
+workstation.to_manuscript: Send to Manuscript
+workstation.user_label: user ({count} chars)
+workstation.view_raw: View raw
+workstation.world_entries: Worldbuilding entries
+worldmap.add_axis_end: Add a {axis} at the end
+worldmap.add_axis_front: Add a {axis} at the front
+worldmap.add_col_end: +Col·End
+worldmap.add_col_start: +Col·Start
+worldmap.add_row_end: +Row·End
+worldmap.add_row_start: +Row·Start
+worldmap.apply_other_template: Apply "Other Settings" template
+worldmap.attach_existing: Attach existing region
+worldmap.attach_loose: 'or attach an unplaced region: {list}'
+worldmap.axes_button: Row / column names…
+worldmap.axes_empty: Rows and columns cannot be emptied.
+worldmap.axes_hint: Rename by editing; writing fewer lines deletes trailing rows/columns (their regions become unplaced,
+  never deleted). Use the + buttons to add.
+worldmap.axes_title: Row / column names
+worldmap.axes_too_many: There can't be more names than existing rows/columns; use the + buttons to add.
+worldmap.axis_blank_name: There is an empty {axis} name.
+worldmap.axis_clash: 'Clashes with {axis} names pending deletion: {list}'
+worldmap.axis_dup_name: There are duplicate {axis} names.
+worldmap.axis_duplicate: A {axis} named {label} already exists.
+worldmap.axis_empty_msg: '{axis} cannot be empty.'
+worldmap.axis_name_exists: A {axis} with that name already exists.
+worldmap.axis_rename_title: Click to rename this {axis}
+worldmap.batch_rename: Rename all
+worldmap.cannot_move_into_self: A region cannot be moved into its own subregion.
+worldmap.cell_drag_title: Drag = move (dragging onto another cell swaps them); click = edit
+worldmap.cell_empty_title: Click to create / attach a region, or drag another region here
+worldmap.cell_modal_title: What goes in this cell
+worldmap.cell_occupied: This cell already has a region.
+worldmap.col: column
+worldmap.cols_label: Columns (one per line)
+worldmap.corner_label: Position
+worldmap.create_attach: Create and attach
+worldmap.create_subgrid: + Create 3×3 subgrid
+worldmap.delete_confirm: Delete "{name}"
+worldmap.delete_confirm_end: '? Deleted regions no longer appear in the prompt.'
+worldmap.delete_confirm_sub: ' and its {count} subregions'
+worldmap.delete_full: Delete region "{name}"? Its cell will be cleared.
+worldmap.delete_region: Delete Region (with subregions)
+worldmap.delete_region_title: Delete region
+worldmap.delete_with_children: Delete region "{name}" and its {count} subregions? Their cells will be cleared.
+worldmap.depth_crumb: '{name} (level {depth})'
+worldmap.depth_limit: Moving there would exceed the map depth limit ({max} levels).
+worldmap.depth_max: This is level {depth}, the map depth limit ({max} levels) — no deeper subgrids can be created.
+worldmap.detach: Detach (return to unplaced)
+worldmap.details_label: Detailed description
+worldmap.drop_confirm: This deletes the last {rows} rows and {cols} columns; regions on them become "unplaced" (the
+  regions themselves are not deleted).
+worldmap.drop_confirm_title: Delete trailing rows/columns?
+worldmap.elements_label: Region elements (terrain, climate, inhabitants, danger level…)
+worldmap.grid_empty_note: (grid still empty — grids with no content at all do not appear in the prompt)
+worldmap.grid_size: '{rows} rows × {cols} cols'
+worldmap.import_json: Import map JSON
+worldmap.in_root: Region in the root grid
+worldmap.loose_hint: 'Regions not yet on the map: {list} (attach them in any empty cell)'
+worldmap.moved: Moved "{name}"
+worldmap.name_label: Map name
+worldmap.name_placeholder: Region name, e.g. Slime Forest
+worldmap.no_subgrid: No subgrid yet. Create one when you need to subdivide the next level; empty grids are not written
+  into the prompt.
+worldmap.nothing_to_add: No elements to add
+worldmap.page_desc: 'A deterministic tree: each cell of the root grid holds a region, and a region''s own subgrid
+  holds subregions, up to {max} levels deep. Rows and columns can both be added; grids with no content at all are
+  not written into the prompt.'
+worldmap.pick_cell: Click a cell on the left to view / edit its region.
+worldmap.pick_region: Choose a region to attach
+worldmap.region_name_label: Region name
+worldmap.rename: Rename map
+worldmap.rename_axis_title: Rename this {axis}
+worldmap.rename_clash: Renaming caused two cells to collide; try a different set of names.
+worldmap.root_hint: 'Root grid (level 1): click an empty cell to create / attach a region; click a region to edit
+  it'
+worldmap.row: row
+worldmap.rows_label: Rows (one per line)
+worldmap.subgrid: Subgrid
+worldmap.subgrid_created: 3×3 subgrid created
+worldmap.subgrid_hint: Regions of level {depth} attach here
+worldmap.subgrid_label: 'Subgrid '
+worldmap.summary_label: One-line summary
+worldmap.swapped: Swapped "{a}" with "{b}"

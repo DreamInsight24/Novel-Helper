@@ -1,34 +1,50 @@
 <!doctype html>
+<!--
+Copyright (C) 2026 DreamInsight24 and NovelHelper contributors
+
+SPDX-License-Identifier: GPL-3.0-or-later
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>NovelHelper · AI 小说工作站</title>
+<title data-i18n="common.doc_title"></title>
 <link rel="stylesheet" href="/style.css">
+<link rel="icon" href="data:,">
 </head>
 <body>
 <div id="app">
   <aside id="sidebar">
     <div class="brand">
       <div class="brand-title">NovelHelper</div>
-      <div class="brand-sub">本地优先的小说创作工具 · v2610.1</div>
-      <div id="debug-badge" class="debug-badge" hidden>DEBUG 模式</div>
+      <div class="brand-sub" data-i18n="common.tagline"></div>
+      <div id="debug-badge" class="debug-badge" hidden data-i18n="common.debug_badge"></div>
     </div>
     <nav id="nav"></nav>
     <div class="side-foot">
-      <div id="status-mini" class="status-mini">就绪</div>
-      <div class="side-note">数据保存在 app/data/；产出与导入导出在 app/workspace/</div>
+      <div id="status-mini" class="status-mini" data-i18n="common.ready"></div>
+      <div class="side-note" data-i18n="common.side_note"></div>
     </div>
   </aside>
   <main id="main"></main>
 </div>
 <div id="overlay-root"></div>
 <div id="toast-root"></div>
-<script src="/core.js"></script>
-<script src="/records.js"></script>
-<script src="/views.js"></script>
-<script src="/config.js"></script>
-<script src="/workstation.js"></script>
-<script src="/manuscript.js"></script>
+<script src="/i18n/i18n.js"></script>
+<script src="/i18n/bootstrap.js"></script>
 </body>
 </html>

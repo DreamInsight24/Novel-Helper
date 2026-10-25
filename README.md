@@ -52,15 +52,12 @@ python app/run.py --no-browser
 
 ## 首次引导
 
-第一次打开会显示模型配置向导：
+第一次打开会进入两步引导：
 
-- 选择提供商预设，或填写自定义 OpenAI 兼容 URL；
-- 填写 API Key；
-- 从接口获取模型，或手动填写模型名；
-- 选择默认模型和默认推理强度；
-- 可以测试连接，也可以直接跳过。
+1. 选择语言：可选列表，点击即时预览；部分初始化预设（元素模板、自定义栏目、记忆分类、默认模式名与说明、默认记录名、世界地图行列名等）会按这里选择的语言生成并保存，之后切换语言不会改写。
+2. 接口设置：选择提供商预设，或填写自定义 OpenAI 兼容 URL；填写 API Key；获取或手动填写模型；选择默认模型和默认推理强度。
 
-跳过不会影响编辑设定和使用界面，只会提示你尚未完成模型配置。之后可以在「模型设置 → 设置向导」重新打开。
+两步之间可以返回上一步。接口设置可以跳过，稍后在「模型设置 → 设置向导」重新打开。
 
 ## 日常使用
 
@@ -177,21 +174,6 @@ python app/run.py --clean-debug
 
 `app/debug/` 已加入 `.gitignore`。
 
-## 命令行工具
-
-在 `app/` 目录下运行：
-
-```bash
-python tools/writer.py --dry-run
-python tools/writer.py -r
-python tools/checker.py --all
-python tools/fixer.py --text "第3段改成……"
-python tools/idea_helper.py -n 5 --save
-python tools/md2txt.py --newest
-```
-
-模型、API Key 和目录来自 `app/data/config.json`；界面里的写稿模式与稿件处理模式以 `app/data/modes.json` 为准。
-
 ## 自检
 
 ```bash
@@ -240,4 +222,16 @@ git push origin v2610.2
 
 ## License
 
-[MIT](LICENSE)
+本项目以 [GNU 通用公共许可证 v3.0 或更高版本](LICENSE)（GPL-3.0-or-later）授权。
+
+- 版权：Copyright (C) 2026 DreamInsight24 and NovelHelper contributors。
+- 你可以自由使用、复制、修改与再分发本项目，但须遵守 GPL-3.0 的条款：保留版权与许可声明、标注修改内容及日期、以相同许可发布修改后的版本，并在分发二进制（如 `NovelHelper.exe`）时一并提供对应源码。
+- 本项目按「原样」提供，不提供任何担保。完整条款见 [LICENSE](LICENSE)。
+
+### 对应源码（Corresponding Source）
+
+根据 GPL-3.0 第 6 条，随二进制分发的对应源码即本仓库本身：
+
+- 源码仓库：<https://github.com/DreamInsight24/Novel-Helper>
+- 构建配置：`NovelHelper.spec`；构建工作流：`.github/workflows/build-windows.yml`
+- 与某个 Release 中的 `NovelHelper.exe` 完全对应的源码，请以该 Release 的 tag 检出本仓库。

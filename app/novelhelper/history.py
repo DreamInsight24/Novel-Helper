@@ -1,5 +1,22 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# Copyright (C) 2026 DreamInsight24 and NovelHelper contributors
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 """
 novelhelper/history.py
 AI 工作站对话历史。
@@ -17,6 +34,8 @@ AI 工作站对话历史。
 不会让整份历史失效，也不会把旧设定正文重复存一遍。
 """
 from __future__ import annotations
+
+from .localization import t
 
 import copy
 import json
@@ -47,7 +66,7 @@ def _atomic_write(path: Path, payload: dict) -> None:
 
 def _conversation_path(session_id: str) -> Path:
     if not _ID_RE.match(session_id or ""):
-        raise ValueError("非法的会话 id")
+        raise ValueError(t('errors.invalid_session_id'))
     return CONVERSATION_DIR / f"{session_id}.json"
 
 
@@ -72,6 +91,9 @@ def _title_from_prompt(prompt: str, mode: str) -> str:
     if clean:
         return clean[:28] + ("…" if len(clean) > 28 else "")
     return f"新对话 · {mode}"
+
+
+title_from_prompt = _title_from_prompt
 
 
 def create_session(title: str = "", mode: str = "draft") -> dict:

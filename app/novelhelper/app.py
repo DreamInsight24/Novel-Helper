@@ -1,5 +1,22 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# Copyright (C) 2026 DreamInsight24 and NovelHelper contributors
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 """
 novelhelper/app.py
 应用入口。
@@ -19,9 +36,9 @@ from pathlib import Path
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-    from novelhelper import logger, server, store  # type: ignore
+    from novelhelper import localization, logger, server, store  # type: ignore
 else:  # pragma: no cover
-    from . import logger, server, store
+    from . import localization, logger, server, store
 
 
 def _prepare_console() -> None:
@@ -42,11 +59,17 @@ def _prepare_console() -> None:
 
 def _check_install() -> int:
     """检查打包后的网页资源与数据目录是否可读写，供 CI 和故障排查使用。"""
-    required = ("index.html", "core.js", "style.css", "workstation.js", "manuscript.js")
+    required = ("index.html", "core.js", "style.css", "workstation.js", "manuscript.js",
+                "i18n/i18n.js", "i18n/bootstrap.js")
     missing = [name for name in required if not (store.WEB_DIR / name).is_file()]
     if missing:
         print(f"[错误] 安装不完整，缺少网页资源：{', '.join(missing)}")
         print(f"       资源目录：{store.WEB_DIR}")
+        return 1
+    try:
+        localization.validate_translations()
+    except ValueError as exc:
+        print(f"[错误] 本地化资源校验失败：{exc}")
         return 1
     try:
         store.ensure_dirs()

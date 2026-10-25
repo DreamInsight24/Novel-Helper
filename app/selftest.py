@@ -1,5 +1,22 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# Copyright (C) 2026 DreamInsight24 and NovelHelper contributors
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 """
 NovelHelper 自检。
 
@@ -31,7 +48,9 @@ TEMP_DATA = Path(tempfile.mkdtemp(prefix="novelhelper_data_"))
 TEMP_WORK = Path(tempfile.mkdtemp(prefix="novelhelper_work_"))
 os.environ["NOVELHELPER_DATA"] = str(TEMP_DATA)
 
+import novelhelper  # noqa: E402
 from novelhelper import ai, context, history, logger, project, prompts as prompts_mod, server, store  # noqa: E402
+from novelhelper import _version  # noqa: E402
 
 PASS: list[str] = []
 FAIL: list[str] = []
@@ -53,6 +72,11 @@ def main() -> int:
     print("=" * 64)
     print(f"临时数据: {TEMP_DATA}")
     print(f"临时产出: {TEMP_WORK}")
+
+    check("根包版本入口与版本模块保持兼容",
+          novelhelper.__version__ == _version.__version__
+          and novelhelper.APP_VERSION == _version.APP_VERSION
+          and "__version__" not in novelhelper.__all__)
 
     # ── 0. 默认值 ─────────────────────────────
     cfg = store.default_config()
@@ -211,6 +235,8 @@ def main() -> int:
           "测试地图" in map_user and "测试城" in map_user and "临海城市" not in map_user)
 
     # ── 2. 历史指针 ───────────────────────────
+    check("历史标题公共入口保留原生成规则",
+          history.title_from_prompt("  测试   标题 ", "outline") == "测试 标题")
     session = history.create_session("测试会话", "outline")
     compact = {
         "include": selection["include"],
@@ -475,8 +501,8 @@ def main() -> int:
         with urllib.request.urlopen(base + "/manuscript.js", timeout=20) as resp:
             manuscript_js = resp.read().decode("utf-8")
         check("稿件处理前端静态资源可访问",
-              "稿件处理" in manuscript_js and "AI 辅助" in manuscript_js
-              and "覆盖原工作区" in manuscript_js)
+              "nav.text" in manuscript_js and "manuscript.ai_assist" in manuscript_js
+              and "manuscript.overwrite" in manuscript_js)
 
         deleted = delete("/api/history/" + hist["items"][0]["id"])
         check("DELETE /api/history/<id>", deleted.get("ok") is True)

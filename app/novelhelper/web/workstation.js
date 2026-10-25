@@ -1,11 +1,30 @@
+/*
+ * Copyright (C) 2026 DreamInsight24 and NovelHelper contributors
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 /* NovelHelper —— AI 工作站（左输入 / 右输出） */
 'use strict';
 
 const WORK_FALLBACK = [
-  { id: 'logic', label: '逻辑写作', desc: '核对设定一致性，整理约束、风险与推进节点' },
-  { id: 'outline', label: '框架写作', desc: '输出场景框架、节拍与可直接执行的写作提示词' },
-  { id: 'draft', label: '完整写作', desc: '根据设定与提示词生成完整正文' },
-  { id: 'brainstorm', label: '灵感方案', desc: '给出多条有差异的后续方向供选择' }
+  { id: 'logic', label: i18n.t('modes.logic_label'), desc: i18n.t('modes.logic_desc') },
+  { id: 'outline', label: i18n.t('modes.outline_label'), desc: i18n.t('modes.outline_desc') },
+  { id: 'draft', label: i18n.t('modes.draft_label'), desc: i18n.t('modes.draft_desc') },
+  { id: 'brainstorm', label: i18n.t('modes.brainstorm_label'), desc: i18n.t('modes.brainstorm_desc') }
 ];
 
 /** AI 工作站只使用写稿模式；稿件处理模式在「稿件处理」页使用。 */
@@ -18,7 +37,7 @@ function workModes() {
 function workModeLabel(id) {
   const mode = allModes().find(m => m.id === id) ||
     WORK_FALLBACK.find(m => m.id === id);
-  return mode ? mode.label : (id || '完整写作');
+  return mode ? mode.label : (id || i18n.t('modes.draft_label'));
 }
 
 /** 把工作站状态补齐，兼容旧版 state.json。 */
@@ -71,7 +90,7 @@ async function wsLoadProjectFiles() {
       const r = await api('/api/file?path=' + encodeURIComponent(rel));
       sel.project_files.push({ path: rel, label: rel, content: r.content });
     } catch (e) {
-      toast('附加资料读取失败：' + rel, 'err');
+      toast(i18n.t('workstation.extra_read_failed', { path: rel }), 'err');
     }
   }
   return sel;
@@ -100,7 +119,7 @@ function modeBadge(id) {
 
 function previewText(text, n) {
   const clean = String(text || '').replace(/\s+/g, ' ').trim();
-  return clean.length > n ? clean.slice(0, n) + '…' : (clean || '（空）');
+  return clean.length > n ? clean.slice(0, n) + '…' : (clean || i18n.t('common.empty_paren'));
 }
 
 // ─────────────────────────────────────────────
@@ -109,7 +128,7 @@ function previewText(text, n) {
 function pickerRows(items, selectedIds, onToggle, describe) {
   const box = h('div', { class: 'picker' });
   if (!items.length) {
-    box.appendChild(h('div', { class: 'muted small', text: '（暂无可选项）' }));
+    box.appendChild(h('div', { class: 'muted small', text: i18n.t('workstation.no_options') }));
     return box;
   }
   items.forEach(item => {
@@ -133,7 +152,7 @@ function toggleId(list, id, on) {
 
 function worldItems() {
   const out = [];
-  collItems('other').forEach(rec => out.push({ rec, group: '其他设定' }));
+  collItems('other').forEach(rec => out.push({ rec, group: i18n.t('nav.other') }));
   sectionDefs().forEach(sec => collItems('section_' + sec.key)
     .forEach(rec => out.push({ rec, group: sec.label || sec.key })));
   return out;
@@ -153,20 +172,20 @@ function viewWorkstation(main) {
   const modes = workModes();
   const mode = modes.find(m => m.id === ws.mode) || modes[0] || null;
 
-  main.appendChild(pageHead('AI 工作站',
-    '使用写稿模式生成新内容。左侧选择设定、撰写用户提示词；处理已有稿件请到「稿件处理」页。生成期间工作站会完全锁定。',
+  main.appendChild(pageHead(i18n.t('nav.writer'),
+    i18n.t('workstation.page_desc'),
     h('div', { class: 'inline' },
-      h('button', { text: '对话历史', onclick: () => openHistoryDialog() }),
-      h('button', { text: '当前对话', onclick: () => returnToCurrent() }),
+      h('button', { text: i18n.t('history.title'), onclick: () => openHistoryDialog() }),
+      h('button', { text: i18n.t('history.current'), onclick: () => returnToCurrent() }),
       h('button', {
-        class: 'primary', text: '＋ 新对话',
+        class: 'primary', text: i18n.t('history.new'),
         onclick: () => newConversation()
       }))));
 
   if (session && !isCurrentSession) {
     main.appendChild(h('div', { class: 'notice' },
-      h('span', { text: '正在查看历史对话：' + (session.title || '未命名') + '。左侧输入仍是当前草稿，不会覆盖历史。' }),
-      h('button', { class: 'mini', text: '返回当前对话', onclick: () => returnToCurrent() })));
+      h('span', { text: i18n.t('history.viewing', { title: session.title || i18n.t('common.unnamed') }) }),
+      h('button', { class: 'mini', text: i18n.t('history.return'), onclick: () => returnToCurrent() })));
   }
 
   const row = h('div', { class: 'workbench-row' });
@@ -178,13 +197,13 @@ function viewWorkstation(main) {
 
   // ── 左侧：写稿模式 ───────────────────────
   const modeCard = h('div', { class: 'card' });
-  modeCard.appendChild(h('h2', null, '写稿模式',
-    h('span', { class: 'hint', text: 'AI 工作站只显示写稿模式' })));
+  modeCard.appendChild(h('h2', null, i18n.t('modes.kind_write'),
+    h('span', { class: 'hint', text: i18n.t('workstation.mode_hint') })));
   if (!modes.length) {
     modeCard.appendChild(h('div', { class: 'notice warn' },
-      h('span', { text: '还没有写稿模式。请到「模式管理」新增，或把某个模式的用途改为写稿。' }),
+      h('span', { text: i18n.t('workstation.no_mode') }),
       h('button', {
-        class: 'mini', text: '前往模式管理',
+        class: 'mini', text: i18n.t('workstation.go_modes'),
         onclick: () => { state.ui.modes = { kind: 'write', sel: '' }; go('modes'); }
       })));
   } else {
@@ -197,13 +216,12 @@ function viewWorkstation(main) {
     modeCard.appendChild(h('div', { class: 'mode-desc', text: mode ? (mode.desc || '') : '' }));
     const api = (state.db.config || {}).api || {};
     modeCard.appendChild(h('div', { class: 'small muted', style: { marginTop: '6px' } },
-      '模型：' + (mode.model || api.default_model || '跟随默认') +
-      ' · 推理强度：' + (mode.effort || api.default_effort || 'medium')));
+      i18n.t('workstation.meta_line', { model: mode.model || api.default_model || i18n.t('workstation.follow_default'), effort: mode.effort || api.default_effort || 'medium' })));
     modeCard.appendChild(h('div', { class: 'field', style: { marginTop: '10px' } },
-      h('label', { text: '本次补充要求（可选，会与写稿模式一起发送）' }),
+      h('label', { text: i18n.t('workstation.extra_label') }),
       h('textarea', {
         rows: 4, value: ws.work_prompt || '',
-        placeholder: '例如：先列 3 个方案，再选一个展开；或“只写 1500 字，收在悬念处”。',
+        placeholder: i18n.t('workstation.extra_placeholder'),
         oninput: e => { ws.work_prompt = e.target.value; touch('state', true); }
       })));
   }
@@ -211,20 +229,20 @@ function viewWorkstation(main) {
 
   // ── 左侧：输入设定 ───────────────────────
   const inputCard = h('div', { class: 'card' });
-  inputCard.appendChild(h('h2', null, '输入设定',
-    h('span', { class: 'hint', text: '勾选才发送；未勾选的内容不会进入提示词' })));
+  inputCard.appendChild(h('h2', null, i18n.t('workstation.input_title'),
+    h('span', { class: 'hint', text: i18n.t('workstation.input_hint') })));
 
   const summary = h('div', { class: 'small muted input-summary' });
   const refreshSummary = () => {
     const bits = [
-      '人物 ' + (sel.character_ids || []).length,
-      '记忆 ' + (sel.memory_ids || []).length,
-      '世界观 ' + (sel.world_ids || []).length
+      i18n.t('workstation.chip_characters', { count: (sel.character_ids || []).length }),
+      i18n.t('workstation.chip_memory', { count: (sel.memory_ids || []).length }),
+      i18n.t('workstation.chip_world', { count: (sel.world_ids || []).length })
     ];
-    if (sel.include.worldmap) bits.push('世界地图');
-    if (sel.include.factions) bits.push('势力整栏');
-    bits.push('目标 ' + (sel.target_chars || ((state.db.config || {}).writing || {}).target_chars || 8000) + ' 字');
-    summary.textContent = '本次将发送：' + bits.join(' · ');
+    if (sel.include.worldmap) bits.push(i18n.t('nav.worldmap'));
+    if (sel.include.factions) bits.push(i18n.t('workstation.chip_factions'));
+    bits.push(i18n.t('workstation.chip_target', { count: sel.target_chars || ((state.db.config || {}).writing || {}).target_chars || 8000 }));
+    summary.textContent = i18n.t('workstation.send_summary', { list: bits.join(' · ') });
   };
   refreshSummary();
   inputCard.appendChild(summary);
@@ -238,36 +256,36 @@ function viewWorkstation(main) {
     }
   }, label);
   inputCard.appendChild(h('div', { class: 'field' },
-    h('label', { text: '带入哪些设定' }),
+    h('label', { text: i18n.t('workstation.include_label') }),
     h('div', { class: 'chips' }, [
-      chip('characters', '人物档案'),
-      chip('memory', '故事记忆'),
-      chip('world', '世界观与自定义栏目'),
-      chip('factions', '势力设定（整栏）'),
-      chip('worldmap', '世界地图'),
-      chip('state', '当前状态')
+      chip('characters', i18n.t('nav.characters')),
+      chip('memory', i18n.t('workstation.chip_memory_label')),
+      chip('world', i18n.t('workstation.chip_world_label')),
+      chip('factions', i18n.t('workstation.chip_factions_label')),
+      chip('worldmap', i18n.t('nav.worldmap')),
+      chip('state', i18n.t('workstation.chip_state'))
     ])));
 
   // 人物
   const chars = collItems('characters');
   const charDetails = h('details', { class: 'input-details', open: true });
   charDetails.appendChild(h('summary', null,
-    '人物档案', h('span', { class: 'hint', text: (sel.character_ids || []).length + ' / ' + chars.length + ' 已选' })));
+    i18n.t('nav.characters'), h('span', { class: 'hint', text: i18n.t('workstation.selected_of', { count: (sel.character_ids || []).length, total: chars.length }) })));
   if (chars.length) {
     charDetails.appendChild(h('div', { class: 'inline', style: { marginBottom: '6px' } },
       h('button', {
-        class: 'mini', text: '全选',
+        class: 'mini', text: i18n.t('common.select_all'),
         onclick: () => { sel.character_ids = chars.map(c => c.id); touch('state', true); renderMain(); }
       }),
       h('button', {
-        class: 'mini', text: '清空',
+        class: 'mini', text: i18n.t('common.clear'),
         onclick: () => { sel.character_ids = []; touch('state', true); renderMain(); }
       })));
     charDetails.appendChild(pickerRows(chars, sel.character_ids,
       (id, on) => { toggleId(sel.character_ids, id, on); touch('state', true); renderMain(); },
       c => recordName(c) + (c.category ? ' · ' + c.category : '')));
   } else {
-    charDetails.appendChild(h('div', { class: 'muted small', text: '还没有人物。请到「人物档案」新建，或在该页导入人物 JSON。' }));
+    charDetails.appendChild(h('div', { class: 'muted small', text: i18n.t('workstation.no_characters') }));
   }
   inputCard.appendChild(charDetails);
 
@@ -275,36 +293,36 @@ function viewWorkstation(main) {
   const mems = collItems('memories');
   const memDetails = h('details', { class: 'input-details' });
   memDetails.appendChild(h('summary', null,
-    '故事记忆', h('span', { class: 'hint', text: (sel.memory_ids || []).length + ' / ' + mems.length + ' 已选' })));
+    i18n.t('workstation.chip_memory_label'), h('span', { class: 'hint', text: i18n.t('workstation.selected_of', { count: (sel.memory_ids || []).length, total: mems.length }) })));
   memDetails.appendChild(h('div', { class: 'inline', style: { marginBottom: '6px' } },
     h('button', {
-      class: 'mini', text: '全选',
+      class: 'mini', text: i18n.t('common.select_all'),
       onclick: () => { sel.memory_ids = mems.map(m => m.id); touch('state', true); renderMain(); }
     }),
     h('button', {
-      class: 'mini', text: '清空',
+      class: 'mini', text: i18n.t('common.clear'),
       onclick: () => { sel.memory_ids = []; touch('state', true); renderMain(); }
     })));
   memDetails.appendChild(pickerRows(mems, sel.memory_ids,
     (id, on) => { toggleId(sel.memory_ids, id, on); touch('state', true); renderMain(); },
-    m => (m.category ? '[' + m.category + '] ' : '') + (m.title || '未命名')));
+    m => (m.category ? '[' + m.category + '] ' : '') + (m.title || i18n.t('common.unnamed'))));
   inputCard.appendChild(memDetails);
 
   // 世界观条目
   const world = worldItems();
   const worldDetails = h('details', { class: 'input-details' });
   worldDetails.appendChild(h('summary', null,
-    '世界观条目', h('span', { class: 'hint', text: (sel.world_ids || []).length + ' / ' + world.length + ' 已选' })));
+    i18n.t('workstation.world_entries'), h('span', { class: 'hint', text: i18n.t('workstation.selected_of', { count: (sel.world_ids || []).length, total: world.length }) })));
   worldDetails.appendChild(pickerRows(world, sel.world_ids,
     (id, on) => { toggleId(sel.world_ids, id, on); touch('state', true); renderMain(); },
-    entry => (entry.rec.name || entry.rec.title || '未命名') + ' · ' + entry.group));
+    entry => (entry.rec.name || entry.rec.title || i18n.t('common.unnamed')) + ' · ' + entry.group));
   inputCard.appendChild(worldDetails);
 
   // 附加项目文件
   const files = state.sources || [];
   const fileDetails = h('details', { class: 'input-details' });
   fileDetails.appendChild(h('summary', null,
-    '附加资料', h('span', { class: 'hint', text: (sel.project_files || []).length + ' 个文件' })));
+    i18n.t('workstation.attachments'), h('span', { class: 'hint', text: i18n.t('common.file_count', {count: (sel.project_files || []).length}) })));
   if (files.length) {
     const fileBox = h('div', { class: 'picker' });
     files.forEach(f => fileBox.appendChild(h('label', { class: 'check picker-row' },
@@ -321,36 +339,36 @@ function viewWorkstation(main) {
       h('span', { class: 'name', text: f.path }))));
     fileDetails.appendChild(fileBox);
   } else {
-    fileDetails.appendChild(h('div', { class: 'muted small', text: '把参考资料放进 workspace/import/，刷新后即可勾选。' }));
+    fileDetails.appendChild(h('div', { class: 'muted small', text: i18n.t('workstation.attach_hint') }));
   }
   inputCard.appendChild(fileDetails);
 
   // 当前状态 / 用户提示词 / 补充
   inputCard.appendChild(h('div', { class: 'field' },
-    h('label', { text: '当前状态（此刻的时间、地点、人物状态…）' }),
+    h('label', { text: i18n.t('workstation.state_label') }),
     h('textarea', {
       rows: 5, value: ws.current_state || '',
-      placeholder: '例如：当前时间、地点、人物位置与情绪……',
+      placeholder: i18n.t('workstation.state_placeholder'),
       oninput: e => { ws.current_state = e.target.value; touch('state', true); }
     })));
   inputCard.appendChild(h('div', { class: 'field' },
-    h('label', { text: '用户提示词' }),
+    h('label', { text: i18n.t('workstation.prompt_label') }),
     h('textarea', {
       rows: 12, value: ws.prompt || '', class: 'prompt-area',
-      placeholder: '写下本次想让 AI 做的事：情节、场景、人物动作、风格、必须出现的细节……',
+      placeholder: i18n.t('workstation.prompt_placeholder'),
       oninput: e => { ws.prompt = e.target.value; touch('state', true); }
     })));
   inputCard.appendChild(h('div', { class: 'field' },
-    h('label', { text: '补充说明（可选）' }),
+    h('label', { text: i18n.t('workstation.extra2_label') }),
     h('textarea', {
       rows: 3, value: ws.extra || '',
-      placeholder: '额外的风格、禁忌或参考信息',
+      placeholder: i18n.t('workstation.extra2_placeholder'),
       oninput: e => { ws.extra = e.target.value; touch('state', true); }
     })));
 
   const defaultChars = ((state.db.config || {}).writing || {}).target_chars || 8000;
   inputCard.appendChild(h('div', { class: 'field' },
-    h('label', { text: '本次目标字数' }),
+    h('label', { text: i18n.t('workstation.target_label') }),
     h('div', { class: 'inline' },
       h('input', {
         type: 'number', style: { width: '120px' }, value: sel.target_chars || defaultChars,
@@ -360,20 +378,20 @@ function viewWorkstation(main) {
         h('input', {
           type: 'checkbox', checked: sel.strict_length !== false,
           onchange: e => { sel.strict_length = e.target.checked; touch('state', true); }
-        }), '硬性要求'),
-      h('span', { class: 'small muted', text: '默认 ' + defaultChars + ' 字' }))));
+        }), i18n.t('workstation.strict')),
+      h('span', { class: 'small muted', text: i18n.t('workstation.target_default', { count: defaultChars }) }))));
 
   const runBtn = h('button', {
-    class: 'primary wide run-btn', text: busy ? 'AI 正在生成…' : '开始生成',
+    class: 'primary wide run-btn', text: busy ? i18n.t('common.generating') : i18n.t('workstation.start'),
     disabled: busy || !mode, onclick: () => runWorkstation()
   });
   inputCard.appendChild(runBtn);
   inputCard.appendChild(h('div', { class: 'inline', style: { marginTop: '8px' } },
-    h('button', { text: '预览将发送的内容', disabled: !mode, onclick: () => previewWorkstation() }),
+    h('button', { text: i18n.t('workstation.preview_send'), disabled: !mode, onclick: () => previewWorkstation() }),
     h('button', {
-      text: '清空输入',
+      text: i18n.t('workstation.clear_input'),
       onclick: () => {
-        if (!confirm('清空当前输入（提示词、当前状态、补充说明）？设定勾选会保留。')) return;
+        if (!confirm(i18n.t('workstation.clear_confirm'))) return;
         ws.prompt = ''; ws.current_state = ''; ws.extra = ''; ws.work_prompt = '';
         touch('state', true); renderMain();
       }
@@ -382,15 +400,15 @@ function viewWorkstation(main) {
 
   // ── 右侧：输出 ───────────────────────────
   const outputCard = h('div', { class: 'card output-card' });
-  const outHead = h('h2', null, 'AI 输出',
+  const outHead = h('h2', null, i18n.t('workstation.output_title'),
     modeBadge(session ? (turn && turn.mode) : ws.last_mode || ws.mode),
-    h('span', { class: 'hint', text: output.length + ' 字' }));
+    h('span', { class: 'hint', text: i18n.t('workstation.char_count', { count: output.length }) }));
   outputCard.appendChild(outHead);
 
   if (session && !isCurrentSession) {
     outputCard.appendChild(h('div', { class: 'history-view-head' },
-      h('span', { text: '历史对话：' + (session.title || '未命名') }),
-      h('button', { class: 'mini', text: '返回当前对话', onclick: () => returnToCurrent() })));
+      h('span', { text: i18n.t('history.viewing_short', { title: session.title || i18n.t('common.unnamed') }) }),
+      h('button', { class: 'mini', text: i18n.t('history.return'), onclick: () => returnToCurrent() })));
   }
 
   if (output.trim()) {
@@ -398,38 +416,35 @@ function viewWorkstation(main) {
   } else {
     outputCard.appendChild(h('div', { class: 'empty-output' },
       h('div', { class: 'empty-icon', text: '✎' }),
-      h('div', { text: '在左侧写好输入，选择写稿模式，然后点「开始生成」。' }),
-      h('div', { class: 'small muted', text: '生成结果会显示在这里，并自动保存到对话历史。' })));
+      h('div', { text: i18n.t('workstation.output_empty') }),
+      h('div', { class: 'small muted', text: i18n.t('workstation.output_empty_hint') })));
   }
 
   const meta = state.ui.lastMeta;
   if (meta && !session) {
     outputCard.appendChild(h('div', { class: 'small muted output-meta' },
-      '模型 ' + (meta.model || '—') +
-      ' · 推理 ' + (meta.effort || '—') +
-      ' · 耗时 ' + (meta.elapsed != null ? meta.elapsed + 's' : '—') +
-      (meta.usage && meta.usage.total_tokens ? ' · tokens ' + meta.usage.total_tokens : '')));
+      i18n.t('workstation.output_meta', {model: meta.model || '—', effort: meta.effort || '—', elapsed: meta.elapsed != null ? meta.elapsed + 's' : '—', tokens: meta.usage?.total_tokens || '—'})));
   }
 
   outputCard.appendChild(h('div', { class: 'output-actions' },
-    h('button', { class: 'primary', text: '追加到用户提示词', disabled: !output.trim(), onclick: () => appendOutput() }),
-    h('button', { text: '另存为 TXT', disabled: !output.trim(), onclick: () => saveOutputDialog('txt') }),
-    h('button', { text: '另存为 MD', disabled: !output.trim(), onclick: () => saveOutputDialog('md') }),
-    h('button', { text: '转到稿件处理', disabled: !output.trim(), onclick: () => sendOutputToText() }),
-    h('button', { text: '复制', disabled: !output.trim(), onclick: () => copyOutput() }),
-    h('button', { text: '查看原文', disabled: !output.trim(), onclick: () => showRawOutput() })));
+    h('button', { class: 'primary', text: i18n.t('workstation.append_prompt'), disabled: !output.trim(), onclick: () => appendOutput() }),
+    h('button', { text: i18n.t('workstation.save_txt'), disabled: !output.trim(), onclick: () => saveOutputDialog('txt') }),
+    h('button', { text: i18n.t('workstation.save_md'), disabled: !output.trim(), onclick: () => saveOutputDialog('md') }),
+    h('button', { text: i18n.t('workstation.to_manuscript'), disabled: !output.trim(), onclick: () => sendOutputToText() }),
+    h('button', { text: i18n.t('common.copy'), disabled: !output.trim(), onclick: () => copyOutput() }),
+    h('button', { text: i18n.t('workstation.view_raw'), disabled: !output.trim(), onclick: () => showRawOutput() })));
   right.appendChild(outputCard);
 
   // ── 右侧：当前对话 / 最近轮次 ────────────
   const convCard = h('div', { class: 'card' });
   const currentSession = state.ui.currentSession;
-  convCard.appendChild(h('h2', null, '当前对话',
-    h('span', { class: 'hint', text: currentSession ? (currentSession.turns || []).length + ' 轮' : '尚未开始' }),
+  convCard.appendChild(h('h2', null, i18n.t('history.current'),
+    h('span', { class: 'hint', text: currentSession ? i18n.t('history.turn_count', { count: (currentSession.turns || []).length }) : i18n.t('history.not_started') }),
     h('span', { style: { flex: '1' } }),
-    h('button', { class: 'mini', text: '查看全部历史', onclick: () => openHistoryDialog() })));
+    h('button', { class: 'mini', text: i18n.t('history.view_all'), onclick: () => openHistoryDialog() })));
   if (currentSession && (currentSession.turns || []).length) {
     convCard.appendChild(h('div', { class: 'small muted', style: { marginBottom: '8px' } },
-      currentSession.title || '未命名对话'));
+      currentSession.title || i18n.t('history.untitled')));
     const turns = (currentSession.turns || []).slice(-4).reverse();
     turns.forEach(t => {
       convCard.appendChild(h('div', {
@@ -439,23 +454,23 @@ function viewWorkstation(main) {
           modeBadge(t.mode),
           h('span', { class: 'small muted', text: t.created || '' }),
           h('span', { style: { flex: '1' } }),
-          h('span', { class: 'small muted', text: (t.output || '').length + ' 字' })),
-        h('div', { class: 'turn-preview', text: '输入：' + previewText(t.user_prompt, 64) }),
-        h('div', { class: 'turn-preview', text: '输出：' + previewText(t.output, 88) })));
+          h('span', { class: 'small muted', text: i18n.t('workstation.char_count', { count: (t.output || '').length }) })),
+        h('div', { class: 'turn-preview', text: i18n.t('history.input_prefix', { text: previewText(t.user_prompt, 64) }) }),
+        h('div', { class: 'turn-preview', text: i18n.t('history.output_prefix', { text: previewText(t.output, 88) }) })));
     });
   } else {
-    convCard.appendChild(h('div', { class: 'muted small', text: '每次生成会自动创建会话；历史按轮次保存，随时可以回来查看。' }));
+    convCard.appendChild(h('div', { class: 'muted small', text: i18n.t('history.autosave_hint') }));
   }
   right.appendChild(convCard);
 
   const logCard = h('div', { class: 'card' });
-  logCard.appendChild(h('h2', null, '运行记录', h('span', { class: 'hint', text: '错误与调用信息' })));
-  logCard.appendChild(h('pre', { class: 'log', text: state.ui.log || '（暂无调用）' }));
+  logCard.appendChild(h('h2', null, i18n.t('workstation.log_title'), h('span', { class: 'hint', text: i18n.t('workstation.log_hint') })));
+  logCard.appendChild(h('pre', { class: 'log', text: state.ui.log || i18n.t('workstation.log_empty') }));
   right.appendChild(logCard);
 
   main.appendChild(h('div', { class: 'legal-footer' },
-    h('strong', { text: '使用声明：' }),
-    '本工具仅供合法的文学创作与学习交流使用。请勿使用本工具制作、传播违法违规内容，或从事任何违反法律法规、公序良俗的行为。使用者应自行承担相关责任。'));
+    h('strong', { text: i18n.t('workstation.disclaimer_label') }),
+    i18n.t('workstation.disclaimer')));
 
   // 生成期间：禁用全部控件，并盖一层全屏锁。
   if (busy) {
@@ -463,8 +478,8 @@ function viewWorkstation(main) {
     main.appendChild(h('div', { class: 'work-lock' },
       h('div', { class: 'work-lock-box' },
         h('div', { class: 'spinner' }),
-        h('strong', { text: 'AI 正在生成中' }),
-        h('div', { class: 'small muted', text: '工作站已完全锁定，完成前无法修改输入或切换操作。' }))));
+        h('strong', { text: i18n.t('workstation.lock_title') }),
+        h('div', { class: 'small muted', text: i18n.t('workstation.lock_hint') }))));
   }
 }
 
@@ -474,12 +489,12 @@ function viewWorkstation(main) {
 async function runWorkstation() {
   if (state.ui.busy) return;
   const ws = wsState();
-  if (!ws.mode) { toast('还没有可用的写稿模式，请先到「模式管理」新增。', 'err'); return; }
+  if (!ws.mode) { toast(i18n.t('workstation.no_mode_toast'), 'err'); return; }
   state.ui.busy = true;
   state.ui.historySession = null;
   state.ui.historyTurn = null;
   renderMain();
-  status('AI 生成中…', 'busy');
+  status(i18n.t('common.generating'), 'busy');
 
   try {
     await saveNow('modes').catch(() => {});
@@ -524,19 +539,19 @@ async function runWorkstation() {
     state.ui.currentSession = res.session || state.ui.currentSession;
     renderNav();
     renderMain();
-    status('生成完成', 'ok');
-    toast('生成完成，已保存到对话历史。', 'ok');
+    status(i18n.t('workstation.done'), 'ok');
+    toast(i18n.t('workstation.done_saved'), 'ok');
   } catch (e) {
     state.ui.busy = false;
     renderMain();
-    status('生成失败', 'err');
-    toast('生成失败：' + e.message, 'err');
+    status(i18n.t('workstation.failed'), 'err');
+    toast(i18n.t('workstation.failed_reason', { reason: e.message }), 'err');
   }
 }
 
 function previewWorkstation() {
-  const body = h('div', null, h('div', { class: 'muted', text: '组装中…' }));
-  const m = modal('实际发送给模型的内容', body, [h('button', { text: '关闭', onclick: () => m.close() })]);
+  const body = h('div', null, h('div', { class: 'muted', text: i18n.t('common.assembling') }));
+  const m = modal(i18n.t('workstation.preview_title'), body, [h('button', { text: i18n.t('common.close'), onclick: () => m.close() })]);
   (async () => {
     try {
       const ws = wsState();
@@ -552,14 +567,14 @@ function previewWorkstation() {
       });
       clear(body);
       body.appendChild(h('div', { class: 'field' },
-        h('label', { text: 'system（' + res.system.length + ' 字）' }),
+        h('label', { text: i18n.t('workstation.system_label', { count: res.system.length }) }),
         h('pre', { class: 'log', text: res.system })));
       body.appendChild(h('div', { class: 'field' },
-        h('label', { text: 'user（' + res.user.length + ' 字）' }),
+        h('label', { text: i18n.t('workstation.user_label', { count: res.user.length }) }),
         h('pre', { class: 'log', style: { maxHeight: '46vh' }, text: res.user })));
     } catch (e) {
       clear(body);
-      body.appendChild(h('div', { class: 'muted', text: '预览失败：' + e.message }));
+      body.appendChild(h('div', { class: 'muted', text: i18n.t('workstation.preview_failed_reason', { reason: e.message }) }));
     }
   })();
 }
@@ -576,7 +591,7 @@ function appendOutput() {
   state.ui.historySession = null;
   state.ui.historyTurn = null;
   renderMain();
-  toast('已追加到用户提示词（未覆盖原内容）。', 'ok');
+  toast(i18n.t('workstation.appended'), 'ok');
 }
 
 function copyOutput() {
@@ -584,7 +599,7 @@ function copyOutput() {
   if (!text.trim()) return;
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(text).then(
-      () => toast('已复制到剪贴板', 'ok'),
+      () => toast(i18n.t('common.copied'), 'ok'),
       () => fallbackCopy(text));
   } else {
     fallbackCopy(text);
@@ -595,15 +610,15 @@ function fallbackCopy(text) {
   const ta = h('textarea', { value: text, style: { position: 'fixed', left: '-9999px' } });
   document.body.appendChild(ta);
   ta.select();
-  try { document.execCommand('copy'); toast('已复制到剪贴板', 'ok'); }
-  catch (e) { toast('复制失败，请手动选择文本。', 'err'); }
+  try { document.execCommand('copy'); toast(i18n.t('common.copied'), 'ok'); }
+  catch (e) { toast(i18n.t('common.copy_failed'), 'err'); }
   ta.remove();
 }
 
 function showRawOutput() {
   const text = currentOutput();
   const ta = h('textarea', { rows: 22, value: text, readonly: true });
-  const m = modal('AI 输出原文', ta, [h('button', { text: '关闭', onclick: () => m.close() })]);
+  const m = modal(i18n.t('workstation.raw_title'), ta, [h('button', { text: i18n.t('common.close'), onclick: () => m.close() })]);
 }
 
 function saveOutputDialog(fmt) {
@@ -614,30 +629,30 @@ function saveOutputDialog(fmt) {
   const folderInput = h('input', { type: 'text', value: folder });
   const nameInput = h('input', {
     type: 'text', value: 'ai_output_' + stamp + '.' + fmt,
-    placeholder: '文件名.' + fmt
+    placeholder: i18n.t('workstation.filename_placeholder', { fmt: fmt })
   });
   const body = h('div', null,
-    h('div', { class: 'field' }, h('label', { text: '保存目录' }), folderInput),
-    h('div', { class: 'field' }, h('label', { text: '文件名' }), nameInput),
-    h('div', { class: 'small muted', text: '保存的是当前显示的 AI 输出原文。' }));
-  const m = modal('另存为 ' + fmt.toUpperCase(), body, [
-    h('button', { text: '取消', onclick: () => m.close() }),
+    h('div', { class: 'field' }, h('label', { text: i18n.t('workstation.save_dir') }), folderInput),
+    h('div', { class: 'field' }, h('label', { text: i18n.t('common.filename') }), nameInput),
+    h('div', { class: 'small muted', text: i18n.t('workstation.save_note') }));
+  const m = modal(i18n.t('workstation.save_as', { fmt: fmt.toUpperCase() }), body, [
+    h('button', { text: i18n.t('common.cancel'), onclick: () => m.close() }),
     h('button', {
-      class: 'primary', text: '保存', dataset: { noclose: '1' },
+      class: 'primary', text: i18n.t('common.save'), dataset: { noclose: '1' },
       onclick: async ev => {
         ev.target.disabled = true;
         let name = nameInput.value.trim() || ('ai_output.' + fmt);
         if (!name.toLowerCase().endsWith('.' + fmt)) name += '.' + fmt;
         const dir = (folderInput.value.trim() || folder).replace(/[\\/]+$/, '');
-        if (!dir) { toast('请填写保存目录。', 'err'); ev.target.disabled = false; return; }
+        if (!dir) { toast(i18n.t('workstation.dir_required'), 'err'); ev.target.disabled = false; return; }
         try {
           const res = await api('/api/io/export', {
             method: 'POST', body: { path: dir + '\\' + name.replace(/[\\/]/g, '_'), content: text }
           });
-          toast('已保存：' + res.path, 'ok');
+          toast(i18n.t('common.saved_to', { path: res.path }), 'ok');
           m.close();
         } catch (e) {
-          toast('保存失败：' + e.message, 'err');
+          toast(i18n.t('common.save_failed_reason', { reason: e.message }), 'err');
           ev.target.disabled = false;
         }
       }
@@ -678,7 +693,7 @@ function returnToCurrent() {
 async function newConversation() {
   if (state.ui.busy) return;
   const ws = wsState();
-  if ((ws.output || '').trim() && !confirm('开始新对话？当前对话已保存在历史中，可以随时回来查看。')) return;
+  if ((ws.output || '').trim() && !confirm(i18n.t('history.new_confirm'))) return;
   try {
     const res = await api('/api/history/new', { method: 'POST', body: { mode: ws.mode } });
     ws.current_session = res.session.id;
@@ -690,32 +705,32 @@ async function newConversation() {
     state.ui.historyTurn = null;
     touch('state', true);
     renderMain();
-    toast('已开始新对话；之前的对话保留在历史中。', 'ok');
+    toast(i18n.t('history.started_new'), 'ok');
   } catch (e) {
-    toast('新建对话失败：' + e.message, 'err');
+    toast(i18n.t('history.new_failed_reason', { reason: e.message }), 'err');
   }
 }
 
 async function openHistoryDialog() {
   const body = h('div', { class: 'history-dialog' },
-    h('div', { class: 'muted', text: '加载中…' }));
-  const m = modal('对话历史', body, [
-    h('button', { text: '返回当前对话', onclick: () => { m.close(); returnToCurrent(); } }),
-    h('button', { text: '关闭', onclick: () => m.close() })
+    h('div', { class: 'muted', text: i18n.t('common.loading') }));
+  const m = modal(i18n.t('history.title'), body, [
+    h('button', { text: i18n.t('history.return'), onclick: () => { m.close(); returnToCurrent(); } }),
+    h('button', { text: i18n.t('common.close'), onclick: () => m.close() })
   ]);
   try {
     const res = await api('/api/history');
     drawHistoryDialog(body, res.items || [], res.current || '');
   } catch (e) {
     clear(body);
-    body.appendChild(h('div', { class: 'muted', text: '加载失败：' + e.message }));
+    body.appendChild(h('div', { class: 'muted', text: i18n.t('common.load_failed_reason', { reason: e.message }) }));
   }
 }
 
 function drawHistoryDialog(body, items, currentId) {
   clear(body);
   if (!items.length) {
-    body.appendChild(h('div', { class: 'muted', text: '还没有对话记录。每次生成后会自动保存到这里。' }));
+    body.appendChild(h('div', { class: 'muted', text: i18n.t('history.empty') }));
     return;
   }
   const list = h('div', { class: 'history-list' });
@@ -728,19 +743,19 @@ function drawHistoryDialog(body, items, currentId) {
       el.classList.toggle('active', el.dataset.id === id);
     });
     clear(detail);
-    detail.appendChild(h('div', { class: 'muted', text: '加载中…' }));
+    detail.appendChild(h('div', { class: 'muted', text: i18n.t('common.loading') }));
     try {
       const res = await api('/api/history/' + encodeURIComponent(id));
       const session = res.session;
       clear(detail);
       detail.appendChild(h('div', { class: 'history-detail-head' },
-        h('strong', { text: session.title || '未命名对话' }),
-        id === currentId ? h('span', { class: 'tag', text: '当前对话' }) : null,
+        h('strong', { text: session.title || i18n.t('history.untitled') }),
+        id === currentId ? h('span', { class: 'tag', text: i18n.t('history.current') }) : null,
         h('span', { style: { flex: '1' } }),
-        h('span', { class: 'small muted', text: (session.turns || []).length + ' 轮' })));
+        h('span', { class: 'small muted', text: i18n.t('history.turn_count', { count: (session.turns || []).length }) })));
       detail.appendChild(h('div', { class: 'inline', style: { marginBottom: '10px' } },
         h('button', {
-          class: 'primary', text: '查看此对话',
+          class: 'primary', text: i18n.t('history.view'),
           onclick: () => {
             state.ui.historySession = session;
             state.ui.historyTurn = (session.turns || [])[(session.turns || []).length - 1] || null;
@@ -749,7 +764,7 @@ function drawHistoryDialog(body, items, currentId) {
           }
         }),
         h('button', {
-          text: '设为当前对话',
+          text: i18n.t('history.set_current'),
           onclick: async () => {
             try {
               const r = await api('/api/history/current', { method: 'POST', body: { id } });
@@ -762,14 +777,14 @@ function drawHistoryDialog(body, items, currentId) {
               touch('state', true);
               document.querySelector('#overlay-root').innerHTML = '';
               renderMain();
-              toast('已切换当前对话。', 'ok');
-            } catch (e) { toast('切换失败：' + e.message, 'err'); }
+              toast(i18n.t('history.switched'), 'ok');
+            } catch (e) { toast(i18n.t('history.switch_failed_reason', { reason: e.message }), 'err'); }
           }
         }),
         h('button', {
-          class: 'danger', text: '删除',
+          class: 'danger', text: i18n.t('common.delete'),
           onclick: async () => {
-            if (!confirm('删除这条对话历史？此操作不可恢复。')) return;
+            if (!confirm(i18n.t('history.delete_confirm'))) return;
             try {
               await api('/api/history/' + encodeURIComponent(id), { method: 'DELETE' });
               const again = await api('/api/history');
@@ -786,8 +801,8 @@ function drawHistoryDialog(body, items, currentId) {
                 touch('state', true);
               }
               drawHistoryDialog(body, again.items || [], currentId);
-              toast('已删除。', 'ok');
-            } catch (e) { toast('删除失败：' + e.message, 'err'); }
+              toast(i18n.t('common.deleted'), 'ok');
+            } catch (e) { toast(i18n.t('common.delete_failed_reason', { reason: e.message }), 'err'); }
           }
         })));
 
@@ -798,26 +813,26 @@ function drawHistoryDialog(body, items, currentId) {
           modeBadge(turn.mode),
           h('span', { class: 'small muted', text: ' ' + (turn.created || '') }),
           h('span', { style: { flex: '1' } }),
-          h('span', { class: 'small muted', text: (turn.user_prompt || '').length + ' → ' + (turn.output || '').length + ' 字' })));
+          h('span', { class: 'small muted', text: i18n.t('history.turn_chars', { input: (turn.user_prompt || '').length, output: (turn.output || '').length }) })));
         box.appendChild(h('div', { class: 'field', style: { marginTop: '8px' } },
-          h('label', { text: '用户提示词' }),
-          h('pre', { class: 'log', text: turn.user_prompt || '（空）' })));
+          h('label', { text: i18n.t('workstation.prompt_label') }),
+          h('pre', { class: 'log', text: turn.user_prompt || i18n.t('common.empty_paren') })));
         if (turn.work_prompt) {
           box.appendChild(h('div', { class: 'field' },
-            h('label', { text: '本次工作要求' }),
+            h('label', { text: i18n.t('history.requirements_label') }),
             h('pre', { class: 'log', text: turn.work_prompt })));
         }
         box.appendChild(h('div', { class: 'field' },
-          h('label', { text: 'AI 输出' }),
-          h('div', { class: 'md history-md', html: md(turn.output || '（空）') })));
+          h('label', { text: i18n.t('workstation.output_title') }),
+          h('div', { class: 'md history-md', html: md(turn.output || i18n.t('common.empty_paren')) })));
         if (turn.resolved && turn.resolved.missing) {
-          box.appendChild(h('div', { class: 'small muted', text: '有 ' + turn.resolved.missing + ' 个设定指针已失效，查看时已自动跳过。' }));
+          box.appendChild(h('div', { class: 'small muted', text: i18n.t('history.broken_pointers', { count: turn.resolved.missing }) }));
         }
         detail.appendChild(box);
       });
     } catch (e) {
       clear(detail);
-      detail.appendChild(h('div', { class: 'muted', text: '读取失败：' + e.message }));
+      detail.appendChild(h('div', { class: 'muted', text: i18n.t('common.read_failed_reason', { reason: e.message }) }));
     }
   };
 
@@ -827,8 +842,8 @@ function drawHistoryDialog(body, items, currentId) {
       dataset: { id: item.id },
       onclick: () => loadDetail(item.id)
     },
-      h('div', { class: 'name', text: item.title || '未命名对话' }),
-      h('div', { class: 'meta', text: (item.turns || 0) + ' 轮 · ' + (item.updated || '') + (item.id === currentId ? ' · 当前' : '') }));
+      h('div', { class: 'name', text: item.title || i18n.t('history.untitled') }),
+      h('div', { class: 'meta', text: i18n.t(item.id === currentId ? 'history.list_meta' : 'history.item_meta', {turns: item.turns || 0, updated: item.updated || ''}) }));
     list.appendChild(row);
   });
   body.appendChild(h('div', { class: 'history-cols' }, list, detail));
@@ -862,7 +877,7 @@ async function pollBusyState() {
       await loadCurrentSession();
       renderNav();
       renderMain();
-      status('就绪', 'ok');
+      status(i18n.t('common.ready'), 'ok');
     }
   } catch (e) { /* 网络短暂失败时下个周期再试 */ }
 }
@@ -872,15 +887,13 @@ async function boot() {
     await refreshFiles();
     await loadCurrentSession();
   } catch (e) {
-    document.getElementById('main').appendChild(h('div', { class: 'card', text: '加载失败：' + e.message }));
+    document.getElementById('main').appendChild(h('div', { class: 'card', text: i18n.t('common.load_failed_reason', { reason: e.message }) }));
     return;
   }
   renderNav();
   renderMain();
-  status('就绪', 'ok');
+  status(i18n.t('common.ready'), 'ok');
   maybeShowOnboarding();
   const s = await api('/api/workstation/status').catch(() => null);
   if (s && s.busy) pollBusyState();
 }
-
-boot();

@@ -1,5 +1,22 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# Copyright (C) 2026 DreamInsight24 and NovelHelper contributors
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 """
 novelhelper/context.py
 把 JSON 数据渲染成模型容易理解的文本，并组装 messages。
@@ -12,7 +29,7 @@ from __future__ import annotations
 
 from typing import Any, Iterable
 
-from . import elements as el, prompts as prompts_mod, providers
+from . import elements as el, localization, providers
 
 
 # ─────────────────────────────────────────────
@@ -44,6 +61,14 @@ def render_item(rec: dict) -> str:
     return "\n".join(lines)
 
 
+def _key_names(key: str) -> list:
+    """候选元素名：当前语言 + 所有已配置语言，兼容初始化时冻结的键名。"""
+    names = {localization.t(key)}
+    for entry in localization.get_languages()["languages"]:
+        names.add(localization.get_translations(entry["id"]).get(key, ""))
+    return [name for name in names if name]
+
+
 def item_brief(rec: dict) -> str:
     """背包里的一行摘要。"""
     if not rec:
@@ -61,7 +86,10 @@ def item_brief(rec: dict) -> str:
                     return f"{key}：{value}"
         return ""
 
-    for tag in (pick(["类型", "类别"]), pick(["品级"]), pick(["主要效果", "效果"]), pick(["外观描述", "外形"])):
+    for tag in (pick(_key_names("defaults.element.type") + _key_names("defaults.element.category")),
+                pick(_key_names("defaults.element.grade")),
+                pick(_key_names("defaults.element.main_effect") + _key_names("defaults.element.effect")),
+                pick(_key_names("defaults.element.appearance_desc") + _key_names("defaults.element.shape"))):
         if tag:
             bits.append(tag)
     head = _title(rec)
@@ -459,54 +487,5 @@ def assemble_mode(
         "user": user,
         "tool": "mode",
         "mode_id": mode.get("id") or "",
-        "parts": 1,
-    }
-
-
-def assemble(
-    config: dict,
-    db: dict,
-    prompts: dict | None,
-    selection: dict,
-    plan: str = "",
-    mode: str = "reason",
-    work_prompt: str = "",
-    work_mode: str = "draft",
-) -> dict:
-    """
-    兼容旧版命令行：
-      reason / write / idea 使用内置旧工具 system prompt；
-      新界面统一使用 assemble_mode()。
-    """
-    if mode == "work":
-        mode_obj = find_mode(db, work_mode)
-        if mode_obj is None:
-            modes = (db.get("modes") or {}).get("items") or []
-            mode_obj = modes[0] if modes else {
-                "id": "draft",
-                "system_prompt": prompts_mod.DRAFT_WORK_PROMPT,
-                "use_target_chars": True,
-            }
-        return assemble_mode(config, db, selection, mode_obj, work_prompt=work_prompt)
-
-    prompts = prompts or prompts_mod.default_prompts()
-    tool = "idea" if mode == "idea" else ("reason" if mode == "reason" else "write")
-    system = ((prompts.get("tools") or {}).get(tool) or "") + providers.provider_note(config)
-    mode_obj = {
-        "id": tool,
-        "use_target_chars": tool in ("reason", "write"),
-        "length_strict": tool != "reason",
-    }
-    user = build_user_message(
-        config, db, selection, mode=mode_obj,
-        plan=plan if mode == "write" else "",
-        work_prompt=work_prompt,
-        include_prompt=mode != "idea",
-    )
-    return {
-        "system": system,
-        "user": user,
-        "tool": tool,
-        "mode_id": "",
         "parts": 1,
     }
