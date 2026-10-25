@@ -1,10 +1,12 @@
-"""Config language persistence: first-run detection and K2 damaged-config recovery.
+"""Config language persistence: first-run detection, initial presets and K2 recovery.
 
 The localization runtime itself has no storage dependency; this module is the
-task-3.2 glue that reads and writes the ``language`` field of the user config
+glue that reads and writes the ``language`` field of the user config
 (`store.load("config")` / `store.save("config", config)`). A config without the
 field counts as first run; a missing or damaged config is backed up (K2), logged,
-and treated the same way.
+and treated the same way. The first saved language is also stored as
+``initial_language`` and used once to seed the language-sensitive built-in
+presets (`store.seed_localized_defaults`).
 """
 from __future__ import annotations
 
@@ -17,6 +19,7 @@ from ..localization import resolve_language, set_language
 _LOG = logging.getLogger(__name__)
 
 LANGUAGE_KEY = "language"
+INITIAL_LANGUAGE_KEY = "initial_language"
 
 
 def _backup_damaged_config() -> None:
@@ -69,10 +72,23 @@ def apply_persisted_language() -> None:
 
 
 def save_language(lang_id: str) -> str:
-    """Persist the language and switch the process default; returns the resolved ID."""
+    """Persist the language and switch the process default; returns the resolved ID.
+
+    The language chosen at first run is also recorded as ``initial_language`` and
+    used to seed the language-sensitive built-in presets once. Later switches leave
+    those files untouched, so the initial presets stay in the initial language.
+    """
     resolved = resolve_language(lang_id)
     config = _load_config()
+    is_first = LANGUAGE_KEY not in config
     config[LANGUAGE_KEY] = resolved
+    if is_first and INITIAL_LANGUAGE_KEY not in config:
+        config[INITIAL_LANGUAGE_KEY] = resolved
     store.save("config", config)
     set_language(resolved)
+    if is_first:
+        try:
+            store.seed_localized_defaults(resolved)
+        except Exception as exc:  # noqa: BLE001 - presets must not block the switch
+            _LOG.warning("Failed to seed localized presets in %s: %s", resolved, exc)
     return resolved

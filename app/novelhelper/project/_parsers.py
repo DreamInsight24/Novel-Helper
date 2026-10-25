@@ -4,6 +4,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from ..localization import t
 from ..store import new_id, now_str
 
 
@@ -81,7 +82,7 @@ def import_memories(text: str, source: str = "") -> list:
     * ## 分类下直接写的正文（没有 ###）也会被收成一条，标题用分类名 —— 不会丢内容。
     """
     lines = (text or "").replace("\r\n", "\n").split("\n")
-    category = "短期记忆"
+    category = t("defaults.memory.short")
     title = ""
     buffer: list = []
     records: list = []
@@ -158,7 +159,7 @@ def parse_worldmap(text: str, name: str = "") -> dict | None:
             }
             cells[f"{row_label}|{col}"] = rid
     return {
-        "name": name or "世界地图",
+        "name": name or t("defaults.map.name"),
         "cols": cols,
         "rows": [r for r in (_split_row(l)[0] for l in rows_raw[2:]) if r],
         "cells": cells,

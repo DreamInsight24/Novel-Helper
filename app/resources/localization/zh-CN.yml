@@ -98,6 +98,273 @@ common.title: 标题
 common.unknown_page: 未知页面
 common.unnamed: 未命名
 common.unnamed_paren: （未命名）
+# 内置初始化预设（首次启动按初始语言生成，之后切换语言不改写）
+defaults.axis.center: 中部
+defaults.axis.east: 东
+defaults.axis.north: 北
+defaults.axis.south: 南
+defaults.axis.west: 西
+defaults.category.apparel: 服饰
+defaults.category.consumable: 消耗品
+defaults.category.item: 道具
+defaults.category.material: 材料
+defaults.category.monster: 魔物
+defaults.category.other: 其他
+defaults.category.other_setting: 其他设定
+defaults.category.pending: 待整理
+defaults.category.weapon: 武器
+defaults.element.ability: 能力
+defaults.element.acquisition: 获得方式
+defaults.element.age: 年龄
+defaults.element.appearance: 外貌
+defaults.element.appearance_desc: 外观描述
+defaults.element.background: 背景
+defaults.element.basic: 基本
+defaults.element.behavior: 行为特征
+defaults.element.birthday: 生日
+defaults.element.build: 体型
+defaults.element.casual_wear: 常服
+defaults.element.character_anchor: 角色锚点
+defaults.element.clothing: 服装
+defaults.element.color_preference: 配色偏好
+defaults.element.color_scheme: 配色
+defaults.element.combat_style: 战斗风格
+defaults.element.core_personality: 核心性格
+defaults.element.core_power: 核心战力
+defaults.element.cost: 消耗
+defaults.element.durability: 耐久
+defaults.element.effect: 效果
+defaults.element.external_relations: 对外关系
+defaults.element.eye_color: 瞳色
+defaults.element.foot_structure: 足部结构
+defaults.element.founded: 成立时间
+defaults.element.gender: 性别
+defaults.element.goal: 目标
+defaults.element.grade: 品级
+defaults.element.hair_color: 毛色
+defaults.element.hair_eyes: 毛发与瞳色
+defaults.element.hand_structure: 手部结构
+defaults.element.hands_feet: 手与足
+defaults.element.heart_knot: 心结
+defaults.element.height: 身高
+defaults.element.hidden_setting: 隐藏设定
+defaults.element.history: 历史
+defaults.element.history_status: 历史与现状
+defaults.element.holder: 持有者
+defaults.element.horns_ears: 角与耳
+defaults.element.identity: 身份
+defaults.element.identity_tag: 身份标签
+defaults.element.leader: 首领
+defaults.element.limit: 限制
+defaults.element.magic_affinity: 魔法适应性
+defaults.element.main_effect: 主要效果
+defaults.element.marks_scars: 标记与伤痕
+defaults.element.material: 材质
+defaults.element.occupation: 职业
+defaults.element.orientation: 取向
+defaults.element.origin: 来历
+defaults.element.overall: 整体
+defaults.element.own_story: 自身故事
+defaults.element.pattern: 特殊纹样
+defaults.element.paw_pads: 肉垫
+defaults.element.personality: 性格
+defaults.element.pet_peeve: 雷点
+defaults.element.power_rating: 实力评级
+defaults.element.price: 价格
+defaults.element.quirk: 特殊癖好
+defaults.element.real_name: 本名
+defaults.element.relationship_list: 关系列表
+defaults.element.relationships: 关系
+defaults.element.shape: 外形
+defaults.element.shoe_habit: 穿鞋习惯
+defaults.element.signature_skill: 本命技能
+defaults.element.size: 人数规模
+defaults.element.size_value: 大小
+defaults.element.slot: 穿戴部位
+defaults.element.species: 物种
+defaults.element.spells: 擅长法术
+defaults.element.stance: 立场
+defaults.element.stance_goals: 立场与目标
+defaults.element.status: 现状
+defaults.element.strength: 实力
+defaults.element.tail: 尾巴
+defaults.element.territory: 领地
+defaults.element.type: 类型
+defaults.element.weakness: 弱点
+defaults.element.weapon: 善用武器
+defaults.element.weight: 体重
+defaults.element.worn_effect: 穿戴效果
+defaults.map.name: 世界地图
+defaults.memory.compress_title: 压缩记忆
+defaults.memory.foreshadow: 重要伏笔
+defaults.memory.import_title: 稿件处理记忆
+defaults.memory.long: 长期记忆
+defaults.memory.new_title: 新记忆
+defaults.memory.note: 设定备忘
+defaults.memory.short: 短期记忆
+defaults.memory.unnamed: 未命名记忆
+defaults.mode.brainstorm: 灵感方案
+defaults.mode.brainstorm_desc: 给出多条有差异的后续方向供选择
+defaults.mode.brainstorm_prompt: |-
+  任务：基于用户选择的设定、当前状态、记忆与用户提示词，提供若干条有差异的后续写作方案。
+
+  每条方案包含：标题、切入点、大致走向、承接的伏笔、收益、风险、难度。
+  优先使用已有的人物、地点与伏笔；必须引入新元素时明确标注。
+  不写正文，不写对白，不展示思维链。信息不足时说明缺什么。
+defaults.mode.draft: 完整写作
+defaults.mode.draft_desc: 根据设定与提示词生成完整正文
+defaults.mode.draft_prompt: |-
+  任务：根据用户提供的设定、当前状态、记忆、用户提示词与本次补充要求，完成本次小说写作。
+
+  执行原则：
+  1. 严格遵循用户选择的设定与本次提示词；不擅自新增设定、人物或情节。
+  2. 保持视角、时态、文风与叙事节奏统一。
+  3. 从当前状态出发，不倒退、不跳过关键情境。
+  4. 按本次补充要求的体裁与结构输出；若补充要求没有特别说明，直接输出完整正文。
+  5. 输出只包含作品内容。需要分节时使用标题分隔，不加解释性前言、后记或「以下是正文」之类的话。
+  6. 严格遵守字数要求；用户没有给字数时，以内容完整为先。
+
+  内容边界：遵守适用法律法规与平台内容规范；亲密关系点到为止，不生成色情、过度暴力或仇恨内容。
+defaults.mode.logic: 逻辑写作
+defaults.mode.logic_desc: 核对设定一致性，整理约束、风险与推进节点
+defaults.mode.logic_prompt: |-
+  任务：对用户提供的设定、当前状态、记忆与写作需求做一次「逻辑写作」分析。
+
+  请输出三部分：
+
+  一、一致性核对
+  时间、地点、人物位置与状态是否连贯；用户提示词与设定、记忆之间是否存在冲突；缺失但会影响写作的信息。
+
+  二、可执行约束
+  本次写作必须遵守的边界；不得提前暴露或擅自新增的信息。
+
+  三、推进建议
+  3–6 个按顺序排列的关键节点，每个节点由谁触发、产生什么变化，以及建议的情绪曲线与信息释放顺序。
+
+  只做分析，不写正文。信息不足时明确写出，不猜测。
+defaults.mode.new_process: 新稿件处理模式
+defaults.mode.new_process_prompt: |-
+  任务：对用户提供的「待处理文本」进行处理。
+
+  要求：
+  1. 严格按用户选择的处理方式与处理要求执行。
+  2. 保留原文的事实、人物、设定与情节，不擅自新增。
+  3. 直接输出处理后的完整文本，不写前言后语。
+defaults.mode.new_write: 新写稿模式
+defaults.mode.new_write_prompt: |-
+  任务：根据用户提供的设定、当前状态、记忆与提示词完成本次工作。
+
+  要求：
+  1. 严格遵循用户提供的设定与提示词。
+  2. 不擅自新增未授权的设定、人物或情节。
+  3. 直接输出本次工作结果，不写与任务无关的前言后语。
+defaults.mode.outline: 框架写作
+defaults.mode.outline_desc: 输出场景框架、节拍与可直接执行的写作提示词
+defaults.mode.outline_prompt: |-
+  任务：根据用户提供的设定、当前状态、记忆与写作需求，输出一份可直接执行的「框架写作」方案。
+
+  请输出四部分：
+
+  一、章节目标
+  本节要完成的核心叙事任务；与前后文的衔接点。
+
+  二、场景框架
+  按顺序列出 2–6 个场景，每个场景写明：地点、时间、出场人物；场景目标与冲突；关键动作或信息点；场景结束时的状态变化。
+
+  三、节拍与节奏
+  开场钩子、推进、转折、收束；哪些段落放慢，哪些段落加速。
+
+  四、写作提示词
+  把上述框架整理成一段可直接交给正文写作模型执行的提示词，保留用户的硬性要求，并注明「不得新增未授权设定」。
+
+  不写完整正文，不写大段对白，不展示思维链。
+defaults.mode.polish: 润色修订
+defaults.mode.polish_desc: 按指定问题修订文本，保留事实与情节
+defaults.mode.polish_prompt: |-
+  任务：根据用户提示词与本次补充要求，对「待处理文本」进行润色或修订。
+
+  要求：
+  1. 只修改用户指定的问题与范围，保留原有事实、人物、设定与情节。
+  2. 改善语言、节奏、描写密度与段落结构，但不改变叙事视角与时态。
+  3. 不擅自扩写成长篇，不添加未授权的新设定。
+  4. 输出修订后的完整文本；若用户只要求局部修改，也输出可直接替换的完整版本。
+  5. 不输出解释、diff 或修改说明，除非用户明确要求。
+defaults.record.new_character: 新角色
+defaults.record.new_equipment: 新服饰/装备
+defaults.record.new_faction: 新势力
+defaults.record.new_item: 新道具
+defaults.record.new_other: 新条目
+defaults.record.unnamed: 未命名
+defaults.record.unnamed_import: 未命名导入
+defaults.region.unnamed: 未命名区域
+defaults.schema.characters: 人物档案
+defaults.schema.equipment: 服饰与装备
+defaults.schema.factions: 势力设定
+defaults.schema.items: 道具设定
+defaults.schema.memories: 记忆
+defaults.schema.other: 其他设定
+defaults.section.ability_tendency: 能力倾向
+defaults.section.branch: 分支
+defaults.section.cause: 起因
+defaults.section.course: 经过
+defaults.section.deity: 信仰对象
+defaults.section.details: 细则
+defaults.section.doctrine: 教义
+defaults.section.dress_preference: 服装偏好
+defaults.section.economy: 经济与物价
+defaults.section.features: 特点
+defaults.section.history: 历史与时间线
+defaults.section.impact: 影响
+defaults.section.location: 位置
+defaults.section.magic: 魔法与技能
+defaults.section.notes: 备注
+defaults.section.organization: 组织
+defaults.section.overview: 概述
+defaults.section.physiology: 生理特征
+defaults.section.places: 地点与城市
+defaults.section.religion: 宗教与信仰
+defaults.section.result: 结果
+defaults.section.rules: 规则与疾病
+defaults.section.rules_fields: 规则
+defaults.section.social_status: 社会地位
+defaults.section.society: 社会
+defaults.section.species: 物种
+defaults.section.subspecies: 亚种
+defaults.section.summary: 概况
+defaults.section.symptoms: 表现
+defaults.section.time: 时间
+defaults.section.treatment: 治疗
+defaults.section.world: 世界观
+defaults.sections.about_world: 关于世界
+defaults.sections.currency_from: 货币
+defaults.sections.disease_from: 特殊疾病
+defaults.sections.economy_desc: 货币、物价参考、贸易
+defaults.sections.history_desc: 重大事件、战争、条约、预言
+defaults.sections.history_from: 历史事件
+defaults.sections.magic_desc: 属性、来源、技能类型、学习方式
+defaults.sections.magic_from: 魔法
+defaults.sections.religion_desc: 教会、神系、信仰
+defaults.sections.religion_from: 宗教
+defaults.sections.rules_desc: 世界规则、特殊疾病、习俗
+defaults.sections.setting: 设定
+defaults.sections.species_desc: 种族、生理特征、社会地位与亚种
+defaults.sections.species_from: 物种
+defaults.sections.timeline_from: 时间线以及重大事件
+defaults.sections.world_desc: 世界背景、大陆概况、总体设定
+defaults.sections.world_from: 世界背景
+defaults.slot.accessory: 饰品
+defaults.slot.armor: 护甲
+defaults.slot.bottom: 下装
+defaults.slot.cloak: 披风
+defaults.slot.head: 头部
+defaults.slot.shoes: 鞋靴
+defaults.slot.top: 上衣
+defaults.source.from: 来自{source}
+defaults.source.import: 导入
+defaults.source.manuscript: 稿件处理
+defaults.source.manuscript_workspace: 稿件处理 · 工作区
+defaults.text.draft_prefix: 正文_
+
 elements.add_child: 在这个元素下面加子元素
 elements.add_top: ＋ 顶层元素
 elements.applied_count: 共补充 {count} 个元素
@@ -237,6 +504,7 @@ inventory.add_item: 从道具中添加
 inventory.assembly_title: '{name} · 完整外貌拼装'
 inventory.carried_hint: 带上身（随身 / 穿戴）；取消＝放进「已拥有」
 inventory.carried_label: 携带
+inventory.carried_line: 随身：
 inventory.carried_status: 携带中
 inventory.carried_title: 随身物品
 inventory.no_characters: 人物背包只编辑已有人物的随身物品与穿戴。还没有人物时，请到「人物档案」新建，或在该页导入人物 JSON。
@@ -245,13 +513,19 @@ inventory.owned_status: 存在、但没带在身上
 inventory.owned_title: 已拥有（未携带）
 inventory.page_desc: 背包只在这里编辑（人物档案页不再重复）。选人物 → 入包 / 穿戴，指针直接指向「道具设定」与「服饰与装备」；钱袋是背包的特殊字段，可以填数量或富裕 / 一般 / 紧张，留空＝不体现。
 inventory.purse_label: 钱袋
+inventory.purse_line: 钱袋：
 inventory.purse_placeholder: 留空＝不体现；也可以填 富裕 / 一般 / 紧张
 inventory.remove: 移出背包
 inventory.title: '{name} · 背包'
+inventory.worn_line: 穿戴：
 inventory.worn_status: 佩戴中
 inventory.worn_title: 穿戴与装备
+language.back: 上一步
 language.first_run_hint: 选择后立即生效，之后可在「模型设置」中更改。
 language.first_run_title: 选择你的语言
+language.initial_presets_hint: 提示：部分初始化预设会随着初始语言的不同而更换语言；之后切换语言不会修改这部分内容。
+language.next: 下一步
+language.step_of: "第 {step} 步 / 共 {total} 步"
 language.switch_failed_reason: 语言切换失败：{reason}
 manuscript.access_failed_reason: 无法访问：{reason}
 manuscript.ai_assist: AI 辅助
@@ -457,6 +731,8 @@ nav.settings: 模型设置
 nav.text: 稿件处理
 nav.worldmap: 世界地图
 nav.writer: AI 工作站
+providers.note: "【接口】当前使用 {name} 的 OpenAI 兼容接口。"
+providers.note_generic: 【接口】当前使用自定义 OpenAI 兼容接口。不要假定具体模型名称、厂商或特殊能力；以用户提供的设定与提示词为准。
 records.add_category: 添加类别
 records.add_from: ＋ 从{list}中添加
 records.apply_template: 套用模板补齐

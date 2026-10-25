@@ -8,9 +8,10 @@ URL 都可以手动修改；当 URL 与预设不一致时，按“自定义接�
 """
 from __future__ import annotations
 
+from contextlib import nullcontext
 from copy import deepcopy
 
-from .localization import t
+from .localization import language_context, t
 
 
 EFFORTS = ["none", "low", "medium", "high", "max"]
@@ -118,14 +119,22 @@ PROVIDERS = [
 ]
 
 
+def provider_label(provider_id: str) -> str:
+    """Translated display label for a provider (UI and prompt notes)."""
+    provider = get_provider(provider_id)
+    if provider["id"] == "custom":
+        return t("settings.custom_preset")
+    if provider["id"] in ("dashscope", "zhipu"):
+        return t("settings.provider_label_" + provider["id"])
+    return provider["label"]
+
+
 def public_providers() -> list:
     """给前端的预设（不包含任何密钥）。"""
     result = deepcopy(PROVIDERS)
     for provider in result:
         provider["prompt_note"] = t("settings.provider_note_" + provider["id"])
-        if provider["id"] in ("custom", "dashscope", "zhipu"):
-            provider["label"] = t("settings.custom_preset" if provider["id"] == "custom"
-                                  else "settings.provider_label_" + provider["id"])
+        provider["label"] = provider_label(provider["id"])
     return result
 
 
@@ -158,11 +167,14 @@ def provider_for_config(config: dict) -> dict:
 
 
 def provider_note(config: dict) -> str:
-    provider = provider_for_config(config)
-    if provider.get("generic") or provider["id"] == "custom":
-        return ("\n\n【接口】当前使用自定义 OpenAI 兼容接口。"
-                "不要假定具体模型名称、厂商或特殊能力；以用户提供的设定与提示词为准。")
-    return f"\n\n【接口】当前使用 {provider['label']} 的 OpenAI 兼容接口。"
+    """接口说明，进入模型提示词；语言固定为初始语言（未记录时用当前语言）。"""
+    initial = (config or {}).get("initial_language")
+    context = language_context(initial) if initial else nullcontext()
+    with context:
+        provider = provider_for_config(config)
+        if provider.get("generic") or provider["id"] == "custom":
+            return t("providers.note_generic")
+        return t("providers.note", name=provider_label(provider["id"]))
 
 
 def provider_models(config: dict) -> list:

@@ -36,6 +36,14 @@ def _write_config(payload: str) -> None:
     _config_path().write_text(payload, encoding="utf-8")
 
 
+def _clear_collections() -> None:
+    """Remove built-in data files so a test starts from pristine defaults."""
+    for name in ("schema", "sections", "modes", "memories", "items", "equipment", "other", "worldmap"):
+        path = TEMP_DATA / f"{name}.json"
+        if path.exists():
+            path.unlink()
+
+
 def _fresh_config(lang: str | None = None) -> None:
     config = store.default_config()
     if lang is not None:
@@ -118,6 +126,70 @@ class LanguagePersistenceTests(unittest.TestCase):
             loc.set_language("zh-CN")
             self.assertEqual(loc.t("common.save"), "Save")
         self.assertEqual(loc.t("common.save"), "保存")
+
+    def test_first_run_seeds_localized_presets(self):
+        _clear_collections()
+        _fresh_config(None)  # no language yet
+        self.assertEqual(_language.save_language("en-US"), "en-US")
+        self.assertEqual(store.load("schema")["characters"]["label"], "Character profiles")
+        self.assertEqual(store.load("schema")["characters"]["elements"][0]["key"], "Identity")
+        self.assertEqual(store.load("sections")["items"][0]["label"], "Worldview")
+        self.assertEqual(store.load("modes")["items"][0]["label"], "Logic writing")
+        self.assertEqual(store.load("memories")["categories"][0], "Short-term memory")
+        self.assertEqual(store.load("worldmap")["name"], "World map")
+        self.assertEqual(store.load("worldmap")["rows"][:2], ["N5", "N4"])
+        # 内置模式的系统提示词同样按初始语言生成，且不再包含 Markdown 标记
+        prompt = store.load("modes")["items"][0]["system_prompt"]
+        self.assertTrue(prompt.startswith("Task:"))
+        self.assertNotIn("##", prompt)
+
+    def test_builtin_mode_prompts_are_bilingual(self):
+        from novelhelper import prompts as prompts_mod
+        loc.set_language("zh-CN")
+        zh = prompts_mod.default_modes()[0]["system_prompt"]
+        loc.set_language("en-US")
+        en = prompts_mod.default_modes()[0]["system_prompt"]
+        self.assertTrue(zh.startswith("任务："))
+        self.assertTrue(en.startswith("Task:"))
+        self.assertNotIn("##", zh)
+        self.assertNotIn("##", en)
+
+    def test_later_switch_does_not_rewrite_presets(self):
+        _clear_collections()
+        _fresh_config(None)
+        _language.save_language("en-US")
+        _language.save_language("zh-CN")
+        self.assertEqual(store.load("schema")["characters"]["label"], "Character profiles")
+        self.assertEqual(store.load("sections")["items"][0]["label"], "Worldview")
+
+    def test_customized_collection_is_not_overwritten(self):
+        _clear_collections()
+        _fresh_config(None)
+        store.save("sections", {"items": [{"key": "mine", "label": "My Section"}]})
+        _language.save_language("en-US")
+        self.assertEqual(store.load("sections")["items"][0]["label"], "My Section")
+
+    def test_provider_note_uses_initial_language(self):
+        from novelhelper import providers
+        _clear_collections()
+        _fresh_config(None)
+        _language.save_language("en-US")  # first run records initial_language
+        self.assertIn("Currently", providers.provider_note(store.load("config")))
+        _language.save_language("zh-CN")
+        self.assertIn("Currently", providers.provider_note(store.load("config")))
+
+    def test_generic_config_save_preserves_language_fields(self):
+        # 过期客户端可能提交没有 language 的配置副本；通用集合保存不能把它丢掉，
+        # 否则刷新后首次引导会再次弹出。
+        from novelhelper.server import _api
+        _clear_collections()
+        _fresh_config(None)
+        _language.save_language("en-US")
+        stale = {"version": 4, "onboarding": {"done": True, "version": 1}}
+        merged = _api._preserve_language_fields(dict(stale))
+        self.assertEqual(merged["language"], "en-US")
+        self.assertEqual(merged["initial_language"], "en-US")
+        self.assertEqual(merged["onboarding"], {"done": True, "version": 1})
 
     def test_http_switch_endpoint_and_first_run_flag(self):
         httpd = server.serve("127.0.0.1", _free_port())

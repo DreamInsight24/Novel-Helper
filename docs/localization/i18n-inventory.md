@@ -5,6 +5,7 @@
 | 采集基线 | `release/v2610.2-dev` @ `8eb8e7d`（2026-10-23） |
 | 采集方法 | 全量扫描 `app/novelhelper/` 下 `.py` / `.js` / `.html` / `.css` 中含汉字的行，逐条人工分类 |
 | 状态 | 2026-10-24：代码迁移与自测完成；英文已做实现侧审校，负责人终审待完成 |
+| 后续 | 2026-10-25：新增「初始化预设本地化」——首次启动所选语言会决定内置默认数据与提供商接口说明的语言，之后切换语言不改写，见第 8 节 |
 | 用途 | 任务 3.1 迁移的逐项勾选底表；任务 2 翻译表（`zh-CN.yml` / `en-US.yml`）的 key 与英文初稿来源 |
 
 ## 1. 范围与判定规则
@@ -20,7 +21,7 @@
 
 | 位置 | 内容 | 理由 |
 |---|---|---|
-| `app/novelhelper/prompts.py`（全文 176 行） | 默认模式与系统提示词 | D8：不翻译默认提示词 |
+| `app/novelhelper/prompts.py`（工作模式部分） | 默认模式的系统提示词 | 已改为中英双语 key→val（`defaults.mode.*_prompt`），并移除原有 Markdown 标记；`TOOL_PROMPTS`（旧版命令行兼容）保留原文 |
 | `app/novelhelper/context.py` 大部分 | 提示词组装区块（`## 人物档案`、`## 当前状态` 等）及渲染进模型文本的标签 | 模型上下文，非界面 |
 | `app/novelhelper/ai.py:281` | `你是连通性测试助手，只回复 OK。` | 测试提示词 |
 | `server/_generation.py:27` | `（章节：{chapter}）` | 提示词片段 |
@@ -888,6 +889,9 @@
 | Q6 | “将发送/导出内容”中的固定标签、拼装标题属于输出内容 | [x] 保留 |
 | Q7 | 页面标语和欢迎标题使用 `{version}`，来自 `_version.APP_VERSION` | [x] 完成 |
 | Q8 | 语言清单、语言自称由 languages.json 唯一提供 | [x] 完成 |
+| Q9 | 首次启动时用所选语言生成一次内置初始化预设（元素模板、自定义栏目、记忆分类、默认模式名/说明、默认记录名、世界地图行列名）并落盘；之后切换语言不改写。仅在该集合仍是未改动的内置默认值时写入，用户数据不受影响 | [x] 完成 |
+| Q10 | 提供商预设的接口说明（`provider_note`）固定使用初始语言 `config.initial_language`，未记录时用当前语言 | [x] 完成 |
+| Q11 | 内置工作模式与新增模式的系统提示词改为中英双语 key→val（`defaults.mode.*_prompt`），并移除原有 Markdown 标题标记；中文原文保留在 `prompts.py` 作为缺词兜底 | [x] 完成 |
 
 ## 5. 英文审校与迁移说明
 
@@ -963,6 +967,8 @@
 
 已按 JavaScript 语法树检查字符串字面量（不包括注释）。下列为逐项确认保留的内容；没有通过全局文本替换或运行时扫描中文来翻译。
 
+> 2026-10-25 更新：下表中标注「存储数据 / 默认值」的运行时默认值已改为 `i18n.t('defaults.*')` 动态取词（按当前语言），初始化预设则按首次语言落盘（见第 8 节）。背包「完整外貌拼装」预览的标签（`views.js` 的 `inventory.assembly_title` / `worn_line` / `carried_line` / `purse_line`）也已改为 key 取词。仍保留的只有钱袋档位等数据值、诊断日志与默认提示词。
+
 | 当前位置 | 保留内容 | 原因 | 状态 |
 |---|---|---|---|
 | `web/config.js:497` | 新稿件处理模式 | 存储数据 / 默认值 | [x] |
@@ -1013,3 +1019,28 @@
 | `web/workstation.js:505` |  \| 耗时  | 诊断运行日志 | [x] |
 
 ASCII 技术标识（API Key、max_tokens、top_p、模型名、URL、编码名）、品牌和符号保持原文。Python `_defaults.py` 的用户可见 unknown_collection 错误已额外翻译；其余默认数据仍豁免。
+
+## 8. 初始化预设本地化（2026-10-25 新增）
+
+首次启动保存语言时，`store/_localized.py` 会把下列内置默认数据按该语言生成一次并落盘；之后切换语言不再改写。对应 key 统一放在 `defaults.*` 命名空间下，完整中英对照以 `zh-CN.yml` / `en-US.yml` 为准。
+
+| 数据 | 位置 | key 前缀 | 说明 |
+|---|---|---|---|
+| 元素模板标签与元素名 | `store/_defaults.py::default_schema` | `defaults.schema.*` / `defaults.element.*` | 含人物/势力/道具/装备模板与自定义栏目模板字段 |
+| 自定义栏目 | `store/_defaults.py::default_sections` | `defaults.section.*` / `defaults.sections.*` | 栏目名、说明、归类依据 |
+| 默认模式名与说明 | `prompts.py::DEFAULT_MODES` | `defaults.mode.*` | 不翻译 system_prompt |
+| 记忆分类 | `store/_defaults.py::default_memory_categories` | `defaults.memory.*` | 短期/长期/伏笔/备忘 |
+| 道具分类与装备部位 | `store/_defaults.py::default_for` | `defaults.category.*` / `defaults.slot.*` | |
+| 其他设定分类 | `store/_defaults.py::default_for` | `defaults.category.*` | |
+| 世界地图名称与行列名 | `store/_defaults.py::default_worldmap` | `defaults.map.*` / `defaults.axis.*` | 行列为「方位 + 序号」 |
+| 运行时默认记录名 | 前端 `records.js` / `views.js` / `manuscript.js` | `defaults.record.*` / `defaults.region.*` / `defaults.text.*` | 按当前语言取词 |
+| 内置模式系统提示词 | `prompts.py::DEFAULT_MODES` | `defaults.mode.*_prompt` | 中英双语、无 Markdown；首次语言保存时随 modes 一起冻结 |
+| 新增模式默认提示词 | 前端 `config.js::addModeDialog` | `defaults.mode.new_write_prompt` / `new_process_prompt` | 按当前语言取词 |
+| 提供商接口说明 | `providers.py::provider_note` | `providers.note*` | 固定使用初始语言 |
+
+约束：
+
+- `store.default_for` 始终返回原始内置数据，保证既有文件字节兼容；本地化只发生在首次语言保存时；
+- `seed_localized_defaults` 仅在集合仍是未改动的内置默认值时写入，用户已编辑的数据不会被覆盖；
+- 导出格式关键字（`行`/`列`/`格`/`分类`/`内容`…）与解析关键字（`方位`/`世界地图`/`短期记忆`）仍保留原文，不受影响；
+- `context.item_brief` 的元素名查找改为按所有已配置语言尝试候选键名，兼容初始化时冻结的键名。

@@ -164,7 +164,7 @@ function viewManuscript(main) {
     clearTimeout(fileTimer);
     if (!ui.path) {
       const folder = (state.paths.text || 'workspace/text').replace(/[\\/]+$/, '');
-      let name = prompt(i18n.t('manuscript.save_prompt', { folder: folder }), '正文_' + new Date().toISOString().slice(0, 10) + '.txt');
+      let name = prompt(i18n.t('manuscript.save_prompt', { folder: folder }), i18n.t('defaults.text.draft_prefix') + new Date().toISOString().slice(0, 10) + '.txt');
       if (!name) return;
       if (!/\.(txt|md)$/i.test(name)) name += '.txt';
       ui.path = folder + '/' + name.replace(/[\\/]/g, '_');
@@ -326,7 +326,7 @@ function viewManuscript(main) {
     opts = opts || {};
     const coll = state.db.memories = state.db.memories || { items: [], categories: [] };
     coll.items = coll.items || [];
-    coll.categories = (coll.categories && coll.categories.length) ? coll.categories : ['短期记忆'];
+    coll.categories = (coll.categories && coll.categories.length) ? coll.categories : [i18n.t('defaults.memory.short')];
     const titleInput = h('input', { type: 'text', value: opts.title || '' });
     const catSelect = h('select', null, coll.categories.map(c => h('option', {
       value: c, text: c, selected: c === (opts.category || coll.categories[0])
@@ -350,11 +350,11 @@ function viewManuscript(main) {
           const stamp = nowStr();
           coll.items.unshift({
             id: newId('mm'),
-            title: titleInput.value.trim() || opts.title || '稿件处理记忆',
+            title: titleInput.value.trim() || opts.title || i18n.t('defaults.memory.import_title'),
             category: catSelect.value || coll.categories[0],
             chapter: chapInput.value.trim(),
             content: value,
-            source: opts.source || '稿件处理',
+            source: opts.source || i18n.t('defaults.source.manuscript'),
             tags: [], created: stamp, updated: stamp
           });
           touch('memories');
@@ -370,9 +370,9 @@ function viewManuscript(main) {
     if (!ui.value.trim()) { toast(i18n.t('manuscript.nothing_export'), 'err'); return; }
     const base = manuscriptShortName(ui.path).replace(/\.(txt|md|json)$/i, '');
     openSaveToMemoryDialog(ui.value, {
-      title: (base || '稿件处理') + ' · ' + new Date().toLocaleDateString(),
+      title: (base || i18n.t('defaults.source.manuscript')) + ' · ' + new Date().toLocaleDateString(),
       chapter: manuscriptShortName(ui.path),
-      source: '稿件处理 · 工作区'
+      source: i18n.t('defaults.source.manuscript_workspace')
     });
   };
 
@@ -561,7 +561,7 @@ function viewManuscript(main) {
             title: (aiNow.mode_label || manuscriptModeLabel(aiNow.mode)) + ' · ' +
               manuscriptShortName(ui.path).replace(/\.(txt|md|json)$/i, ''),
             chapter: manuscriptShortName(ui.path),
-            source: '稿件处理 · AI 结果 · ' + (aiNow.mode_label || aiNow.mode || '')
+            source: i18n.t('manuscript.source_ai', { mode: aiNow.mode_label || aiNow.mode || '' })
           });
         }
       }),
@@ -658,7 +658,7 @@ function viewManuscript(main) {
 function exportAs(content) {
   let cwd = state.paths.export || '';
   const pathInput = h('input', { type: 'text', value: cwd });
-  const nameInput = h('input', { type: 'text', placeholder: i18n.t('manuscript.filename_placeholder'), value: '正文_' + new Date().toISOString().slice(0, 10) + '.txt' });
+  const nameInput = h('input', { type: 'text', placeholder: i18n.t('manuscript.filename_placeholder'), value: i18n.t('defaults.text.draft_prefix') + new Date().toISOString().slice(0, 10) + '.txt' });
   const encSel = h('select', null, [
     ['utf-8', i18n.t('manuscript.enc_utf8')], ['utf-8-sig', i18n.t('manuscript.enc_utf8_bom')], ['gbk', i18n.t('manuscript.enc_gbk')]
   ].map(([v, l]) => h('option', { value: v, text: l })));

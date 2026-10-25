@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import Any, Iterable
 
-from . import elements as el, prompts as prompts_mod, providers
+from . import elements as el, localization, prompts as prompts_mod, providers
 
 
 # ─────────────────────────────────────────────
@@ -44,6 +44,14 @@ def render_item(rec: dict) -> str:
     return "\n".join(lines)
 
 
+def _key_names(key: str) -> list:
+    """候选元素名：当前语言 + 所有已配置语言，兼容初始化时冻结的键名。"""
+    names = {localization.t(key)}
+    for entry in localization.get_languages()["languages"]:
+        names.add(localization.get_translations(entry["id"]).get(key, ""))
+    return [name for name in names if name]
+
+
 def item_brief(rec: dict) -> str:
     """背包里的一行摘要。"""
     if not rec:
@@ -61,7 +69,10 @@ def item_brief(rec: dict) -> str:
                     return f"{key}：{value}"
         return ""
 
-    for tag in (pick(["类型", "类别"]), pick(["品级"]), pick(["主要效果", "效果"]), pick(["外观描述", "外形"])):
+    for tag in (pick(_key_names("defaults.element.type") + _key_names("defaults.element.category")),
+                pick(_key_names("defaults.element.grade")),
+                pick(_key_names("defaults.element.main_effect") + _key_names("defaults.element.effect")),
+                pick(_key_names("defaults.element.appearance_desc") + _key_names("defaults.element.shape"))):
         if tag:
             bits.append(tag)
     head = _title(rec)

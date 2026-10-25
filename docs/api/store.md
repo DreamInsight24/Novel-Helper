@@ -64,7 +64,9 @@ print(config["server"]["port"])
 | `section_names() -> list` | 从 `sections` 集合读取已启用的自定义栏目名称。 |
 | `default_memory_categories() -> list` | 返回一份新的内置记忆分类标签列表。 |
 | `default_history() -> dict` | 返回空的历史索引和当前会话指针。 |
-| `default_for(name: str) -> Any` | 返回内置集合或有效自定义栏目的新默认值。名称未知时抛出 `KeyError`。 |
+| `default_for(name: str) -> Any` | 返回内置集合或有效自定义栏目的新默认值。名称未知时抛出 `KeyError`。始终返回原始内置数据，不随界面语言变化。 |
+| `localized_default_for(name: str, lang_id: str) -> Any` | 返回与 `default_for` 相同结构、但用户可见文案已按 `lang_id` 翻译的副本。 |
+| `seed_localized_defaults(lang_id: str) -> None` | 首次语言保存时调用：仅当集合仍是未改动的内置默认值时，用 `lang_id` 生成并落盘；用户数据不会被覆盖。 |
 | `load(name: str) -> Any` | 加载集合。文件不存在或仅含空白时返回深拷贝后的默认值。名称未知时抛出 `KeyError`；UTF-8 或 JSON 无效时抛出 `RuntimeError`。 |
 | `save(name: str, data: Any) -> Path` | 原子写入 JSON 并返回文件路径。记录集合/自定义栏目会按现有元素规则清理；名称未知及文件系统/序列化错误不会被吞掉。 |
 | `load_all() -> dict` | 将所有内置集合和当前已启用的自定义栏目加载为“名称到数据”的映射。 |

@@ -494,15 +494,12 @@ function viewModes(main) {
 
 function addModeDialog(kind) {
   const kindId = kind === 'process' ? 'process' : 'write';
-  const defaultLabel = kindId === 'process' ? '新稿件处理模式' : '新写稿模式';
+  const defaultLabel = kindId === 'process'
+    ? i18n.t('defaults.mode.new_process')
+    : i18n.t('defaults.mode.new_write');
   const prompt = kindId === 'process'
-    ? '任务：对用户提供的「待处理文本」进行处理。\n\n' +
-      '要求：\n1. 严格按用户选择的处理方式与处理要求执行。\n' +
-      '2. 保留原文的事实、人物、设定与情节，不擅自新增。\n' +
-      '3. 直接输出处理后的完整文本，不写前言后语。'
-    : '任务：根据用户提供的设定、当前状态、记忆与提示词完成本次工作。\n\n' +
-      '要求：\n1. 严格遵循用户提供的设定与提示词。\n2. 不擅自新增未授权的设定、人物或情节。\n' +
-      '3. 直接输出本次工作结果，不写与任务无关的前言后语。';
+    ? i18n.t('defaults.mode.new_process_prompt')
+    : i18n.t('defaults.mode.new_write_prompt');
   askDialog(i18n.t('modes.add_kind_title', { kind: modeKindLabel(kindId) }), i18n.t('modes.name_label'), defaultLabel, name => {
     const label = (name || '').trim() || defaultLabel;
     const modes = dbModes();
@@ -811,7 +808,9 @@ function viewAI(main) {
             toast(i18n.t('language.switch_failed_reason', { reason: err.message }), 'err');
           }
         },
-      }, (i18n.defaults.languages || []).map(l => h('option', { value: l.id, text: l.name })))),
+      }, (i18n.defaults.languages || []).map(l => h('option', {
+        value: l.id, text: l.name, selected: l.id === (i18n.defaults.current || 'zh-CN')
+      })))),
     h('span', { class: 'small muted',
       text: i18n.t('settings.language_hint') })));
   main.appendChild(sCard);
@@ -848,21 +847,25 @@ function viewAI(main) {
 }
 
 // ═══════════════════════════════════════════
-// 首次使用引导
+// 首次使用引导：1/2 语言 → 2/2 接口设置
 // ═══════════════════════════════════════════
 function maybeShowOnboarding() {
+  if (new URLSearchParams(location.search).has('lang')) return; // ?lang= 预览不弹窗
   const cfg = state.db.config || {};
   ensureApiProfiles(cfg);
-  if (!(cfg.onboarding || {}).done) showOnboarding(false);
+  if (!(cfg.onboarding || {}).done || !cfg.language) showOnboarding(false);
 }
 
 function showOnboarding(force) {
   const cfg = state.db.config = state.db.config || {};
   ensureApiProfiles(cfg);
-  if (!force && (cfg.onboarding || {}).done) return;
+  if (!force && (cfg.onboarding || {}).done && cfg.language) return;
 
   const body = h('div');
+  const foot = h('div', { class: 'dlg-foot' });
   let dialog = null;
+  let step = 1;
+  let lang = cfg.language || i18n.defaults.current || 'zh-CN';
 
   const finish = async configured => {
     cfg.onboarding = cfg.onboarding || {};
@@ -872,19 +875,46 @@ function showOnboarding(force) {
       if (configured) saveProviderProfile(cfg, cfg.api.provider);
       await saveNow('config');
       if (dialog) dialog.close();
-      await refreshFiles();
-      renderNav();
-      renderMain();
-      toast(configured
-        ? i18n.t('welcome.saved')
-        : i18n.t('welcome.skipped'), 'ok');
+      // 语言与内置预设按整页刷新统一生效。
+      location.reload();
     } catch (e) {
       toast(i18n.t('common.save_failed_reason', { reason: e.message }), 'err');
     }
   };
 
-  const draw = () => {
-    clear(body);
+  // 选中即写入并即时预览；最后一步再整页刷新，让所有顶层文案一起生效。
+  const selectLanguage = async id => {
+    if (id === lang) return;
+    lang = id;
+    try {
+      const res = await apiCall('/api/settings/language', { method: 'POST', body: { language: id } });
+      const applied = res.language || id;
+      i18n.defaults.current = applied;
+      await i18n.load(applied);
+      // 语言是服务端写入的字段，必须同步回本地配置，否则最后一步保存会把
+      // language / initial_language 覆盖掉，刷新后引导会再次弹出。
+      cfg.language = applied;
+      if (!cfg.initial_language) cfg.initial_language = applied;
+    } catch (err) {
+      toast(i18n.t('language.switch_failed_reason', { reason: err.message }), 'err');
+    }
+    draw();
+  };
+
+  const drawLanguageStep = () => {
+    const list = h('div', { class: 'list' });
+    (i18n.defaults.languages || []).forEach(item => {
+      list.appendChild(h('div', {
+        class: 'list-item' + (item.id === lang ? ' active' : ''),
+        onclick: () => selectLanguage(item.id)
+      }, h('div', { class: 'name', text: item.name })));
+    });
+    body.appendChild(list);
+    body.appendChild(h('div', { class: 'small muted', style: { marginTop: '10px' } },
+      i18n.t('language.initial_presets_hint')));
+  };
+
+  const drawApiStep = () => {
     const api = cfg.api;
     const preset = providerById(api.provider) ||
       { label: i18n.t('settings.custom_preset'), base_url: '', models: [], key_env: 'CUSTOM_API_KEY' };
@@ -989,15 +1019,47 @@ function showOnboarding(force) {
       text: i18n.t('welcome.key_note') }));
   };
 
-  dialog = modal(i18n.t('welcome.title'), body, [
-    h('button', {
-      text: i18n.t('welcome.skip'), dataset: { noclose: '1' },
-      onclick: () => finish(false)
-    }),
-    h('button', {
-      class: 'primary', text: i18n.t('welcome.start'), dataset: { noclose: '1' },
-      onclick: () => finish(true)
-    })
-  ]);
+  const draw = () => {
+    clear(body);
+    body.appendChild(h('div', { class: 'small muted', style: { marginBottom: '10px' } },
+      i18n.t('language.step_of', { step, total: 2 })));
+    if (step === 1) drawLanguageStep();
+    else drawApiStep();
+    const title = dialog && dialog.dlg.querySelector(':scope > h3');
+    if (title) {
+      title.textContent = i18n.t(step === 1 ? 'language.first_run_title' : 'welcome.title',
+        { version: i18n.defaults.version });
+    }
+    clear(foot);
+    const buttons = step === 1
+      ? [
+          h('button', {
+            text: i18n.t('welcome.skip'), dataset: { noclose: '1' },
+            onclick: () => finish(false)
+          }),
+          h('button', {
+            class: 'primary', text: i18n.t('language.next'), dataset: { noclose: '1' },
+            onclick: () => { step = 2; draw(); }
+          })
+        ]
+      : [
+          h('button', {
+            text: i18n.t('language.back'), dataset: { noclose: '1' },
+            onclick: () => { step = 1; draw(); }
+          }),
+          h('button', {
+            text: i18n.t('welcome.skip'), dataset: { noclose: '1' },
+            onclick: () => finish(false)
+          }),
+          h('button', {
+            class: 'primary', text: i18n.t('welcome.start'), dataset: { noclose: '1' },
+            onclick: () => finish(true)
+          })
+        ];
+    buttons.forEach(btn => foot.appendChild(btn));
+  };
+
+  dialog = modal(i18n.t('welcome.title', { version: i18n.defaults.version }),
+    h('div', null, body, foot), null);
   draw();
 }
