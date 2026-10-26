@@ -18,6 +18,7 @@ docs/
     validation.md               # 自测结果与验收边界
   requirements/
     v2610.2.md                 # 版本需求归档，一个版本一个文件
+    v2610.3.md                 # 当前版本需求：多小说首页、设定视觉化、AI 设定生成、桌面化与动态端口
   api/
     README.md                   # Python 公共 API 总索引
     <package>.md               # 各软件包接口文档，与 __all__/docstring 一致
