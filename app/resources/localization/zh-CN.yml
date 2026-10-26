@@ -544,6 +544,11 @@ errors.region_not_object: 区域 {id} 必须是对象
 errors.resource_missing: '资源不存在: {path}'
 errors.serialize_failed: '无法序列化: {type}'
 errors.session_missing: 对话不存在或已被删除
+errors.novel_title_required: 小说标题不能为空
+errors.novel_active_required: 请先打开一本小说
+errors.novel_config_invalid: 小说配置格式无效
+errors.novel_title_mismatch: 确认标题与小说标题不一致
+errors.novel_recycle_failed: 无法将小说移入系统回收站；数据已保留
 errors.this_mode: 该模式
 errors.unknown_api: '未知接口: {path}'
 errors.unknown_collection: '未知集合: {name}'

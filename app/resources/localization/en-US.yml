@@ -560,6 +560,11 @@ errors.region_not_object: Region {id} must be an object
 errors.resource_missing: 'Resource not found: {path}'
 errors.serialize_failed: 'Cannot serialize: {type}'
 errors.session_missing: The conversation does not exist or has been deleted
+errors.novel_title_required: Novel title is required
+errors.novel_active_required: Open a novel first
+errors.novel_config_invalid: Novel configuration is invalid
+errors.novel_title_mismatch: Confirmation title does not match the novel title
+errors.novel_recycle_failed: The novel could not be moved to the system recycle bin; its data was kept
 errors.this_mode: this mode
 errors.unknown_api: 'Unknown endpoint: {path}'
 errors.unknown_collection: 'Unknown collection: {name}'

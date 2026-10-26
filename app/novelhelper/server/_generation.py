@@ -29,7 +29,7 @@ class _GenerationMixin:
         body = self._body()
         tool = body.get("tool") or "compress"
         db = store.load_all()
-        config = body.get("config") or db.get("config") or store.default_config()
+        config = db.get("config") or store.current_config()
         override = body.get("override") or {}
         text = body.get("text") or ""
 
@@ -90,7 +90,7 @@ class _GenerationMixin:
         _RUN_STATE.update(busy=True, started=store.now_str(), mode=mode_id,
                           surface=surface, transport="")
         try:
-            config = body.get("config") or db.get("config") or store.default_config()
+            config = db.get("config") or store.current_config()
             selection = body.get("selection") or {}
             user_prompt = body.get("prompt") or selection.get("prompt") or ""
             work_prompt = body.get("work_prompt") or ""
