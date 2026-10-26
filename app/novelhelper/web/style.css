@@ -153,6 +153,26 @@ html, body {
 .row { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-start; }
 .col { flex: 1 1 340px; min-width: 0; }
 
+.novel-toolbar { display: flex; gap: 10px; margin: 0 0 14px; max-width: 760px; }
+.novel-toolbar input { flex: 1; min-width: 180px; }
+.novel-toolbar select { width: auto; min-width: 170px; }
+.novel-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 12px; }
+.novel-card { min-width: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+.novel-card-head { display: flex; align-items: flex-start; gap: 8px; justify-content: space-between; }
+.novel-card h2 { min-width: 0; overflow-wrap: anywhere; font-size: 16px; margin: 0 0 10px; }
+.novel-active { flex: none; padding: 2px 7px; border-radius: 4px; background: #e8f3ed; color: #176b49; font-size: 11px; }
+.novel-date { color: var(--muted); font-size: 12px; margin-top: 8px; }
+.novel-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+.novel-empty { max-width: 680px; padding: 46px 12px; text-align: center; }
+.novel-empty h2 { font-size: 19px; margin: 0 0 6px; }
+.novel-empty p { color: var(--muted); margin: 0 0 18px; }
+.novel-empty button { margin-inline: auto; }
+@media (max-width: 720px) {
+  #main { padding: 16px 14px 44px; }
+  .novel-toolbar { flex-direction: column; }
+  .novel-toolbar select { width: 100%; }
+}
+
 /* ── 控件 ───────────────────────────── */
 button, .btn {
   font: inherit; border: 1px solid var(--line-strong); background: #fff;

@@ -30,7 +30,7 @@ httpd.serve_forever()
 | `POST` | `/api/novels` | 使用 `title`（必填）、`author`、`description` 创建隔离小说，并复制全局配置作为初始配置。 |
 | `POST` | `/api/novels/open` | 请求体 `{ "id": "..." }`，切换活动小说；生成任务进行时拒绝。 |
 | `POST` | `/api/novels/update` | 请求体含 `id`，可更新 `title`、`author`、`description`。 |
-| `POST` | `/api/novels/delete` | 请求体含 `id` 和 `title_confirmation`；确认后移入系统回收站，失败时保留数据。 |
+| `POST` | `/api/novels/delete` | 请求体含 `id` 和 `title_confirmation`；元数据正常时确认值必须匹配标题，元数据损坏时必须匹配小说 ID。确认后移入系统回收站，失败时保留数据并返回可读错误。 |
 | `GET` | `/api/settings/config` | 返回全局配置、当前小说配置和有效配置。 |
 | `POST` | `/api/settings/config` | 请求体 `{ "scope": "global"|"novel", "config": {...} }`，分别保存全局或当前小说配置。 |
 

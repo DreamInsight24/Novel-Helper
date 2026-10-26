@@ -127,16 +127,17 @@ python app/run.py --no-browser
 
 ## 数据与日志
 
+v2610.3 起，应用启动后先显示作品库。新安装会初始化空作品库，不会自动创建小说，也不会尝试迁移开发期的旧数据布局。创建小说后，每本小说的数据与工作区分别保存在 `data/novels/<novel_id>/` 和 `workspace/novels/<novel_id>/`。小说设置默认跟随全局配置；需要独立 API/提供商等设置时，可在小说设置中启用本小说配置，也可从该页切换到全局配置。删除小说会把数据和工作区移入系统回收站。
+
 从源码运行时，首次启动后生成：
 
 ```text
 app/
-├── data/                 设定、模式、配置、对话历史
+├── data/
+│   ├── config.json       全局配置与活动小说 ID
+│   └── novels/           各小说设定、模式、历史、配置与会话
 ├── workspace/
-│   ├── import/           导入文件
-│   ├── export/           导出文件
-│   ├── output/           正文与计划
-│   └── text/             稿件处理工作区
+│   └── novels/           各小说隔离的导入、导出、正文与稿件工作区
 └── ...
 log/
 └── novelhelper.log       操作、AI 交互与错误日志
@@ -146,8 +147,11 @@ log/
 
 ```text
 NovelHelper.exe
-├── data/                 设定、模式、配置、对话历史
-├── workspace/            导入、导出、正文与稿件处理工作区
+├── data/
+│   ├── config.json       全局配置与活动小说 ID
+│   └── novels/           每本小说独立的数据、配置与会话
+├── workspace/
+│   └── novels/           每本小说隔离的导入、导出、正文与稿件处理工作区
 └── log/                  操作、AI 交互与错误日志
 ```
 
