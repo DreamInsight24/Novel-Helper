@@ -28,6 +28,9 @@ from ._paths import DEBUG_MODE, DEFAULT_LOG_DIR
 def default_config() -> dict:
     return {
         "version": 4,
+        "layout_version": 1,
+        "initialized": True,
+        "active_novel_id": "",
         "api": providers.default_api_config(),
         "server": {"host": "127.0.0.1", "port": 8766 if DEBUG_MODE else 8765},
         "onboarding": {"done": False, "version": 1},
@@ -38,12 +41,12 @@ def default_config() -> dict:
         },
         "paths": {
             "data_dir": "data",
-            "import_dir": "workspace/import",
-            "export_dir": "workspace/export",
-            "output_dir": "workspace/output",
-            "plan_dir": "workspace/output/plan",
-            "txt_dir": "workspace/output/txt",
-            "text_dir": "workspace/text",
+            "import_dir": "import",
+            "export_dir": "export",
+            "output_dir": "output",
+            "plan_dir": "output/plan",
+            "txt_dir": "output/txt",
+            "text_dir": "text",
             "log_dir": DEFAULT_LOG_DIR,
         },
     }

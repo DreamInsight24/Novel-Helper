@@ -21,6 +21,8 @@ from __future__ import annotations
 from ._paths import (
     APP_ROOT, COLLECTIONS, DATA_DIR, DEBUG_MODE, DEFAULT_LOG_DIR, FROZEN,
     PROJECT_ROOT, RECORD_COLLECTIONS, REPO_ROOT, RUNTIME_ROOT, SECTION_PREFIX,
+    NOVELS_DIR, WORKSPACE_ROOT, NOVEL_WORKSPACES_DIR, active_novel_id,
+    novel_data_dir, novel_workspace_dir, validate_novel_id,
     STUDIO_DIR, WEB_DIR, data_dir,
 )
 from ._names import (
@@ -57,10 +59,16 @@ from ._collections import (
     section_names,
 )
 from ._backup import backup_all
+from ._novels import (
+    create_novel, effective_config, list_novels, load_novel_config,
+    novel_config_template, read_novel, set_active_novel,
+)
 
 __all__ = [
     'FROZEN', 'STUDIO_DIR', 'APP_ROOT', 'REPO_ROOT', 'WEB_DIR', 'DEBUG_MODE',
     'DEFAULT_LOG_DIR', 'RUNTIME_ROOT', 'PROJECT_ROOT', 'DATA_DIR', 'COLLECTIONS',
+    'NOVELS_DIR', 'WORKSPACE_ROOT', 'NOVEL_WORKSPACES_DIR', 'active_novel_id',
+    'novel_data_dir', 'novel_workspace_dir', 'validate_novel_id',
     'RECORD_COLLECTIONS', 'SECTION_PREFIX', 'now_str', 'stamp', 'new_id', 'data_dir',
     'ensure_dirs', 'io_in', 'io_out', 'out_dir', 'plan_dir', 'txt_dir', 'text_dir',
     'log_dir', 'default_config', 'default_workstation', 'default_state', 'default_schema',
@@ -70,4 +78,6 @@ __all__ = [
     'default_memory_categories', 'default_history', 'default_for', 'load', 'save',
     'localized_default_for', 'seed_localized_defaults',
     'load_all', 'load_all_names', 'schema_for', 'known_collection', 'backup_all',
+    'create_novel', 'effective_config', 'list_novels', 'load_novel_config',
+    'novel_config_template', 'read_novel', 'set_active_novel',
 ]
