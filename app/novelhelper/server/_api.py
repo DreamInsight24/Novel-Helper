@@ -78,9 +78,87 @@ class _ApiMixin:
             self._json({"ok": True, "language": saved,
                         "current": localization.get_language()})
             return
+        if method == "GET" and path == "/api/novels":
+            self._json({"ok": True, "active_novel_id": store.active_novel_id(),
+                        "novels": store.list_novels()})
+            return
+        if method == "GET" and path == "/api/novels/current":
+            novel_id = store.active_novel_id()
+            self._json({"ok": True, "active_novel_id": novel_id,
+                        "novel": store.read_novel(novel_id) if novel_id else None})
+            return
+        if method == "POST" and path == "/api/novels":
+            body = self._body()
+            novel = store.create_novel(body.get("title") or "", body.get("author") or "",
+                                       body.get("description") or "")
+            logger.log_event("NOVEL", "create", novel_id=novel["id"])
+            self._json({"ok": True, "novel": novel}, status=201)
+            return
+        if method == "POST" and path == "/api/novels/open":
+            if _RUN_STATE.get("busy"):
+                self._error(t("errors.generation_locked"), status=409)
+                return
+            body = self._body()
+            novel = store.open_novel(body.get("id") or "")
+            logger.log_event("NOVEL", "open", novel_id=novel["id"])
+            self._json({"ok": True, "novel": novel})
+            return
+        if method == "POST" and path == "/api/novels/update":
+            body = self._body()
+            novel = store.update_novel(body.get("id") or "", body)
+            logger.log_event("NOVEL", "update", novel_id=novel["id"])
+            self._json({"ok": True, "novel": novel})
+            return
+        if method == "POST" and path == "/api/novels/delete":
+            if _RUN_STATE.get("busy"):
+                self._error(t("errors.generation_locked"), status=409)
+                return
+            body = self._body()
+            deleted = store.delete_novel(body.get("id") or "", body.get("title_confirmation") or "")
+            logger.log_event("NOVEL", "delete", novel_id=deleted)
+            self._json({"ok": True, "deleted": deleted, "active_novel_id": store.active_novel_id()})
+            return
+        if method == "GET" and path == "/api/settings/config":
+            global_config = store.load("config")
+            novel_id = store.active_novel_id()
+            novel_config = store.load_novel_config(novel_id) if novel_id else None
+            self._json({"ok": True, "scope": "novel" if novel_id else "global",
+                        "global": global_config, "novel": novel_config,
+                        "effective": store.current_config()})
+            return
+        if method == "POST" and path == "/api/settings/config":
+            body = self._body()
+            scope = str(body.get("scope") or "global")
+            data = body.get("config")
+            if not isinstance(data, dict):
+                self._error(t("errors.novel_config_invalid"), status=400)
+                return
+            if scope == "global":
+                saved = store.save("config", _preserve_language_fields(data))
+            elif scope == "novel" and store.active_novel_id():
+                saved = store.save_novel_config(store.active_novel_id(), data)
+            else:
+                self._error(t("errors.novel_active_required"), status=409)
+                return
+            self._json({"ok": True, "scope": scope, "saved": str(saved),
+                        "effective": store.current_config()})
+            return
         if method == "GET" and path == "/api/state":
+            novel_id = store.active_novel_id()
+            if not novel_id:
+                self._json({"ok": True, "active_novel_id": "", "novel": None,
+                            "collections": {"config": store.current_config()},
+                            "sources": [], "chapters": [], "io": [],
+                            "root": str(store.PROJECT_ROOT),
+                            "data_dir": str(store.DATA_DIR),
+                            "paths": {"root": str(store.PROJECT_ROOT),
+                                      "data_dir": str(store.DATA_DIR)},
+                            "api_ready": _api_ready(store.current_config())})
+                return
             self._json({
                 "ok": True,
+                "active_novel_id": novel_id,
+                "novel": store.read_novel(novel_id),
                 "collections": store.load_all(),
                 "sources": project.import_sources(),
                 "chapters": project.list_chapters(),
@@ -96,7 +174,7 @@ class _ApiMixin:
                 "providers": providers.public_providers(),
                 "default_modes": prompts_mod.default_modes(),
                 "efforts": list(providers.EFFORTS),
-                "api_ready": _api_ready(store.load("config")),
+                "api_ready": _api_ready(store.current_config()),
             })
             return
 
@@ -230,7 +308,7 @@ class _ApiMixin:
 
         if path == "/api/models" and method == "POST":
             body = self._body()
-            config = body.get("config") or store.load("config")
+            config = body.get("config") or store.current_config()
             result = ai.list_models(config)
             logger.log_event("MODEL", "list", provider=result.get("provider"),
                              endpoint=result.get("endpoint"), count=len(result.get("models") or []))
@@ -262,7 +340,7 @@ class _ApiMixin:
                     self._error(error)
                     return
             assembled = context.assemble_mode(
-                db.get("config") or store.default_config(), db,
+                db.get("config") or store.current_config(), db,
                 dict(body.get("selection") or {}, prompt=body.get("prompt") or ""), mode,
                 work_prompt=body.get("work_prompt") or "",
                 source_text=body.get("source_text") or "",
@@ -272,7 +350,7 @@ class _ApiMixin:
 
         if path == "/api/ai/ping" and method == "POST":
             body = self._body()
-            config = body.get("config") or store.load("config")
+            config = body.get("config") or store.current_config()
             self._json({"ok": True, "result": ai.ping(config, body.get("model") or "")})
             return
 

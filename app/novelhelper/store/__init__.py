@@ -60,8 +60,9 @@ from ._collections import (
 )
 from ._backup import backup_all
 from ._novels import (
-    create_novel, effective_config, list_novels, load_novel_config,
-    novel_config_template, read_novel, set_active_novel,
+    create_novel, current_config, delete_novel, effective_config, list_novels, load_novel_config,
+    novel_config_template, open_novel, read_novel, save_novel_config,
+    set_active_novel, update_novel,
 )
 
 __all__ = [
@@ -78,6 +79,7 @@ __all__ = [
     'default_memory_categories', 'default_history', 'default_for', 'load', 'save',
     'localized_default_for', 'seed_localized_defaults',
     'load_all', 'load_all_names', 'schema_for', 'known_collection', 'backup_all',
-    'create_novel', 'effective_config', 'list_novels', 'load_novel_config',
-    'novel_config_template', 'read_novel', 'set_active_novel',
+    'create_novel', 'current_config', 'delete_novel', 'effective_config', 'list_novels', 'load_novel_config',
+    'novel_config_template', 'open_novel', 'read_novel', 'save_novel_config',
+    'set_active_novel', 'update_novel',
 ]

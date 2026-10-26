@@ -27,6 +27,17 @@ from ._paths import (
 from ._repository import load
 
 
+def _config_value(key: str, default: str) -> str:
+    global_config = load("config")
+    novel_id = active_novel_id()
+    if novel_id:
+        from ._novels import effective_config, load_novel_config
+        config = effective_config(global_config, load_novel_config(novel_id))
+    else:
+        config = global_config
+    return str((config.get("paths") or {}).get(key, default) or default)
+
+
 def _workspace(rel: str) -> Path:
     """Resolve a configured workspace path inside the active novel namespace."""
     value = Path(str(rel or ""))
@@ -55,28 +66,28 @@ def _workspace(rel: str) -> Path:
     return target
 
 def io_in() -> Path:
-    value = load("config").get("paths", {}).get("import_dir", "import")
+    value = _config_value("import_dir", "import")
     return _workspace(value)
 
 def io_out() -> Path:
-    value = load("config").get("paths", {}).get("export_dir", "export")
+    value = _config_value("export_dir", "export")
     return _workspace(value)
 
 def out_dir() -> Path:
-    value = load("config").get("paths", {}).get("output_dir", "output")
+    value = _config_value("output_dir", "output")
     return _workspace(value)
 
 def plan_dir() -> Path:
-    value = load("config").get("paths", {}).get("plan_dir", "output/plan")
+    value = _config_value("plan_dir", "output/plan")
     return _workspace(value)
 
 def txt_dir() -> Path:
-    value = load("config").get("paths", {}).get("txt_dir", "output/txt")
+    value = _config_value("txt_dir", "output/txt")
     return _workspace(value)
 
 def text_dir() -> Path:
     """稿件处理工作区的独立文件夹。"""
-    value = load("config").get("paths", {}).get("text_dir", "text")
+    value = _config_value("text_dir", "text")
     return _workspace(value)
 
 def log_dir() -> Path:
