@@ -153,6 +153,9 @@ class _ApiMixin:
                             "data_dir": str(store.DATA_DIR),
                             "paths": {"root": str(store.PROJECT_ROOT),
                                       "data_dir": str(store.DATA_DIR)},
+                            "providers": providers.public_providers(),
+                            "default_modes": prompts_mod.default_modes(),
+                            "efforts": list(providers.EFFORTS),
                             "api_ready": _api_ready(store.current_config())})
                 return
             self._json({

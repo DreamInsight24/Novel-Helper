@@ -29,7 +29,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 <body>
 <div id="app">
   <aside id="sidebar">
-    <div class="brand">
+    <div class="brand" role="button" tabindex="0" onclick="go('home')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();go('home')}">
       <div class="brand-title">NovelHelper</div>
       <div class="brand-sub" data-i18n="common.tagline"></div>
       <div id="debug-badge" class="debug-badge" hidden data-i18n="common.debug_badge"></div>

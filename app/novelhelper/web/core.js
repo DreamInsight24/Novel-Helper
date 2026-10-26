@@ -198,6 +198,7 @@ function confirmDialog(title, text, onYes) {
     h('button', { text: i18n.t('common.cancel'), onclick: () => m.close() }),
     h('button', { class: 'primary', text: i18n.t('common.confirm'), dataset: { noclose: '1' }, onclick: () => { m.close(); onYes(); } })
   ]);
+  m.dlg.querySelector('.dlg-foot button:not(.primary)')?.focus();
   return m;
 }
 
@@ -239,7 +240,11 @@ const state = {
   runtime_root: '',
   log_file: '',
   paths: {},
-  view: 'writer',
+  novels: [],
+  activeNovelId: '',
+  view: 'home',
+  configScope: 'novel',
+  switchingNovel: false,
   ui: {},
   sel: {}
 };
@@ -351,8 +356,10 @@ function touch(coll, quiet) {
   if (!quiet) status(i18n.t('common.saving'), 'busy');
   clearTimeout(saveTimers[coll]);
   saveTimers[coll] = setTimeout(async () => {
+    saveTimers[coll] = null;
     try {
-      await api('/api/collections/' + coll, { method: 'POST', body: { data: state.db[coll] } });
+      if (coll === 'config') await persistConfig();
+      else await api('/api/collections/' + coll, { method: 'POST', body: { data: state.db[coll] } });
       if (!quiet) status(i18n.t('common.saved_at', { time: new Date().toLocaleTimeString() }), 'ok');
     } catch (e) {
       status(i18n.t('common.save_failed'), 'err');
@@ -363,8 +370,30 @@ function touch(coll, quiet) {
 
 async function saveNow(coll) {
   clearTimeout(saveTimers[coll]);
-  await api('/api/collections/' + coll, { method: 'POST', body: { data: state.db[coll] } });
+  saveTimers[coll] = null;
+  if (coll === 'config') await persistConfig();
+  else await api('/api/collections/' + coll, { method: 'POST', body: { data: state.db[coll] } });
   status(i18n.t('common.saved_at', { time: new Date().toLocaleTimeString() }), 'ok');
+}
+
+async function persistConfig() {
+  const config = state.db.config || {};
+  if (state.configScope === 'novel' && state.activeNovelId) {
+    const ref = await api('/api/settings/config');
+    const global = ref.global || {};
+    const useGlobal = {};
+    const values = {};
+    Object.keys(config).forEach(key => {
+      const changed = JSON.stringify(config[key]) !== JSON.stringify(global[key]);
+      useGlobal[key] = !changed;
+      if (changed) values[key] = config[key];
+    });
+    await api('/api/settings/config', { method: 'POST', body: {
+      scope: 'novel', config: { version: 1, use_global: useGlobal, values }
+    } });
+  } else {
+    await api('/api/settings/config', { method: 'POST', body: { scope: 'global', config } });
+  }
 }
 
 /** 把一段文本追加到稿件处理工作区（不清空已有内容）。 */
@@ -410,6 +439,7 @@ window.addEventListener('unhandledrejection', e => {
 // 侧栏与路由
 // ═══════════════════════════════════════════
 const NAV = [
+  { id: 'home', label: i18n.t('novels.home') },
   { group: i18n.t('nav.group_writing') },
   { id: 'writer', label: i18n.t('nav.writer') },
   { id: 'chapters', label: i18n.t('nav.chapters') },
@@ -437,6 +467,7 @@ function renderNav() {
   const nav = document.getElementById('nav');
   clear(nav);
   for (const entry of NAV) {
+    if (!state.activeNovelId && entry.id !== 'home') continue;
     if (entry.group) { nav.appendChild(h('div', { class: 'nav-group', text: entry.group })); continue; }
     if (entry.sections) {
       sectionDefs().forEach(sec => {
@@ -460,12 +491,160 @@ function renderNav() {
   }
 }
 
+async function loadNovelList() {
+  const result = await api('/api/novels');
+  state.novels = result.novels || [];
+  state.activeNovelId = result.active_novel_id || '';
+}
+
+async function flushPendingSaves() {
+  if (state.ui.leavePromise) {
+    await state.ui.leavePromise;
+    state.ui.leavePromise = null;
+  }
+  const pending = Object.keys(saveTimers).filter(key => saveTimers[key]);
+  for (const coll of pending) {
+    clearTimeout(saveTimers[coll]);
+    saveTimers[coll] = null;
+    await saveNow(coll);
+  }
+}
+
+function viewHome(main) {
+  main.appendChild(pageHead(i18n.t('novels.home'), i18n.t('novels.home_desc'),
+    h('button', { class: 'primary', text: i18n.t('novels.create'), onclick: showCreateNovel })));
+  if (!state.novels.length) {
+    main.appendChild(h('div', { class: 'novel-empty' },
+      h('h2', { text: i18n.t('novels.empty_title') }),
+      h('p', { text: i18n.t('novels.empty_desc') }),
+      h('button', { class: 'primary', text: i18n.t('novels.create'), onclick: showCreateNovel })));
+    return;
+  }
+  const tools = h('div', { class: 'novel-toolbar' });
+  const search = h('input', { type: 'text', placeholder: i18n.t('novels.search'), oninput: renderCards });
+  const sort = h('select', { onchange: renderCards },
+    h('option', { value: 'updated', text: i18n.t('novels.sort_updated') }),
+    h('option', { value: 'created', text: i18n.t('novels.sort_created') }));
+  tools.append(search, sort);
+  const cards = h('div', { class: 'novel-grid' });
+  main.append(tools, cards);
+  function renderCards() {
+    clear(cards);
+    const query = search.value.trim().toLocaleLowerCase();
+    const items = state.novels.filter(item => `${item.title || ''} ${item.author || ''}`.toLocaleLowerCase().includes(query));
+    items.sort((a, b) => String(b[sort.value] || '').localeCompare(String(a[sort.value] || '')));
+    if (!items.length) {
+      cards.appendChild(h('div', { class: 'muted', text: i18n.t('novels.no_results') }));
+      return;
+    }
+    items.forEach(item => {
+      const card = h('article', { class: 'novel-card' });
+      card.appendChild(h('div', { class: 'novel-card-head' },
+        h('h2', { text: item.ok === false ? i18n.t('novels.broken_title') : (item.title || i18n.t('common.unnamed')) }),
+        item.id === state.activeNovelId ? h('span', { class: 'novel-active', text: i18n.t('novels.active') }) : null));
+      if (item.ok === false) {
+        card.appendChild(h('p', { class: 'muted', text: i18n.t('novels.broken_desc') }));
+        card.appendChild(h('div', { class: 'novel-actions' },
+          h('button', { class: 'danger', text: i18n.t('novels.delete'), onclick: () => confirmDeleteNovel(item) })));
+      } else {
+        if (item.author) card.appendChild(h('div', { class: 'muted', text: item.author }));
+        card.appendChild(h('div', { class: 'novel-date', text: i18n.t('novels.updated', { date: item.updated || item.created || '' }) }));
+        card.appendChild(h('div', { class: 'novel-actions' },
+          h('button', { class: 'primary', text: item.id === state.activeNovelId ? i18n.t('novels.continue') : i18n.t('novels.open'), onclick: () => switchNovel(item.id) }),
+          h('button', { text: i18n.t('novels.rename'), onclick: () => editNovel(item) }),
+          h('button', { class: 'danger', text: i18n.t('novels.delete'), onclick: () => confirmDeleteNovel(item) })));
+      }
+      cards.appendChild(card);
+    });
+  }
+  renderCards();
+}
+
+function showCreateNovel() {
+  const title = h('input', { type: 'text', maxlength: 160 });
+  const author = h('input', { type: 'text', maxlength: 160 });
+  const description = h('textarea', { rows: 4 });
+  const body = h('div', null,
+    h('div', { class: 'field' }, h('label', { text: i18n.t('novels.title') }), title),
+    h('div', { class: 'field' }, h('label', { text: i18n.t('novels.author') }), author),
+    h('div', { class: 'field' }, h('label', { text: i18n.t('novels.description') }), description));
+  const dialog = modal(i18n.t('novels.create'), body, [
+    h('button', { text: i18n.t('common.cancel'), onclick: () => dialog.close() }),
+    h('button', { class: 'primary', dataset: { noclose: '1' }, text: i18n.t('novels.create'), onclick: async () => {
+      try {
+        const result = await api('/api/novels', { method: 'POST', body: { title: title.value, author: author.value, description: description.value } });
+        dialog.close();
+        await loadNovelList();
+        renderMain();
+        await switchNovel(result.novel.id);
+      } catch (error) { toast(error.message, 'err'); }
+    } })
+  ]);
+  title.focus();
+}
+
+function editNovel(item) {
+  const title = h('input', { type: 'text', value: item.title || '' });
+  const author = h('input', { type: 'text', value: item.author || '' });
+  const description = h('textarea', { rows: 4, value: item.description || '' });
+  const body = h('div', null,
+    h('div', { class: 'field' }, h('label', { text: i18n.t('novels.title') }), title),
+    h('div', { class: 'field' }, h('label', { text: i18n.t('novels.author') }), author),
+    h('div', { class: 'field' }, h('label', { text: i18n.t('novels.description') }), description));
+  const dialog = modal(i18n.t('novels.rename'), body, [
+    h('button', { text: i18n.t('common.cancel'), onclick: () => dialog.close() }),
+    h('button', { class: 'primary', dataset: { noclose: '1' }, text: i18n.t('common.save'), onclick: async () => {
+      try {
+        await api('/api/novels/update', { method: 'POST', body: { id: item.id, title: title.value, author: author.value, description: description.value } });
+        dialog.close(); await loadNovelList(); renderMain();
+      } catch (error) { toast(error.message, 'err'); }
+    } })
+  ]);
+}
+
+function confirmDeleteNovel(item) {
+  const broken = item.ok === false;
+  const confirmation = broken ? item.id : item.title;
+  confirmDialog(i18n.t('novels.delete'), i18n.t('novels.delete_confirm', { title: confirmation }), async () => {
+    try {
+      const wasActive = item.id === state.activeNovelId;
+      if (wasActive) await flushPendingSaves();
+      await api('/api/novels/delete', { method: 'POST', body: { id: item.id, title_confirmation: confirmation } });
+      await loadNovelList();
+      if (wasActive) { state.activeNovelId = ''; state.db = null; state.view = 'home'; }
+      renderNav(); renderMain();
+    } catch (error) { toast(error.message, 'err'); }
+  });
+}
+
+async function switchNovel(id) {
+  if (state.switchingNovel) return;
+  state.switchingNovel = true;
+  status(i18n.t('novels.switching'), 'busy');
+  try {
+    await flushPendingSaves();
+    await api('/api/novels/open', { method: 'POST', body: { id } });
+    state.activeNovelId = id;
+    state.configScope = 'novel';
+    state.settingsLocal = false;
+    await loadNovelList();
+    await refreshFiles();
+    await loadCurrentSession();
+    state.view = 'writer';
+    renderNav(); renderMain();
+  } catch (error) { toast(error.message, 'err'); }
+  finally { state.switchingNovel = false; }
+}
+
 function go(view) {
   // 有些页（如稿件处理）需要在离开前把手上的内容落盘，各自注册 leave 钩子。
   const leave = state.ui.leave;
   if (leave && leave.view === state.view && leave.view !== view) {
     state.ui.leave = null;
-    try { leave.fn(); } catch (e) { /* 落盘失败不阻塞切页 */ }
+    try {
+      const result = leave.fn();
+      state.ui.leavePromise = result && typeof result.then === 'function' ? result : null;
+    } catch (e) { /* 落盘失败由具体页面反馈；继续允许切页 */ }
   }
   state.view = view;
   renderNav();
@@ -481,6 +660,7 @@ function renderMain() {
       text: i18n.t('common.debug_banner') }));
   }
   const map = {
+    home: viewHome,
     writer: viewWorkstation, chapters: viewChapters, text: viewManuscript,
     inventory: viewInventory, memories: viewMemories, world: viewWorld,
     elements: viewElements, sections: viewSections, modes: viewModes, ai: viewAI
@@ -559,4 +739,5 @@ async function refreshFiles() {
     root: r.root, data: r.data_dir, export: r.export_dir,
     import: r.import_dir, text: r.text_dir
   };
+  state.activeNovelId = r.active_novel_id || '';
 }

@@ -22,7 +22,10 @@ from ._paths import (
 
 _CONFIG_FILE = "config.json"
 _META_FILE = "novel.json"
-_GLOBAL_ONLY_KEYS = {"active_novel_id", "initialized", "layout_version", "version", "onboarding"}
+_GLOBAL_ONLY_KEYS = {
+    "active_novel_id", "initialized", "layout_version", "version", "onboarding",
+    "language", "initial_language",
+}
 
 
 def _write_json(path: Path, value: object) -> None:
@@ -37,6 +40,7 @@ def novel_config_template(global_config: dict) -> dict:
     values = copy.deepcopy(global_config or {})
     paths = values.get("paths")
     if isinstance(paths, dict):
+        paths.pop("log_dir", None)
         for key in ("import_dir", "export_dir", "output_dir", "plan_dir", "txt_dir", "text_dir"):
             value = str(paths.get(key) or "")
             if value.replace("\\", "/").startswith("workspace/"):
@@ -59,7 +63,13 @@ def effective_config(global_config: dict, novel_config: dict | None) -> dict:
     for key, value in values.items():
         if key in _GLOBAL_ONLY_KEYS:
             continue
-        if not inherited.get(key, True):
+        if inherited.get(key, True):
+            continue
+        if key == "paths" and isinstance(value, dict):
+            merged_paths = copy.deepcopy(result.get("paths") or {})
+            merged_paths.update(value)
+            result["paths"] = merged_paths
+        else:
             result[key] = value
     return result
 
@@ -168,11 +178,19 @@ def delete_novel(novel_id: str, title_confirmation: str) -> str:
     value = validate_novel_id(novel_id)
     meta = read_novel(value)
     if not meta:
-        raise FileNotFoundError(value)
-    if str(title_confirmation or "") != str(meta.get("title") or ""):
+        if not novel_data_dir(value).exists():
+            raise FileNotFoundError(value)
+        expected_confirmation = value
+    else:
+        expected_confirmation = str(meta.get("title") or "")
+    if str(title_confirmation or "") != expected_confirmation:
         from ..localization import t
         raise ValueError(t("errors.novel_title_mismatch"))
-    _send_to_recycle_bin([novel_data_dir(value), novel_workspace_dir(value)])
+    try:
+        _send_to_recycle_bin([novel_data_dir(value), novel_workspace_dir(value)])
+    except OSError as exc:
+        from ..localization import t
+        raise ValueError(t("errors.novel_recycle_failed")) from exc
     if active_novel_id() == value:
         set_active_novel(None)
     return value
@@ -246,6 +264,19 @@ def save_novel_config(novel_id: str, value: dict) -> Path:
     if not isinstance(value, dict):
         from ..localization import t
         raise ValueError(t("errors.novel_config_invalid"))
+    if set(("version", "use_global", "values")) - set(value):
+        from ..localization import t
+        raise ValueError(t("errors.novel_config_invalid"))
+    if not isinstance(value.get("use_global"), dict) or not isinstance(value.get("values"), dict):
+        from ..localization import t
+        raise ValueError(t("errors.novel_config_invalid"))
+    value = copy.deepcopy(value)
+    for key in _GLOBAL_ONLY_KEYS:
+        value.get("use_global", {}).pop(key, None)
+        value.get("values", {}).pop(key, None)
+    paths = value.get("values", {}).get("paths")
+    if isinstance(paths, dict):
+        paths.pop("log_dir", None)
     _write_json(novel_data_dir(novel_id) / _CONFIG_FILE, value)
     return novel_data_dir(novel_id) / _CONFIG_FILE
 
