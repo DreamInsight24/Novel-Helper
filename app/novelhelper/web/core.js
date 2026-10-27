@@ -243,7 +243,8 @@ const state = {
   novels: [],
   activeNovelId: '',
   view: 'home',
-  configScope: 'novel',
+  level: 'home',
+  configMeta: null,
   switchingNovel: false,
   ui: {},
   sel: {}
@@ -353,6 +354,7 @@ function setDb(collections) {
 const saveTimers = {};
 
 function touch(coll, quiet) {
+  if (coll === 'config' && typeof refreshRestoreButton === 'function') refreshRestoreButton();
   if (!quiet) status(i18n.t('common.saving'), 'busy');
   clearTimeout(saveTimers[coll]);
   saveTimers[coll] = setTimeout(async () => {
@@ -378,7 +380,7 @@ async function saveNow(coll) {
 
 async function persistConfig() {
   const config = state.db.config || {};
-  if (state.configScope === 'novel' && state.activeNovelId) {
+  if (state.level === 'novel' && state.activeNovelId) {
     const ref = await api('/api/settings/config');
     const global = ref.global || {};
     const useGlobal = {};
@@ -438,37 +440,64 @@ window.addEventListener('unhandledrejection', e => {
 // ═══════════════════════════════════════════
 // 侧栏与路由
 // ═══════════════════════════════════════════
-const NAV = [
+const HOME_NAV = [
   { id: 'home', label: i18n.t('novels.home') },
-  { group: i18n.t('nav.group_writing') },
+  { id: 'settings', label: i18n.t('settings.global_settings') }
+];
+
+const NOVEL_NAV = [
+  { id: 'home', label: i18n.t('novels.back_home') },
+  { group: i18n.t('nav.group_writing'), groupKey: 'writing' },
   { id: 'writer', label: i18n.t('nav.writer') },
   { id: 'chapters', label: i18n.t('nav.chapters') },
   { id: 'text', label: i18n.t('nav.text') },
-  { group: i18n.t('nav.group_core') },
+  { group: i18n.t('nav.group_core'), groupKey: 'core' },
   { id: 'characters', label: i18n.t('nav.characters'), coll: 'characters' },
   { id: 'inventory', label: i18n.t('nav.inventory') },
   { id: 'world', label: i18n.t('nav.worldmap') },
   { id: 'items', label: i18n.t('nav.items'), coll: 'items' },
   { id: 'equipment', label: i18n.t('nav.equipment'), coll: 'equipment' },
-  { group: i18n.t('nav.group_custom') },
+  { group: i18n.t('nav.group_custom'), groupKey: 'custom' },
   { id: 'factions', label: i18n.t('nav.factions'), coll: 'factions' },
   { sections: true },
   { id: 'other', label: i18n.t('nav.other'), coll: 'other' },
-  { group: i18n.t('nav.group_memory') },
+  { group: i18n.t('nav.group_memory'), groupKey: 'memory' },
   { id: 'memories', label: i18n.t('nav.memories'), coll: 'memories' },
-  { group: i18n.t('nav.group_system') },
+  { group: i18n.t('nav.group_system'), groupKey: 'system' },
   { id: 'elements', label: i18n.t('nav.elements') },
   { id: 'sections', label: i18n.t('nav.sections') },
   { id: 'modes', label: i18n.t('nav.modes') },
-  { id: 'ai', label: i18n.t('nav.settings') }
+  { id: 'settings', label: i18n.t('nav.settings') }
 ];
 
 function renderNav() {
   const nav = document.getElementById('nav');
   clear(nav);
-  for (const entry of NAV) {
-    if (!state.activeNovelId && entry.id !== 'home') continue;
-    if (entry.group) { nav.appendChild(h('div', { class: 'nav-group', text: entry.group })); continue; }
+  state.ui.navCollapsed = state.ui.navCollapsed || {};
+  const items = state.level === 'home' ? HOME_NAV : NOVEL_NAV;
+  if (state.level === 'novel') {
+    const active = state.novels.find(n => n.id === state.activeNovelId);
+    nav.appendChild(h('div', { class: 'nav-novel',
+      text: active && active.title ? active.title : i18n.t('common.unnamed') }));
+  }
+  let skip = false;
+  for (const entry of items) {
+    if (entry.group) {
+      const toggleable = entry.groupKey === 'core' || entry.groupKey === 'custom';
+      const collapsed = toggleable && state.ui.navCollapsed[entry.groupKey] !== false;
+      skip = !!collapsed;
+      const label = !toggleable ? entry.group : (collapsed ? entry.group + ' ▸' : entry.group + ' ▾');
+      nav.appendChild(h('div', {
+        class: 'nav-group' + (toggleable ? ' nav-group-toggle' : '') + (collapsed ? ' collapsed' : ''),
+        text: label,
+        onclick: toggleable ? () => {
+          state.ui.navCollapsed[entry.groupKey] = !collapsed;
+          renderNav();
+        } : null
+      }));
+      continue;
+    }
+    if (skip) continue;
     if (entry.sections) {
       sectionDefs().forEach(sec => {
         const view = 'section_' + sec.key;
@@ -484,7 +513,7 @@ function renderNav() {
     const count = entry.coll ? collItems(entry.coll).length : '';
     nav.appendChild(h('div', {
       class: 'nav-item' + (state.view === entry.id ? ' active' : ''),
-      onclick: () => go(entry.id)
+      onclick: () => entry.id === 'settings' ? openSettings() : go(entry.id)
     },
       h('span', { text: entry.label }),
       count !== '' ? h('span', { class: 'count', text: String(count) }) : null));
@@ -510,7 +539,15 @@ async function flushPendingSaves() {
   }
 }
 
+async function openSettings() {
+  await refreshConfigMeta();
+  go('settings');
+}
+
 function viewHome(main) {
+  main.appendChild(h('div', { class: 'home-hero' },
+    h('h1', { class: 'home-title', text: 'NovelHelper' }),
+    h('div', { class: 'home-tagline', text: i18n.t('common.tagline') })));
   main.appendChild(pageHead(i18n.t('novels.home'), i18n.t('novels.home_desc'),
     h('button', { class: 'primary', text: i18n.t('novels.create'), onclick: showCreateNovel })));
   if (!state.novels.length) {
@@ -611,7 +648,7 @@ function confirmDeleteNovel(item) {
       if (wasActive) await flushPendingSaves();
       await api('/api/novels/delete', { method: 'POST', body: { id: item.id, title_confirmation: confirmation } });
       await loadNovelList();
-      if (wasActive) { state.activeNovelId = ''; state.db = null; state.view = 'home'; }
+      if (wasActive) { state.activeNovelId = ''; state.db = null; state.level = 'home'; state.configMeta = null; state.view = 'home'; }
       renderNav(); renderMain();
     } catch (error) { toast(error.message, 'err'); }
   });
@@ -625,8 +662,8 @@ async function switchNovel(id) {
     await flushPendingSaves();
     await api('/api/novels/open', { method: 'POST', body: { id } });
     state.activeNovelId = id;
-    state.configScope = 'novel';
-    state.settingsLocal = false;
+    state.level = 'novel';
+    state.configMeta = null;
     await loadNovelList();
     await refreshFiles();
     await loadCurrentSession();
@@ -646,6 +683,16 @@ function go(view) {
       state.ui.leavePromise = result && typeof result.then === 'function' ? result : null;
     } catch (e) { /* 落盘失败由具体页面反馈；继续允许切页 */ }
   }
+  if (view === 'home') {
+    state.level = 'home';
+  } else if (view === 'settings') {
+    // 设置页沿用当前层级：首页=全局配置，小说内=本小说配置。
+  } else if (!state.activeNovelId) {
+    view = 'home';
+    state.level = 'home';
+  } else {
+    state.level = 'novel';
+  }
   state.view = view;
   renderNav();
   renderMain();
@@ -663,7 +710,7 @@ function renderMain() {
     home: viewHome,
     writer: viewWorkstation, chapters: viewChapters, text: viewManuscript,
     inventory: viewInventory, memories: viewMemories, world: viewWorld,
-    elements: viewElements, sections: viewSections, modes: viewModes, ai: viewAI
+    elements: viewElements, sections: viewSections, modes: viewModes, settings: viewAI
   };
   if (map[state.view]) map[state.view](main);
   else if (defFor(state.view)) viewRecords(main, state.view);

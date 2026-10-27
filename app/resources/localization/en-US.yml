@@ -587,11 +587,12 @@ novels.title: Title
 novels.author: Author (optional)
 novels.description: Description (optional)
 novels.updated: 'Last edited: {date}'
-settings.scope_novel: Novel settings
-settings.scope_global: Global settings
-settings.use_global: Use global settings
-settings.local_override: Use this novel's settings
+novels.back_home: ← Library
 settings.global_settings: Global settings
+settings.restore_global: Restore global config
+settings.restore_global_confirm: Restore this novel's config to the global config? Existing overrides will be cleared.
+settings.restored: Restored to global config
+settings.novel_scope_hint: 'Novel config: unchanged items keep inheriting the global config.'
 errors.this_mode: this mode
 errors.unknown_api: 'Unknown endpoint: {path}'
 errors.unknown_collection: 'Unknown collection: {name}'
