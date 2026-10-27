@@ -571,11 +571,12 @@ novels.title: 标题
 novels.author: 作者（可选）
 novels.description: 简介（可选）
 novels.updated: 最近编辑：{date}
-settings.scope_novel: 小说配置
-settings.scope_global: 全局配置
-settings.use_global: 使用全局配置
-settings.local_override: 使用本小说配置
+novels.back_home: ← 作品库
 settings.global_settings: 全局设置
+settings.restore_global: 恢复全局配置
+settings.restore_global_confirm: 将本小说的配置恢复为全局配置？本小说已有的覆盖将被清除。
+settings.restored: 已恢复为全局配置
+settings.novel_scope_hint: 本小说配置：未改动的项继续继承全局配置。
 errors.this_mode: 该模式
 errors.unknown_api: '未知接口: {path}'
 errors.unknown_collection: '未知集合: {name}'
