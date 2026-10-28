@@ -48,7 +48,7 @@ from pathlib import Path
 from . import store
 
 HISTORY_FILE = "history"
-CONVERSATION_DIR = store.DATA_DIR / "conversations"
+CONVERSATION_DIR = store.DATA_DIR / "conversations"  # compatibility fallback
 _LOCK = threading.RLock()
 _ID_RE = re.compile(r"^[A-Za-z0-9_-]{4,80}$")
 
@@ -67,7 +67,15 @@ def _atomic_write(path: Path, payload: dict) -> None:
 def _conversation_path(session_id: str) -> Path:
     if not _ID_RE.match(session_id or ""):
         raise ValueError(t('errors.invalid_session_id'))
-    return CONVERSATION_DIR / f"{session_id}.json"
+    return conversation_dir() / f"{session_id}.json"
+
+
+def conversation_dir() -> Path:
+    """Resolve conversations for the active novel without import-time caching."""
+    novel_id = store.active_novel_id()
+    if novel_id:
+        return store.novel_data_dir(novel_id) / "conversations"
+    return CONVERSATION_DIR
 
 
 def _index() -> dict:

@@ -28,14 +28,17 @@ from typing import Any
 
 from ._defaults import default_for
 from ._names import is_section
-from ._paths import COLLECTIONS, DATA_DIR
+from ._paths import COLLECTIONS, DATA_DIR, active_novel_id, novel_data_dir
 
 _LOCK = threading.RLock()
 
 def _path(name: str) -> Path:
     if name not in COLLECTIONS and not is_section(name):
         raise KeyError(t('errors.unknown_collection', name=name))
-    return DATA_DIR / f"{name}.json"
+    if name == "config":
+        return DATA_DIR / "config.json"
+    novel_id = active_novel_id()
+    return (novel_data_dir(novel_id) if novel_id else DATA_DIR) / f"{name}.json"
 
 def _deep_default(name: str) -> Any:
     return json.loads(json.dumps(default_for(name), ensure_ascii=False))
@@ -61,7 +64,7 @@ def save(name: str, data: Any) -> Path:
     if name in ("characters", "factions", "items", "equipment", "other") or is_section(name):
         data = _clean_records(data)
     path = _path(name)
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    path.parent.mkdir(parents=True, exist_ok=True)
     payload = json.dumps(data, ensure_ascii=False, indent=2)
     tmp = path.with_suffix(".json.tmp")
     with _LOCK:

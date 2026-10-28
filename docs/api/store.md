@@ -23,6 +23,8 @@ print(config["server"]["port"])
 | `RUNTIME_ROOT` | `NOVELHELPER_HOME` 指定的目录，或当前运行模式对应的运行时根目录。 |
 | `PROJECT_ROOT` | `RUNTIME_ROOT` 的别名，为兼容现有调用方而保留。 |
 | `DATA_DIR` | `NOVELHELPER_DATA` 指定的目录，或 `RUNTIME_ROOT/data`。`config.paths.data_dir` 不会覆盖此值。 |
+| `NOVELS_DIR` | `DATA_DIR/novels`，小说数据目录。 |
+| `WORKSPACE_ROOT` / `NOVEL_WORKSPACES_DIR` | 运行根下的工作区及其小说命名空间目录。 |
 | `COLLECTIONS` | 内置 JSON 集合名称。 |
 | `RECORD_COLLECTIONS` | 值采用 `items` 列表结构的集合。 |
 | `SECTION_PREFIX` | 自定义栏目集合文件使用的前缀（`section_`）。 |
@@ -37,7 +39,11 @@ print(config["server"]["port"])
 | `stamp() -> str` | 返回当前本地时间，格式为 `YYYYMMDD_HHMMSS`，用于生成名称。 |
 | `new_id(prefix: str) -> str` | 返回 `<prefix>_<8 位十六进制字符>`。 |
 | `data_dir() -> Path` | 返回配置的 `DATA_DIR`。 |
-| `ensure_dirs() -> None` | 执行现有配置/模式迁移，创建数据、工作区和日志目录，然后写入缺失的内置集合默认值。 |
+| `ensure_dirs() -> None` | 初始化全局配置、作品库和工作区目录；活动小说存在时补齐其集合默认值，首次启动不会生成根级旧布局集合。 |
+| `active_novel_id() -> str` | 返回全局配置中的已校验活动小说 ID；没有活动小说时返回空字符串。 |
+| `validate_novel_id(novel_id: str) -> str` | 校验可作为目录段使用的小说 ID，非法值抛出 `ValueError`。 |
+| `novel_data_dir(novel_id: str) -> Path` | 返回已校验小说的数据目录。 |
+| `novel_workspace_dir(novel_id: str) -> Path` | 返回已校验小说的工作区目录。 |
 | `io_in() -> Path` | 返回配置的导入目录；若路径不是绝对路径，则在 `PROJECT_ROOT` 下解析。 |
 | `io_out() -> Path` | 返回配置的导出目录；若路径不是绝对路径，则在 `PROJECT_ROOT` 下解析。 |
 | `out_dir() -> Path` | 返回配置的写作输出目录。 |
@@ -74,6 +80,14 @@ print(config["server"]["port"])
 | `schema_for(name: str) -> list` | 返回集合的元素 schema；不存在时返回空列表。 |
 | `known_collection(name: str) -> bool` | 检查名称是否属于内置集合或自定义栏目集合。 |
 | `backup_all() -> Path` | 将现有集合 JSON 文件复制到 `io_out()` 下带时间戳的目录，并返回该目录路径。 |
+| `list_novels() -> list[dict]` | 列出小说元数据；损坏的单条 `novel.json` 以 `ok=false` 降级返回。 |
+| `create_novel(title, author="", description="", global_config=None) -> dict` | 创建小说数据、配置副本、内置预设和隔离工作区。 |
+| `open_novel(novel_id) -> dict` | 设置活动小说并更新最后打开时间。 |
+| `update_novel(novel_id, fields) -> dict` | 更新小说标题、作者或简介。 |
+| `delete_novel(novel_id, title_confirmation) -> str` | 标题确认后将小说数据和工作区移入系统回收站。 |
+| `load_novel_config(novel_id) -> dict` / `save_novel_config(novel_id, value) -> Path` | 读写小说配置副本。 |
+| `current_config() -> dict` | 返回当前小说的有效配置；默认逐项跟随全局配置。 |
+| `effective_config(global_config, novel_config) -> dict` | 按小说配置的 `use_global` 标记合并全局值和小说覆盖值。 |
 
 在 debug 模式下，若配置的相对工作区路径解析到 `RUNTIME_ROOT` 之外，会抛出 `PermissionError`。创建目录、迁移、读写和备份操作可能抛出文件系统错误。本包保持现有磁盘 JSON 布局和迁移顺序。
 

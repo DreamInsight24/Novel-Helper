@@ -560,6 +560,39 @@ errors.region_not_object: Region {id} must be an object
 errors.resource_missing: 'Resource not found: {path}'
 errors.serialize_failed: 'Cannot serialize: {type}'
 errors.session_missing: The conversation does not exist or has been deleted
+errors.novel_title_required: Novel title is required
+errors.novel_active_required: Open a novel first
+errors.novel_config_invalid: Novel configuration is invalid
+errors.novel_title_mismatch: Confirmation title does not match the novel title
+errors.novel_recycle_failed: The novel could not be moved to the system recycle bin; its data was kept
+novels.home: Library
+novels.home_desc: Manage your novels and continue writing
+novels.create: New novel
+novels.empty_title: Your library is empty
+novels.empty_desc: Create a novel to start organizing settings and writing
+novels.search: Search title or author
+novels.sort_updated: Sort by recently edited
+novels.sort_created: Sort by creation date
+novels.switching: Switching…
+novels.no_results: No matching novels
+novels.broken_title: Unreadable novel
+novels.broken_desc: Its metadata is damaged; other novels remain available
+novels.active: Active
+novels.continue: Continue writing
+novels.open: Open
+novels.rename: Edit details
+novels.delete: Delete
+novels.delete_confirm: Move “{title}” and its data to the system recycle bin?
+novels.title: Title
+novels.author: Author (optional)
+novels.description: Description (optional)
+novels.updated: 'Last edited: {date}'
+novels.back_home: ← Library
+settings.global_settings: Global settings
+settings.restore_global: Restore global config
+settings.restore_global_confirm: Restore this novel's config to the global config? Existing overrides will be cleared.
+settings.restored: Restored to global config
+settings.novel_scope_hint: 'Novel config: unchanged items keep inheriting the global config.'
 errors.this_mode: this mode
 errors.unknown_api: 'Unknown endpoint: {path}'
 errors.unknown_collection: 'Unknown collection: {name}'

@@ -19,6 +19,8 @@
 from __future__ import annotations
 
 import os
+import json
+import re
 import sys
 from pathlib import Path
 
@@ -48,6 +50,11 @@ RUNTIME_ROOT = Path(os.environ.get("NOVELHELPER_HOME") or _DEFAULT_RUNTIME)
 PROJECT_ROOT = RUNTIME_ROOT
 
 DATA_DIR = Path(os.environ.get("NOVELHELPER_DATA") or (RUNTIME_ROOT / "data"))
+NOVELS_DIR = DATA_DIR / "novels"
+WORKSPACE_ROOT = PROJECT_ROOT / "workspace"
+NOVEL_WORKSPACES_DIR = WORKSPACE_ROOT / "novels"
+
+_NOVEL_ID_RE = re.compile(r"^[a-z0-9_-]{1,80}$")
 
 COLLECTIONS = (
     "config",
@@ -73,6 +80,38 @@ SECTION_PREFIX = "section_"
 
 def data_dir() -> Path:
     return DATA_DIR
+
+
+def validate_novel_id(novel_id: str) -> str:
+    """Validate a server-generated novel id before it becomes a path segment."""
+    value = str(novel_id or "")
+    if not _NOVEL_ID_RE.fullmatch(value):
+        raise ValueError("invalid novel id")
+    return value
+
+
+def novel_data_dir(novel_id: str) -> Path:
+    value = validate_novel_id(novel_id)
+    return NOVELS_DIR / value
+
+
+def novel_workspace_dir(novel_id: str) -> Path:
+    value = validate_novel_id(novel_id)
+    return NOVEL_WORKSPACES_DIR / value
+
+
+def active_novel_id() -> str:
+    """Read the active id without going through collection loading."""
+    path = DATA_DIR / "config.json"
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, OSError, ValueError, UnicodeDecodeError):
+        return ""
+    value = raw.get("active_novel_id") if isinstance(raw, dict) else ""
+    try:
+        return validate_novel_id(value) if value else ""
+    except ValueError:
+        return ""
 
 def _root(rel: str | Path) -> Path:
     path = Path(rel)

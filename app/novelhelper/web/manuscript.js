@@ -167,9 +167,9 @@ function viewManuscript(main) {
   const flushNow = () => {
     clearTimeout(draftTimer);
     clearTimeout(fileTimer);
-    const done = () => { writeDraft(); saveNow('state').catch(() => { }); };
-    if (ui.path && ui.dirty) autosaveFile().then(done, done);   // 先落文件，草稿再记录真实状态
-    else done();
+    const done = async () => { writeDraft(); await saveNow('state'); };
+    if (ui.path && ui.dirty) return autosaveFile().then(done, done);   // 先落文件，草稿再记录真实状态
+    return done();
   };
 
   const keepAiResult = () => {

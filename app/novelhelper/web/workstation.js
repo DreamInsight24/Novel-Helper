@@ -884,8 +884,9 @@ async function pollBusyState() {
 
 async function boot() {
   try {
+    await loadNovelList();
     await refreshFiles();
-    await loadCurrentSession();
+    if (state.activeNovelId) await loadCurrentSession();
   } catch (e) {
     document.getElementById('main').appendChild(h('div', { class: 'card', text: i18n.t('common.load_failed_reason', { reason: e.message }) }));
     return;

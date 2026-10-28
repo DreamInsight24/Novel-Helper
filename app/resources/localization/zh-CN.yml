@@ -544,6 +544,39 @@ errors.region_not_object: 区域 {id} 必须是对象
 errors.resource_missing: '资源不存在: {path}'
 errors.serialize_failed: '无法序列化: {type}'
 errors.session_missing: 对话不存在或已被删除
+errors.novel_title_required: 小说标题不能为空
+errors.novel_active_required: 请先打开一本小说
+errors.novel_config_invalid: 小说配置格式无效
+errors.novel_title_mismatch: 确认标题与小说标题不一致
+errors.novel_recycle_failed: 无法将小说移入系统回收站；数据已保留
+novels.home: 作品库
+novels.home_desc: 管理作品并继续写作
+novels.create: 新建小说
+novels.empty_title: 作品库还是空的
+novels.empty_desc: 创建一本小说开始整理设定和写作
+novels.search: 搜索标题或作者
+novels.sort_updated: 按最近编辑排序
+novels.sort_created: 按创建时间排序
+novels.switching: 正在切换…
+novels.no_results: 没有匹配的小说
+novels.broken_title: 无法读取的小说
+novels.broken_desc: 元数据损坏，其他作品仍可正常使用
+novels.active: 当前活动
+novels.continue: 继续写作
+novels.open: 打开
+novels.rename: 编辑信息
+novels.delete: 删除
+novels.delete_confirm: 将“{title}”及其数据移入系统回收站？
+novels.title: 标题
+novels.author: 作者（可选）
+novels.description: 简介（可选）
+novels.updated: 最近编辑：{date}
+novels.back_home: ← 作品库
+settings.global_settings: 全局设置
+settings.restore_global: 恢复全局配置
+settings.restore_global_confirm: 将本小说的配置恢复为全局配置？本小说已有的覆盖将被清除。
+settings.restored: 已恢复为全局配置
+settings.novel_scope_hint: 本小说配置：未改动的项继续继承全局配置。
 errors.this_mode: 该模式
 errors.unknown_api: '未知接口: {path}'
 errors.unknown_collection: '未知集合: {name}'
