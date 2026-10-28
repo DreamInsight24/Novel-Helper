@@ -25,6 +25,7 @@ app/novelhelper/
     _defaults.py       # 默认配置与集合
     _localized.py      # 内置预设的首次语言本地化与落盘
     _repository.py     # JSON 读写与记录清理
+    _novels.py         # 作品库元数据、小说配置与生命周期
     _directories.py   # 从配置解析工作区/日志目录
     _bootstrap.py      # 初始化与既有配置迁移
     _collections.py    # 集合枚举/schema 查询
@@ -59,6 +60,14 @@ app/novelhelper/
   app.py               # 应用入口，保持原位置
   web/                 # 前端资源（HTML/CSS/JS），任务 1 不改
 ```
+
+### v2610.3 作品库存储
+
+- `DATA_DIR/config.json` 始终是全局配置，保存语言、服务端设置、全局 API 配置、首次引导状态和 `active_novel_id`；首次启动初始化空作品库，不实现旧版单本数据迁移。
+- 小说数据位于 `DATA_DIR/novels/<novel_id>/`，小说元数据以 `novel.json` 为唯一来源；集合 `load/save` 根据全局活动小说 ID 动态解析，不在模块导入时缓存小说路径。
+- 工作区位于 `PROJECT_ROOT/workspace/novels/<novel_id>/`。小说配置中的工作区路径是该小说工作区内的相对路径片段，解析后不得越界。
+- 每本小说的 `config.json` 在创建时复制当时的全局配置作为初值，并按顶层配置项记录 `use_global` 与 `values`。`use_global=true` 时有效值取全局配置；否则取小说覆盖值。创建默认所有可继承项跟随全局；日志、语言、首次引导和活动小说选择仍由全局配置管理。
+- 历史索引和会话文件位于小说数据目录；全局日志目录仍由全局配置管理。删除小说时数据目录及工作区通过 Windows Shell 移入系统回收站；失败时保留数据并返回可读错误。元数据正常时以标题确认，元数据损坏时以小说 ID 确认。
 
 ### 现状与配置交接（P0）
 

@@ -51,6 +51,7 @@ os.environ["NOVELHELPER_DATA"] = str(TEMP_DATA)
 import novelhelper  # noqa: E402
 from novelhelper import ai, context, history, logger, project, prompts as prompts_mod, server, store  # noqa: E402
 from novelhelper import _version  # noqa: E402
+from novelhelper.store import _novels as novels_store  # noqa: E402
 
 PASS: list[str] = []
 FAIL: list[str] = []
@@ -122,6 +123,71 @@ def main() -> int:
           and " 8766 " in debug_text
           and str(debug_home / "log") in debug_text,
           debug_text or debug_probe.stderr[-300:])
+    # ── 0.1 多小说隔离与删除 ──────────────────
+    novel_a = store.create_novel("Selftest A")
+    novel_b = store.create_novel("Selftest B")
+    store.open_novel(novel_a["id"])
+    store.save("characters", {"items": [{"id": "selftest-a-only", "name": "A only"}]})
+    store.open_novel(novel_b["id"])
+    check("小说 B 不读取小说 A 的集合数据",
+          not any(item.get("id") == "selftest-a-only" for item in store.load("characters")["items"]))
+    store.save("characters", {"items": [{"id": "selftest-b-only", "name": "B only"}]})
+    store.open_novel(novel_a["id"])
+    check("切回小说 A 后数据仍保留且不含 B 数据",
+          any(item.get("id") == "selftest-a-only" for item in store.load("characters")["items"])
+          and not any(item.get("id") == "selftest-b-only" for item in store.load("characters")["items"]))
+    store.save_novel_config(novel_a["id"], {
+        "version": 1, "use_global": {"writing": False},
+        "values": {"writing": {"target_chars": 1234}},
+    })
+    check("小说配置覆盖可生效", store.current_config()["writing"]["target_chars"] == 1234)
+    store.open_novel(novel_b["id"])
+    check("小说配置覆盖不串到另一小说",
+          store.current_config()["writing"]["target_chars"] != 1234)
+
+    damaged = store.create_novel("Damaged selftest")
+    damaged_dir = TEMP_DATA / "novels" / damaged["id"]
+    (damaged_dir / "novel.json").write_text("{broken", encoding="utf-8")
+    damaged_entry = next((item for item in store.list_novels() if item["id"] == damaged["id"]), {})
+    check("损坏小说元数据降级为可管理条目", damaged_entry.get("ok") is False)
+    recycled = TEMP_WORK / "recycle"
+    original_recycle = novels_store._send_to_recycle_bin
+
+    def fake_recycle(paths):
+        recycled.mkdir(parents=True, exist_ok=True)
+        for index, source in enumerate(paths):
+            if source.exists():
+                target = recycled / f"{len(list(recycled.iterdir()))}-{index}-{source.name}"
+                shutil.move(str(source), str(target))
+
+    try:
+        def failed_recycle(_paths):
+            raise OSError("simulated recycle failure")
+
+        novels_store._send_to_recycle_bin = failed_recycle
+        try:
+            store.delete_novel(novel_b["id"], novel_b["title"])
+            recycle_failure_preserved = False
+        except ValueError:
+            recycle_failure_preserved = (TEMP_DATA / "novels" / novel_b["id"]).exists()
+        check("回收站失败时小说数据保留", recycle_failure_preserved)
+
+        novels_store._send_to_recycle_bin = fake_recycle
+        try:
+            store.delete_novel(damaged["id"], "wrong-confirmation")
+            damaged_confirmation_rejected = False
+        except ValueError:
+            damaged_confirmation_rejected = True
+        store.delete_novel(damaged["id"], damaged["id"])
+        check("损坏条目使用小说 ID 确认后可删除",
+              damaged_confirmation_rejected and not damaged_dir.exists())
+        store.open_novel(novel_b["id"])
+        store.delete_novel(novel_b["id"], novel_b["title"])
+        check("删除活动小说后清除活动 ID", store.active_novel_id() == "")
+    finally:
+        novels_store._send_to_recycle_bin = original_recycle
+        store.set_active_novel(None)
+
     check("默认元素模板包含自定义栏目",
           all(key in store.load("schema") for key in
               ("section_world", "section_species", "section_magic", "section_places", "section_religion")))
@@ -329,9 +395,9 @@ def main() -> int:
 
     try:
         state = get("/api/state")
+        # 多小说模型下无活动小说时 /api/state 返回空集合状态，但全局静态字段仍应返回。
         check("GET /api/state 返回提供商与动态模式",
               state.get("ok") and state.get("providers") and state.get("default_modes")
-              and state.get("collections", {}).get("modes", {}).get("items")
               and state.get("api_ready") is False)
 
         prev = post("/api/ai/preview", {"mode_id": "draft", "selection": selection})

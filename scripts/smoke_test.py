@@ -281,6 +281,22 @@ def run() -> None:
                     after_switch["current"] == "en-US"
                     and after_switch.get("first_run") is False,
                 )
+                novel_status, novel_created = _json_request(
+                    base_url, "/api/novels", method="POST",
+                    payload={"title": "Smoke Novel"},
+                )
+                _check(
+                    "create novel",
+                    novel_status == 201 and novel_created.get("ok") is True,
+                )
+                open_status, _opened = _json_request(
+                    base_url, "/api/novels/open", method="POST",
+                    payload={"id": novel_created["novel"]["id"]},
+                )
+                _check(
+                    "open novel",
+                    open_status == 200 and _opened.get("ok") is True,
+                )
                 _, switched_state = _json_request(base_url, "/api/state")
                 _check(
                     "first-run presets follow the initial language",
@@ -290,6 +306,55 @@ def run() -> None:
                     == "Worldview"
                     and switched_state["collections"]["modes"]["items"][0]["label"]
                     == "Logic writing",
+                )
+                novel_a_id = novel_created["novel"]["id"]
+                _json_request(
+                    base_url, "/api/collections/characters", method="POST",
+                    payload={"data": {"items": [{"id": "smoke-a-only", "name": "A only"}]}},
+                )
+                novel_b_status, novel_b = _json_request(
+                    base_url, "/api/novels", method="POST",
+                    payload={"title": "Smoke Novel B"},
+                )
+                _check("create second novel for isolation", novel_b_status == 201)
+                novel_b_id = novel_b["novel"]["id"]
+                _json_request(
+                    base_url, "/api/novels/open", method="POST", payload={"id": novel_b_id},
+                )
+                _, b_empty = _json_request(base_url, "/api/collections/characters")
+                _check(
+                    "novel B does not expose novel A records",
+                    not any(item.get("id") == "smoke-a-only" for item in b_empty["data"]["items"]),
+                )
+                _json_request(
+                    base_url, "/api/collections/characters", method="POST",
+                    payload={"data": {"items": [{"id": "smoke-b-only", "name": "B only"}]}},
+                )
+                config_status, config_saved = _json_request(
+                    base_url, "/api/settings/config", method="POST",
+                    payload={"scope": "novel", "config": {
+                        "version": 1,
+                        "use_global": {"writing": False},
+                        "values": {"writing": {"target_chars": 1234}},
+                    }},
+                )
+                _check(
+                    "novel B config override is effective",
+                    config_status == 200
+                    and config_saved.get("effective", {}).get("writing", {}).get("target_chars") == 1234,
+                )
+                _, b_config = _json_request(base_url, "/api/settings/config")
+                _json_request(
+                    base_url, "/api/novels/open", method="POST", payload={"id": novel_a_id},
+                )
+                _, a_again = _json_request(base_url, "/api/collections/characters")
+                _, a_config = _json_request(base_url, "/api/settings/config")
+                _check(
+                    "switching back restores A data and keeps B config isolated",
+                    any(item.get("id") == "smoke-a-only" for item in a_again["data"]["items"])
+                    and not any(item.get("id") == "smoke-b-only" for item in a_again["data"]["items"])
+                    and a_config.get("effective", {}).get("writing", {}).get("target_chars")
+                    != b_config.get("effective", {}).get("writing", {}).get("target_chars"),
                 )
                 try:
                     _json_request(

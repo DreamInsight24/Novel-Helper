@@ -590,6 +590,7 @@ function loadProviderProfile(cfg, providerId) {
 }
 
 function viewAI(main) {
+  const isGlobal = state.level === 'home';
   const cfg = state.db.config = state.db.config || {};
   ensureApiProfiles(cfg);
   const api = cfg.api;
@@ -604,9 +605,16 @@ function viewAI(main) {
     ['127.0.0.1', 'localhost', '::1'].includes(host);
   const models = currentModels();
 
-  main.appendChild(pageHead(i18n.t('nav.settings'),
+  const restoreBtn = h('button', {
+    text: i18n.t('settings.restore_global'),
+    disabled: !novelHasOverrides(),
+    onclick: restoreNovelConfig
+  });
+  if (!isGlobal) state.ui.restoreButton = restoreBtn;
+  main.appendChild(pageHead(isGlobal ? i18n.t('settings.global_settings') : i18n.t('nav.settings'),
     i18n.t('settings.page_desc'),
     h('div', { class: 'inline' },
+      !isGlobal ? restoreBtn : null,
       h('button', {
         text: i18n.t('settings.wizard'),
         onclick: () => showOnboarding(true)
@@ -618,6 +626,10 @@ function viewAI(main) {
           catch (e) { toast(i18n.t('settings.backup_failed_reason', { reason: e.message }), 'err'); }
         }
       }))));
+
+  if (!isGlobal) {
+    apiCardNotice(main, i18n.t('settings.novel_scope_hint'));
+  }
 
   const apiCard = h('div', { class: 'card' });
   apiCard.appendChild(h('h2', null, i18n.t('settings.api_section')));
@@ -753,6 +765,8 @@ function viewAI(main) {
           cfg.onboarding.done = true;
           saveProviderProfile(cfg, api.provider);
           await saveNow('config');
+          await refreshConfigMeta();
+          renderMain();
           toast(i18n.t('settings.saved'), 'ok');
         } catch (e) { toast(i18n.t('common.save_failed_reason', { reason: e.message }), 'err'); }
       }
@@ -875,6 +889,57 @@ function viewAI(main) {
         target: '_blank', rel: 'noopener noreferrer', text: 'LICENSE'
       }))));
   main.appendChild(about);
+}
+
+function novelHasOverrides() {
+  const meta = state.configMeta;
+  if (!meta) return false;
+  const novel = meta.novel;
+  if (novel && novel.use_global && Object.keys(novel.use_global).some(key => novel.use_global[key] === false)) return true;
+  const current = state.db && state.db.config ? JSON.stringify(state.db.config) : '{}';
+  const initial = meta.initialEffective != null ? JSON.stringify(meta.initialEffective) : current;
+  return current !== initial;
+}
+
+function refreshRestoreButton() {
+  const btn = state.ui && state.ui.restoreButton;
+  if (btn) btn.disabled = !novelHasOverrides();
+}
+
+async function refreshConfigMeta() {
+  try {
+    const result = await apiCall('/api/settings/config');
+    const isGlobal = state.level === 'home';
+    state.db = state.db || {};
+    state.db.config = isGlobal ? (result.global || {}) : (result.effective || result.global || {});
+    ensureApiProfiles(state.db.config);
+    state.configMeta = {
+      novel: result.novel || null,
+      global: result.global || null,
+      initialEffective: JSON.parse(JSON.stringify(state.db.config))
+    };
+  } catch (e) { /* 拉取失败时保留当前页面状态 */ }
+}
+
+async function restoreNovelConfig() {
+  if (!novelHasOverrides()) return;
+  confirmDialog(i18n.t('settings.restore_global'), i18n.t('settings.restore_global_confirm'), async () => {
+    try {
+      const result = await apiCall('/api/settings/config');
+      const useGlobal = {};
+      Object.keys(result.global || {}).forEach(key => { useGlobal[key] = true; });
+      await apiCall('/api/settings/config', { method: 'POST', body: {
+        scope: 'novel', config: { version: 1, use_global: useGlobal, values: {} }
+      } });
+      await refreshConfigMeta();
+      renderMain();
+      toast(i18n.t('settings.restored'), 'ok');
+    } catch (error) { toast(error.message, 'err'); }
+  });
+}
+
+function apiCardNotice(main, text) {
+  main.appendChild(h('div', { class: 'notice', text }));
 }
 
 // ═══════════════════════════════════════════

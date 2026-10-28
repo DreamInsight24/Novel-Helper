@@ -23,20 +23,33 @@ import json
 from .. import prompts as prompts_mod, providers
 from ._defaults import default_for
 from ._directories import io_in, io_out, log_dir, out_dir, plan_dir, text_dir, txt_dir
-from ._paths import COLLECTIONS, DATA_DIR, DEBUG_MODE, DEFAULT_LOG_DIR, FROZEN
+from ._paths import (
+    COLLECTIONS, DATA_DIR, DEBUG_MODE, DEFAULT_LOG_DIR, FROZEN, NOVELS_DIR,
+    NOVEL_WORKSPACES_DIR, active_novel_id,
+)
 from ._repository import _path, save
 
 def ensure_dirs() -> None:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    if not _path("config").exists():
+        save("config", default_for("config"))
     _migrate_config()
-    _migrate_modes()
-    _migrate_mode_kinds()
-    for path in (DATA_DIR, DATA_DIR / "conversations", io_in(), io_out(),
+    legacy_layout = any(
+        (DATA_DIR / f"{name}.json").exists() for name in COLLECTIONS if name != "config"
+    )
+    if legacy_layout and not active_novel_id():
+        _migrate_modes()
+        _migrate_mode_kinds()
+    for path in (DATA_DIR, NOVELS_DIR, NOVEL_WORKSPACES_DIR,
+                 io_in(), io_out(),
                  out_dir(), plan_dir(), txt_dir(), text_dir(), log_dir()):
         path.mkdir(parents=True, exist_ok=True)
-    # 首次启动时把内置默认设置落成可编辑的 JSON 文件。
-    for name in COLLECTIONS:
-        if not _path(name).exists():
-            save(name, default_for(name))
+    novel_id = active_novel_id()
+    if novel_id:
+        (DATA_DIR / "novels" / novel_id / "conversations").mkdir(parents=True, exist_ok=True)
+        for name in COLLECTIONS:
+            if name != "config" and not _path(name).exists():
+                save(name, default_for(name))
 
 def _migrate_config() -> None:
     """把旧版 config.json 补齐到当前结构，并迁移旧目录。"""
@@ -48,6 +61,15 @@ def _migrate_config() -> None:
     except (json.JSONDecodeError, UnicodeDecodeError):
         return
     changed = False
+    if "layout_version" not in cfg:
+        cfg["layout_version"] = 1
+        changed = True
+    if "initialized" not in cfg:
+        cfg["initialized"] = True
+        changed = True
+    if "active_novel_id" not in cfg:
+        cfg["active_novel_id"] = ""
+        changed = True
     if int(cfg.get("version") or 0) < 4:
         cfg["version"] = 4
         changed = True
@@ -84,19 +106,19 @@ def _migrate_config() -> None:
         changed = True
     paths = cfg.setdefault("paths", {})
     mapping = {
-        "import_dir": ("workspace/io/in", "workspace/import"),
-        "export_dir": ("workspace/io/out", "workspace/export"),
-        "output_dir": ("workspace/out", "workspace/output"),
-        "plan_dir": ("workspace/out/plan", "workspace/output/plan"),
-        "txt_dir": ("workspace/out/txt", "workspace/output/txt"),
+        "import_dir": ("workspace/io/in", "import"),
+        "export_dir": ("workspace/io/out", "export"),
+        "output_dir": ("workspace/out", "output"),
+        "plan_dir": ("workspace/out/plan", "output/plan"),
+        "txt_dir": ("workspace/out/txt", "output/txt"),
     }
     for key, (old, new) in mapping.items():
         if paths.get(key) == old:
             paths[key] = new
             changed = True
-        paths.setdefault(key, new)
+        paths.setdefault(key, new.replace("workspace/", ""))
     if "text_dir" not in paths:
-        paths["text_dir"] = "workspace/text"
+        paths["text_dir"] = "text"
         changed = True
     if "data_dir" not in paths:
         paths["data_dir"] = "data"
@@ -109,12 +131,12 @@ def _migrate_config() -> None:
         changed = True
     if DEBUG_MODE:
         debug_paths = {
-            "import_dir": "workspace/import",
-            "export_dir": "workspace/export",
-            "output_dir": "workspace/output",
-            "plan_dir": "workspace/output/plan",
-            "txt_dir": "workspace/output/txt",
-            "text_dir": "workspace/text",
+            "import_dir": "import",
+            "export_dir": "export",
+            "output_dir": "output",
+            "plan_dir": "output/plan",
+            "txt_dir": "output/txt",
+            "text_dir": "text",
             "log_dir": "log",
         }
         for key, value in debug_paths.items():

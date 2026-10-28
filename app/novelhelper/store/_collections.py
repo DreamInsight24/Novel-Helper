@@ -19,7 +19,7 @@
 from __future__ import annotations
 
 from ._names import is_section, section_store_name
-from ._paths import COLLECTIONS
+from ._paths import COLLECTIONS, active_novel_id
 from ._repository import load
 
 def section_names() -> list:
@@ -36,7 +36,11 @@ def load_all() -> dict:
     for name in section_names():
         if name not in names:
             names.append(name)
-    return {name: load(name) for name in names}
+    result = {name: load(name) for name in names}
+    if "config" in result and active_novel_id():
+        from ._novels import current_config
+        result["config"] = current_config()
+    return result
 
 def load_all_names() -> list:
     names = list(COLLECTIONS)

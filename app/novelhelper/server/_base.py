@@ -86,6 +86,9 @@ class _BaseHandler(BaseHTTPRequestHandler):
         except PermissionError as exc:
             logger.log_warning("HTTP", "permission denied", method=method, path=path, error=str(exc))
             self._error(str(exc), status=403)
+        except ValueError as exc:
+            logger.log_warning("HTTP", "invalid request", method=method, path=path, error=str(exc))
+            self._error(str(exc), status=400)
         except FileNotFoundError as exc:
             logger.log_warning("HTTP", "not found", method=method, path=path, error=str(exc))
             self._error(t('errors.file_missing', detail=exc), status=404)
