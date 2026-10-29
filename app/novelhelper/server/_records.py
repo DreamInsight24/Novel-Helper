@@ -117,6 +117,7 @@ class _RecordMixin:
         other = store.load("other")
         pool = other.get("items") or []
         report = []
+        graph = store.load_all().get("relations") or {"items": [], "initialized": True}
         moved_total = 0
         for section in sections.get("items") or []:
             key = (section.get("key") or "").strip()
@@ -133,6 +134,11 @@ class _RecordMixin:
             moving = [rec for rec in pool if (rec.get("category") or "") in wanted]
             if not moving:
                 continue
+            moving_ids = {rec.get("id") for rec in moving}
+            for edge in graph.get("items", []):
+                for end in ("source", "target"):
+                    if edge[end]["collection"] == "other" and edge[end]["id"] in moving_ids:
+                        edge[end]["collection"] = target_name
             bucket.extend(moving)
             target["items"] = bucket
             store.save(target_name, target)
@@ -141,6 +147,7 @@ class _RecordMixin:
             report.append(t('messages.auto_sort_line', section=section.get('label') or key, count=len(moving)))
         other["items"] = pool
         store.save("other", other)
+        store.save("relations", graph)
         message = t("messages.auto_sorted", report="; ".join(report)) if report else t('messages.auto_sort_none')
         self._json({"ok": True, "moved": moved_total, "message": message,
                     "detail": report, "collections": store.load_all()})
@@ -159,6 +166,7 @@ class _RecordMixin:
         dst = store.load(dst_coll)
         src_items = src.get("items") or []
         dst_items = dst.get("items") or []
+        graph = store.load_all().get("relations") or {"items": [], "initialized": True}
         moved = 0
         for rid in ids:
             rec = next((r for r in src_items if r.get("id") == rid), None)
@@ -210,6 +218,11 @@ class _RecordMixin:
                     "source": rec.get("source") or t("defaults.source.from", source=src_coll),
                     "created": store.now_str(), "updated": store.now_str(),
                 }
+            if not keep:
+                for edge in graph.get("items", []):
+                    for end in ("source", "target"):
+                        if edge[end] == {"collection": src_coll, "id": rid}:
+                            edge[end] = {"collection": dst_coll, "id": new_rec["id"]}
             dst_items.append(new_rec)
             moved += 1
             if not keep:
@@ -218,6 +231,7 @@ class _RecordMixin:
         dst["items"] = dst_items
         store.save(src_coll, src)
         store.save(dst_coll, dst)
+        store.save("relations", graph)
         logger.log_event("DATA", "move", source=src_coll, target=dst_coll,
                          count=moved, keep=keep)
         self._json({"ok": True, "moved": moved, "message": t('messages.moved', count=moved, target=dst_coll),

@@ -59,18 +59,61 @@ def load(name: str) -> Any:
     except json.JSONDecodeError as exc:
         raise RuntimeError(t('errors.parse_failed_reason', file=path.name, detail=exc)) from exc
 
-def save(name: str, data: Any) -> Path:
-    """原子写入；空值 / 关闭的元素在写盘前统一裁剪，保证 JSON 干净。"""
-    if name in ("characters", "factions", "items", "equipment", "other") or is_section(name):
-        data = _clean_records(data)
+def _write(name: str, data: Any) -> Path:
     path = _path(name)
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = json.dumps(data, ensure_ascii=False, indent=2)
     tmp = path.with_suffix(".json.tmp")
-    with _LOCK:
-        tmp.write_text(payload + "\n", encoding="utf-8")
-        os.replace(tmp, path)
+    tmp.write_text(payload + "\n", encoding="utf-8")
+    os.replace(tmp, path)
     return path
+
+
+def relation_snapshot() -> dict:
+    from ..relations import RECORDS
+    sections = load("sections")
+    names = list(RECORDS) + ["worldmap", "sections", "relations"] + [
+        "section_" + section["key"] for section in sections.get("items", []) if section.get("key")]
+    return {name: load(name) for name in names}
+
+
+def save(name: str, data: Any) -> Path:
+    """Atomic collection writes and referential integrity for novel relations."""
+    from .. import relations
+    with _LOCK:
+        if name == 'relations':
+            db = relation_snapshot()
+            graph = relations.normalize(data, db, strict=True)
+            path = _write(name, graph)
+            factions = relations.sync_memberships(db, graph)
+            if factions != db.get('factions'):
+                _write('factions', _clean_records(factions))
+            return path
+        if name in ('characters', 'factions', 'items', 'equipment', 'other') or is_section(name):
+            data = _clean_records(data)
+        path = _write(name, data)
+        if active_novel_id() and (name in relations.RECORDS or name in ('sections', 'worldmap') or is_section(name)):
+            db = relation_snapshot()
+            previous = db['relations']
+            graph = previous
+            if name == 'factions' and previous.get('initialized'):
+                old_ids = {(relations.ref_key(edge['source']), relations.ref_key(edge['target'])): edge['id']
+                           for edge in previous.get('items', []) if relations.is_membership(edge)}
+                links = relations.memberships(db)
+                for edge in links:
+                    rid = old_ids.get((relations.ref_key(edge['source']), relations.ref_key(edge['target'])))
+                    if rid:
+                        edge['id'] = rid
+                graph = {'initialized': True, 'items': [edge for edge in previous.get('items', [])
+                         if not relations.is_membership(edge)] + links}
+            graph = relations.normalize(graph, db)
+            if graph != previous:
+                _write('relations', graph)
+            factions = relations.sync_memberships(db, graph)
+            if factions != db.get('factions'):
+                _write('factions', _clean_records(factions))
+        return path
+
 
 def _clean_records(data: dict) -> dict:
     """记录集合：丢掉空字符串 / 空列表字段，保持文件干净。"""

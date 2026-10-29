@@ -838,10 +838,10 @@ nav.items: 道具设定
 nav.memories: 记忆库
 nav.modes: 模式管理
 nav.other: 其他设定
-nav.sections: 自定义栏目
+nav.sections: "设定管理"
 nav.settings: 模型设置
 nav.text: 稿件处理
-nav.worldmap: 世界地图
+nav.worldmap: "地图设定"
 nav.writer: AI 工作站
 providers.note: "【接口】当前使用 {name} 的 OpenAI 兼容接口。"
 providers.note_generic: 【接口】当前使用自定义 OpenAI 兼容接口。不要假定具体模型名称、厂商或特殊能力；以用户提供的设定与提示词为准。
@@ -855,7 +855,7 @@ records.choose_file_first: 请先选择要导入的文件。
 records.clear_selection: 清空选择
 records.content_label: 内容（原文 / 长文本）
 records.count_selected: 共 {total} 条 · 已选 {selected} 条
-records.custom_prefix: 自定义：{label}
+records.custom_prefix: "{label}"
 records.elem_stat: 共 {total} 个元素，已填 {filled} 项
 records.elements_label: 元素
 records.export_json: 导出 JSON
@@ -901,14 +901,12 @@ records.tidy_title: 整理导入的内容
 records.total: 共 {count} 条
 sections.add: ＋ 新增栏目
 sections.auto_from_label: 归类依据（「其他设定」里出现的「原分类」名，用逗号分隔）
-sections.auto_sort: 按分类一键归类
+sections.auto_sort: "一键归类（暂未实现）"
 sections.auto_sort_title: 把「其他设定」里的内容按下面的「归类依据」搬进对应栏目
-sections.default_desc: 自定义设定栏目（可在「自定义栏目」页增删改名）
+sections.default_desc: "设定条目，可在设定管理中调整栏目。"
 sections.delete: 删除栏目
-sections.delete_confirm: '删除栏目「{label}」？
-
-  界面上的入口会消失，data/section_{key}.json 会留在磁盘上（不会删文件）。'
-sections.desc_label: 一句话说明（显示在页面标题下）
+sections.delete_confirm: "移除栏目「{label}」？只移除栏目入口，已有内容仍保留。"
+sections.desc_label: 栏目说明
 sections.empty: （还没有栏目）
 sections.enable: 启用
 sections.help: '- 每个栏目就是一个普通设定集合：和「其他设定」一样可以放条目、写元素树、导出 JSON / TXT。
@@ -929,7 +927,7 @@ sections.key_invalid: key 不合法，已自动用 {key}
 sections.key_prompt: 英文 key（用于文件名，字母数字下划线，例如 politics）
 sections.list_title: 栏目列表
 sections.name_placeholder: 栏目名称
-sections.name_prompt: 栏目名称（例如：政治格局 / 军事 / 民俗）
+sections.name_prompt: "栏目名称"
 sections.open: 打开这一栏
 sections.page_desc: 把设定拆成若干栏目（世界观、物种、魔法与技能……）。新增栏目会在侧栏多一个页面，并在 data/ 下生成独立 JSON。
 sections.sort_failed_reason: 归类失败：{reason}
@@ -1037,7 +1035,7 @@ workstation.chip_memory_label: 故事记忆
 workstation.chip_state: 当前状态
 workstation.chip_target: 目标 {count} 字
 workstation.chip_world: 世界观 {count}
-workstation.chip_world_label: 世界观与自定义栏目
+workstation.chip_world_label: "世界设定与其他栏目"
 workstation.clear_confirm: 清空当前输入（提示词、当前状态、补充说明）？设定勾选会保留。
 workstation.clear_input: 清空输入
 workstation.dir_required: 请填写保存目录。
@@ -1098,7 +1096,7 @@ workstation.target_label: 本次目标字数
 workstation.to_manuscript: 转到稿件处理
 workstation.user_label: user（{count} 字）
 workstation.view_raw: 查看原文
-workstation.world_entries: 世界观条目
+workstation.world_entries: "世界设定条目"
 worldmap.add_axis_end: 在最后面加一{axis}
 worldmap.add_axis_front: 在最前面加一{axis}
 worldmap.add_col_end: ＋列·末
@@ -1172,3 +1170,199 @@ worldmap.subgrid_hint: 第 {depth} 层的区域挂在这里
 worldmap.subgrid_label: '子表格 '
 worldmap.summary_label: 一句话简述
 worldmap.swapped: 已交换「{a}」与「{b}」
+
+# Unified setting navigation and category management
+nav.group_settings: "设定"
+nav.world_setting: "世界设定"
+sections.manage_desc: "统一管理设定栏目，调整名称、说明、顺序和侧栏显示。"
+sections.auto_sort_pending: "一键归类暂未实现，目前请在条目中手动选择分类。"
+sections.show_named: "在侧栏显示{name}"
+sections.show_in_nav: "在侧栏显示"
+sections.builtin: "内置栏目"
+sections.record_section: "设定栏目"
+sections.manage_help: "默认展示人物、世界、地图和势力。隐藏栏目保留内容；旧版空预设栏目及背包、道具、装备可按需启用。世界设定内部可通过分类整理经济、历史等条目。"
+records.manage_categories: "管理分类"
+records.filter_category: "按分类筛选"
+records.all_categories: "全部分类"
+records.uncategorized: "未分类"
+records.category_help: "分类用于整理当前栏目的条目。改名会同步条目；删除分类后，条目归入“未分类”。"
+records.category_name_required: "请输入分类名称。"
+records.category_exists: "该分类已存在。"
+records.category_delete_confirm: "删除分类「{name}」？其中的条目将变为未分类，内容保留。"
+records.count_filtered: "显示 {shown} / 共 {total} 条"
+
+# Setting management cards
+sections.card_desc: "点击卡片进入设定，拖动卡片调整排列。"
+sections.card_hint: "拖动卡片调整顺序；也可聚焦卡片后按 Alt + 左右方向键排序，按 Enter 进入。"
+sections.open_named: "打开{name}"
+sections.edit_named: "编辑{name}"
+sections.edit_title: "编辑设定栏目"
+sections.name_required: "请输入栏目名称。"
+sections.drag_hint: "拖动调整位置"
+sections.no_description: "暂无描述"
+sections.edit_action: 编辑
+
+# Agent-style workstation
+workstation.details: "详细输入"
+workstation.more: "更多"
+workstation.welcome: "开始这一次创作"
+workstation.welcome_hint: "在下方输入写作要求，选择模式与设定，开始生成。"
+workstation.context_hint: "续写携带最近最多 8 轮，历史合计不超过 6 万字符；本次使用当前选择的设定。Ctrl+Enter 发送。AI 生成内容请核实。"
+workstation.retry: "重试"
+workstation.expand_result: "展开正文"
+workstation.collapse_result: "收起正文"
+workstation.conversation_actions: "对话操作"
+workstation.rename_conversation: "重命名对话"
+
+workstation.conversations: "对话"
+
+manuscript.material_added: "已加入当前小说的素材区。"
+manuscript.materials: "素材"
+manuscript.materials_count: "素材 · {count}"
+manuscript.materials_hint: "点击预览 · 拖入正文"
+manuscript.materials_empty: "导入文件，或从 AI 工作站转入内容。"
+manuscript.import_files: "导入文件"
+manuscript.import_chapter: "从章节导入"
+manuscript.process_tools: "文本处理工具"
+manuscript.selection_scope: "有选区时仅处理选中文字，否则处理全文"
+manuscript.editor_label: "正文编辑区"
+manuscript.composer_placeholder: "在这里写作，或将上方素材拖到需要插入的位置……"
+manuscript.insert_cursor: "插入到光标处"
+manuscript.preview_material: "预览：{title}"
+manuscript.remove_material: "移除素材卡片（保留正文与原文件）"
+manuscript.remove_material_title: "移除素材：{title}"
+manuscript.source_sample: "示例文档"
+manuscript.source_file: "导入文件"
+manuscript.material_source_ai: "AI 工作站"
+manuscript.source_chapter: "章节"
+manuscript.undo: "撤销"
+manuscript.redo: "重做"
+manuscript.file_too_large: "单份素材请控制在 8 MB 以内。"
+manuscript.text_files_only: "支持导入 TXT 和 Markdown 文件。"
+manuscript.sample_1_title: "雨夜入城 · 开篇.txt"
+manuscript.sample_1_content: "城门将闭，林舟赶在最后一声钟响前走进雨幕。\n\n他握紧怀中的信，抬眼望向街角那盏仍亮着的灯。守门人没有盘问他的来路，只在看见信封上的红印时，悄悄退了半步。\n\n“今晚别走河边。”那人说。\n\n林舟回头时，城门已经合上了。"
+manuscript.sample_2_title: "林舟 · 人物动机.md"
+manuscript.sample_2_content: "## 表层目标\n找到失踪的故人，交出三年前未能送达的信。\n\n## 内在矛盾\n他相信自己只是一个送信人，却始终不敢承认：故人的失踪与他当年的沉默有关。\n\n## 场景线索\n信封上的红印、故人惯用的三下敲门声、河边旧客栈的登记簿。"
+manuscript.sample_3_title: "河边客栈 · 场景补写.txt"
+manuscript.sample_3_content: "门轴轻响，客栈里的人同时抬起了头。\n\n掌柜擦拭着一只早已干净的杯子，目光越过林舟的肩膀，看向空无一人的雨巷。楼上传来三下敲击声，间隔很慢，像是有人在等待回应。\n\n林舟把信放在柜台上。\n\n“我要找一个人。”\n\n掌柜停下手里的动作：“这里的人，都这么说。”"
+
+# Setting editor and centralized import
+records.help_title: "设定填写帮助"
+records.edit_guidance: "先写名称、概述与正文，再按需补充信息分组。\n“关联”支持任意条目之间的单向或双向关系，可搜索其他栏目并自定义关系名称与备注。关系只保存一份，两端均可查看；原有势力成员已兼容。\n关联图以当前条目为中心，点击＋展开间接关联，共享条目只出现一次，真实连线可以形成环。\n旧模板字段及手写关系保留，不会按同名自动连线。字段结构、备注、分类与删除位于“更多”。"
+records.summary: "一句话概述"
+records.prose: "正文"
+records.prose_placeholder: "自由描述这条设定，其他信息可以稍后补充……"
+records.name_required: "请先填写名称。"
+records.create: "创建"
+records.editor_tabs: "设定编辑"
+records.tab_content: "内容"
+records.tab_relations: "关联"
+records.tab_more: "更多"
+records.edit_structure: "编辑字段结构"
+records.add_group: "＋ 添加信息分组"
+records.no_more_groups: "模板分组已全部添加，可在“更多”中编辑字段结构。"
+records.affiliations: "所属势力"
+records.add_relation: "＋ 添加关联"
+records.create_linked: "新建并关联"
+records.no_match_create: "没有可选条目，可新建后关联。"
+records.relations_empty: "尚未添加关联"
+records.relation_role: "身份 / 关系说明（可选）"
+records.remove_relation: "解除关联"
+records.relations_legacy: "此类条目的关系暂保留在正文或原有字段中。"
+records.import_format: "文件格式"
+records.import_source: "来源文件"
+records.pick_import_file: "选择本地文件"
+sections.import_settings: "导入设定"
+sections.import_target: "导入到"
+sections.guidance: "点击卡片进入栏目；拖动卡片调整顺序，或聚焦后按 Alt + 左右方向键。\n勾选“显示在导航”可控制侧栏。隐藏栏目不会删除条目。\n“导入设定”统一接收人物、势力、世界设定、地图、自定义栏目和记忆的 JSON 文件。\n一键归类暂未实现。"
+sections.import_guidance: "先选择目标栏目，再选择来源文件或本地文件。\nJSON 支持数组、{ \"items\": [...] } 和按名称组织的对象。已有同名记录会合并更新，请先导出备份；导入不会按名称推断人物与势力的关联。\n地图 JSON 需包含 rows、cols、cells、regions。Markdown 仅可导入“其他设定”。"
+
+records.members_plain: "成员"
+records.relation_missing: "已删除的条目"
+
+sections.back_management: "← 设定管理"
+sections.metadata_title: "条目元信息"
+sections.metadata_help: "在这里管理该栏目条目的字段模板：可添加分组或字段、编辑名称、调整层级与顺序，以及启用或停用字段。字段名称末尾加 / 可创建分组。\n条目内容页通过“添加信息分组”选用这些模板。修改模板不会自动改写已有条目；“应用到全部”仅补充缺失字段，不覆盖已填内容。\n可以导出当前栏目模板 JSON。栏目名称与说明、字段修改均自动保存。"
+
+workstation.more_settings: "更多设定"
+workstation.pick_setting_records: "选择具体条目"
+workstation.map_whole: "将带入整张地图及其区域设定。"
+workstation.supplement: "补充说明与要求"
+workstation.supplement_placeholder: "填写本次创作需要遵循的补充信息、风格或限制……"
+workstation.no_settings_selected: "未选择设定"
+
+manuscript.to_chapter: "导入至章节"
+
+manuscript.chapter_name: "章节名称"
+
+manuscript.chapter_saved: "已导入至章节"
+
+manuscript.new_folder: "新建素材文件夹"
+
+manuscript.all_materials: "全部素材"
+
+manuscript.open_folder: "打开文件夹：{name}"
+
+manuscript.folder_count: "{count} 个素材"
+
+manuscript.move_material: "移动到文件夹"
+
+manuscript.move_material_title: "移动素材：{title}"
+
+manuscript.folder_back: "后退"
+
+manuscript.folder_forward: "前进"
+
+relations.search: "搜索任意条目或栏目"
+
+relations.type: "关系名称"
+
+relations.note: "备注（可选）"
+
+relations.direction: "关系方向"
+
+relations.out: "当前条目 → 对方"
+
+relations.in: "对方 → 当前条目"
+
+relations.both: "双向关系 ↔"
+
+relations.filter: "筛选关联栏目"
+
+relations.all_categories: "全部栏目"
+
+relations.pick_target: "选择一个关联条目"
+
+relations.edit: "编辑关联"
+
+relations.required: "请选择条目并填写关系名称"
+
+relations.duplicate: "这条关联已经存在"
+
+relations.direct: "直接关联 · {count}"
+
+relations.remove_confirm: "解除这条关联？两端条目会保留。"
+
+relations.graph: "关联图"
+
+relations.center_here: "以此为中心"
+
+relations.expand: "展开关联"
+
+relations.collapse: "收起展开"
+
+relations.current: "当前条目"
+
+relations.graph_count: "{nodes} 个条目 · {edges} 条关联"
+
+relations.limit: "已达 60 个节点上限"
+
+relations.zoom_out: "缩小关联图"
+
+relations.zoom_in: "放大关联图"
+
+relations.reset: "重置视图"
+
+relations.hint: "点击节点查看，＋展开间接关联；拖动调整位置，滚轮缩放。"
+
+relations.large_view: "放大查看"
