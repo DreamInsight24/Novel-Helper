@@ -197,9 +197,3 @@ P1 将 `app/novelhelper/store.py` 拆分为 `store/` 包，原公共接口由 `s
 - 涉及包边界调整的变更需负责人 review；
 - 变更合入后同步更新本文档第 2、3、7 节；
 - 删除或重命名公共 API 需在 `CHANGELOG.md` 中记录。
-
-## v2610.3 设定导航调整
-
-小说侧栏统一使用“设定”分组，管理入口复用 `sections` 路由。`sections.items` 保持原有自建栏目定义；可选的 `sections.builtins` 保存内置页面的显示、名称及说明，`sections.order` 保存统一导航顺序，均通过已有集合保存接口落盘。`section_world` 继续保存世界设定记录，`world` 路由继续加载独立的 `worldmap` 集合。分类复用集合的 `categories` 和记录的 `category`，分类改名同步记录、删除分类将记录转为未分类。记录 ID、引用结构和业务 URL 不变。前端一键归类入口不调用旧归类接口，未实现行为记录于 `todolist.md`。
-
-设定管理以卡片展示，点击卡片进入对应页面；名称、说明及自建栏目移除操作集中在编辑弹窗中。卡片使用原生拖放排序，可通过 Alt + 左右方向键进行键盘排序，统一保存到已有 `sections.order`，不新增接口。

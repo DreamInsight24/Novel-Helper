@@ -1063,9 +1063,3 @@ ASCII 技术标识（API Key、max_tokens、top_p、模型名、URL、编码名�
 - `settings.license_copyright` 为法律声明，中英保持一致，不随界面语言变化；
 - 新增 key 不含 `{placeholder}`，两种语言占位符集合一致；
 - `settings.license_body` / `settings.license_warranty` 的措辞须与 `LICENSE` 中的 GPL-3.0 全文一致；许可证变更时需同步更新本区块与设置页文案。
-
-## 统一设定管理（2026-10-28）
-
-新增 `nav.group_settings`、`nav.world_setting`、`sections.manage_*`、`sections.show_*`、`sections.builtin`、`sections.record_section`、`sections.auto_sort_pending`、`records.manage_categories`、`records.filter_category`、`records.all_categories`、`records.uncategorized`、`records.category_*`。更新设定管理、地图设定与归类按钮文案，中英 key 保持一致。用户栏目名与分类名不随语言切换改写。
-
-卡片管理新增 `sections.card_desc`、`sections.card_hint`、`sections.open_named`、`sections.edit_named`、`sections.edit_title`、`sections.name_required`、`sections.drag_hint`、`sections.no_description`，中英同步。
