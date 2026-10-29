@@ -165,7 +165,7 @@ class LanguagePersistenceTests(unittest.TestCase):
         self.assertEqual(_language.save_language("en-US"), "en-US")
         self.assertEqual(store.load("schema")["characters"]["label"], "Character profiles")
         self.assertEqual(store.load("schema")["characters"]["elements"][0]["key"], "Identity")
-        self.assertEqual(store.load("sections")["items"][0]["label"], "Worldview")
+        self.assertEqual(store.load("sections")["items"][0]["label"], "World settings")
         self.assertEqual(store.load("modes")["items"][0]["label"], "Logic writing")
         self.assertEqual(store.load("memories")["categories"][0], "Short-term memory")
         self.assertEqual(store.load("worldmap")["name"], "World map")
@@ -199,7 +199,7 @@ class LanguagePersistenceTests(unittest.TestCase):
         self.assertEqual(config["initial_language"], "zh-CN")
         self.assertEqual(store.load("schema")["characters"]["label"], "人物档案")
         self.assertEqual(store.load("schema")["characters"]["elements"][0]["key"], "身份")
-        self.assertEqual(store.load("sections")["items"][0]["label"], "世界观")
+        self.assertEqual(store.load("sections")["items"][0]["label"], "世界设定")
         self.assertEqual(store.load("modes")["items"][0]["label"], "逻辑写作")
         self.assertTrue(store.load("modes")["items"][0]["system_prompt"].startswith("任务："))
         self.assertEqual(store.load("memories")["categories"][0], "短期记忆")
@@ -220,7 +220,7 @@ class LanguagePersistenceTests(unittest.TestCase):
         _language.save_language("zh-CN")
         self.assertEqual(store.load("config")["initial_language"], "en-US")
         self.assertEqual(store.load("schema")["characters"]["label"], "Character profiles")
-        self.assertEqual(store.load("sections")["items"][0]["label"], "Worldview")
+        self.assertEqual(store.load("sections")["items"][0]["label"], "World settings")
 
     def test_customized_collection_is_not_overwritten(self):
         _clear_collections()

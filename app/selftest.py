@@ -192,7 +192,7 @@ def main() -> int:
           all(key in store.load("schema") for key in
               ("section_world", "section_species", "section_magic", "section_places", "section_religion")))
     section_labels = [s.get("label") for s in store.load("sections")["items"]]
-    check("默认栏目设置", "世界观" in section_labels and "宗教与信仰" in section_labels,
+    check("默认仅初始化世界设定栏目", section_labels == ["世界设定"],
           "、".join(section_labels))
     modes = store.load("modes")["items"]
     check("默认五种工作模式",
@@ -300,6 +300,41 @@ def main() -> int:
     check("世界地图可独立于世界观条目发送",
           "测试地图" in map_user and "测试城" in map_user and "临海城市" not in map_user)
 
+    # Focused setting prose and canonical / legacy faction memberships.
+    linked_char = {"id": "ch_link", "name": "新人物", "summary": "新概述", "content": "新正文", "elements": []}
+    linked_faction = {"id": "fa_link", "name": "测试势力", "members": ["ch_link", {"id": "ch_link", "note": "旧身份"}, {"id": "ch_missing"}], "member_roles": {"ch_link": "护卫"}}
+    linked_db = {"characters": {"items": [linked_char]}, "factions": {"items": [linked_faction]}}
+    linked_text = context.render_character(linked_char, linked_db)
+    check("人物自由正文与概述进入 AI 上下文", "新概述" in linked_text and "新正文" in linked_text)
+    check("人物反向读取势力及身份，不复制关系", "测试势力（护卫）" in linked_text)
+    faction_text = context.render_faction(linked_faction, linked_db)
+    check("势力兼容旧对象关联并去重和提示失效条目", faction_text.count("新人物") == 1 and "ch_missing" in faction_text)
+    check("其他设定正文只渲染一次", context.render_other(linked_char).count("新正文") == 1)
+    exported_prose = project.clean_json("characters", linked_db)
+    imported_prose = project.import_json(json.dumps(exported_prose, ensure_ascii=False), "characters")[0]
+    check("自由正文与概述支持干净 JSON 往返", imported_prose.get("content") == "新正文" and imported_prose.get("summary") == "新概述" and not imported_prose["elements"])
+    check("旧对象成员可导出 JSON", bool(project.clean_json("factions", linked_db)))
+    pack_db = {"items": {"items": [{"id": "it_prose", "name": "新道具", "content": "正文效果"}]}}
+    pack_text = context.render_character({"name": "携带者", "inventory": [{"item_id": "it_prose"}]}, pack_db)
+    check("人物背包中的新道具自由正文进入上下文", "正文效果" in pack_text)
+
+
+    detailed_db = dict(linked_db,
+        sections={"items": [{"key": "hidden", "label": "隐藏设定"}]},
+        section_hidden={"items": [{"id": "hidden_1", "name": "隐藏条目", "content": "仅选中时发送"}]},
+        items={"items": [{"id": "item_1", "name": "信封", "content": "红印封缄"}]})
+    detailed_selection = {"record_selections": {"factions": ["fa_link"], "section_hidden": ["hidden_1"], "items": ["item_1"]},
+                          "setting_categories": ["section_hidden", "items"], "extra": "统一补充要求",
+                          "current_state": "不应发送的旧状态", "include": {"state": True}}
+    detailed_text = context.build_user_message({}, detailed_db, detailed_selection, {})
+    check("详细设定选择可发送隐藏栏目和独立道具", "仅选中时发送" in detailed_text and "红印封缄" in detailed_text)
+    check("关闭的设定类型不会发送且不再发送当前状态", "测试势力" not in detailed_text and "不应发送的旧状态" not in detailed_text)
+    check("合并补充输入仅发送一次", detailed_text.count("统一补充要求") == 1)
+    empty_detail = context.build_user_message({}, detailed_db, {"record_selections": {"factions": []}, "setting_categories": ["factions"]}, {})
+    check("势力未勾选条目时不再整栏发送", "测试势力" not in empty_detail)
+    resolved_detail = history.resolve_selection(detailed_db, {"record_selections": {"section_hidden": ["hidden_1", "deleted_id"]}, "setting_categories": ["section_hidden"]})
+    check("新详细选择的历史支持自定义栏目与失效指针", resolved_detail["missing"] == 1 and resolved_detail["selection"]["record_selections"]["section_hidden"] == ["hidden_1"])
+
     # ── 2. 历史指针 ───────────────────────────
     check("历史标题公共入口保留原生成规则",
           history.title_from_prompt("  测试   标题 ", "outline") == "测试 标题")
@@ -327,6 +362,12 @@ def main() -> int:
     listed = history.list_sessions()
     check("历史索引可列出当前会话", bool(listed) and listed[0]["id"] == session["id"] and listed[0]["current"])
     check("会话文件独立存储", (TEMP_DATA / "conversations" / f"{session['id']}.json").exists())
+
+    blank_session = history.create_session("尚未发送的草稿", "draft")
+    check("未生成的对话仍出现在侧栏历史，草稿可再次打开",
+          any(item["id"] == blank_session["id"] for item in history.list_sessions()))
+    history.delete_session(blank_session["id"])
+    history.set_current(session["id"])
 
     # ── 3. 导入规则 ───────────────────────────
     md_dir = TEMP_WORK / "import"
@@ -464,11 +505,29 @@ def main() -> int:
               saved_state["workstation"]["output"].startswith("## 测试输出")
               and saved_state["workstation"]["current_session"] == run["session_id"])
         check("假模型收到工作模式补充要求与用户提示词",
-              "控制在 80 字以内" in captured["messages"][1]["content"]
-              and "测试提示词：雨夜入城" in captured["messages"][1]["content"])
+              "控制在 80 字以内" in captured["messages"][-1]["content"]
+              and "测试提示词：雨夜入城" in captured["messages"][-1]["content"])
         check("模式模型与推理强度被传入调用",
               captured["settings"]["model"] == "deepseek-flash"
               and captured["settings"]["effort"] == "low")
+
+        check("续写按顺序发送历史用户与模型消息",
+              len(captured["messages"]) == 4
+              and captured["messages"][1]["role"] == "user"
+              and captured["messages"][2]["content"] == turn["output"])
+        prior = history.context_messages(run["session_id"])
+        check("历史上下文预算不截断半轮", history.context_messages(run["session_id"], max_chars=1) == [])
+        check("历史上下文轮数上限保留最近轮次",
+              history.context_messages(run["session_id"], max_turns=1) == prior[-2:])
+        check("空白新对话不带前一会话的上下文", history.context_messages("") == [])
+        renamed = post("/api/history/rename", {"id": run["session_id"], "title": "续写测试"})
+        check("对话重命名同步索引与内容且保留轮次",
+              renamed.get("ok") and get("/api/history/" + run["session_id"])["session"]["title"] == "续写测试"
+              and get("/api/history")["items"][0]["title"] == "续写测试"
+              and len(history.load_session(run["session_id"])["turns"]) == 2)
+        preview = post("/api/ai/preview", {"surface": "workstation", "mode_id": "draft",
+                       "session_id": run["session_id"], "prompt": "接着写", "selection": selection})
+        check("预览显示与续写相同的历史上下文", preview.get("history") == prior)
 
         # ── 稿件处理：不进写稿历史、不覆盖工作站输出 ──
         hist_before = get("/api/history")
@@ -517,7 +576,7 @@ def main() -> int:
         current_after = get("/api/history/" + hist_after["current"]) if hist_after.get("current") else {}
         check("稿件处理不追加写稿历史",
               len((current_after.get("session") or {}).get("turns") or []) == turns_before)
-        user_msg = captured["messages"][1]["content"]
+        user_msg = captured["messages"][-1]["content"]
         check("稿件处理请求把原文与要求一起发送",
               "## 待处理文本" in user_msg and "雨夜入城，灯火摇晃。" in user_msg
               and "只改标点。" in user_msg)
@@ -557,13 +616,26 @@ def main() -> int:
         check("日志最多保留 10 个并删除最早",
               len(remaining) <= 10 and not (log_dir / "novelhelper_20000101_000000_0.log").exists())
 
+        chapter_content = "第一段。\n\n第二段。"
+        chapter = post("/api/chapters", {"name": "测试章节", "content": chapter_content})
+        check("稿件导入章节保持原文并出现在章节列表",
+              chapter.get("ok") and get("/api/file?path=" + urllib.parse.quote(chapter["rel"]))["content"] == chapter_content
+              and any(c["path"] == chapter["rel"] for c in chapter["chapters"]))
+        duplicate = post("/api/chapters", {"name": "测试章节", "content": "另一份正文"})
+        check("同名章节不覆盖原文件", duplicate["rel"] != chapter["rel"]
+              and get("/api/file?path=" + urllib.parse.quote(chapter["rel"]))["content"] == chapter_content)
+        sanitized = project.write_chapter("safe", "../../outside")
+        check("章节名称不能写出章节目录", sanitized.parent == store.out_dir())
+        empty_chapter = post("/api/chapters", {"name": "空章节", "content": " "}, expect_error=True)
+        check("空稿件不能导入章节", empty_chapter.get("ok") is False)
+
         modes_res = get("/api/workstation/modes")
         check("GET /api/workstation/modes 返回动态模式",
               modes_res.get("ok") and any(m["id"] == "draft" for m in modes_res["modes"]))
 
         with urllib.request.urlopen(base + "/workstation.js", timeout=20) as resp:
             js = resp.read().decode("utf-8")
-        check("前端工作站静态资源可访问", "AI 工作站" in js and "work-lock" in js)
+        check("前端工作站静态资源可访问", "agent-workstation" in js and "renderWorkstationHistory" in js and "work-lock" not in js)
         with urllib.request.urlopen(base + "/manuscript.js", timeout=20) as resp:
             manuscript_js = resp.read().decode("utf-8")
         check("稿件处理前端静态资源可访问",

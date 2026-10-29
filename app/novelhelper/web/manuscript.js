@@ -33,6 +33,53 @@ function manuscriptShortName(path) {
   return String(path || '').split(/[\\/]/).pop() || i18n.t('common.unnamed_paren');
 }
 
+// Map the pointer to a text offset using a temporary, identically laid-out mirror.
+function manuscriptDropPosition(area, x, y) {
+  const rect = area.getBoundingClientRect();
+  const style = getComputedStyle(area);
+  const mirror = document.createElement('div');
+  for (const key of ['fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'lineHeight', 'letterSpacing',
+    'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft', 'borderTopWidth', 'borderRightWidth',
+    'borderBottomWidth', 'borderLeftWidth', 'wordSpacing', 'tabSize', 'textIndent', 'textAlign']) mirror.style[key] = style[key];
+  Object.assign(mirror.style, {position:'fixed', left:rect.left+'px', top:rect.top+'px', width:rect.width+'px',
+    height:rect.height+'px', boxSizing:'border-box', borderStyle:'solid', overflow:style.overflow,
+    whiteSpace:'pre-wrap', overflowWrap:'break-word', opacity:'0', zIndex:'2147483646', pointerEvents:'auto'});
+  mirror.textContent = area.value + '\u200b';
+  document.body.appendChild(mirror);
+  mirror.scrollTop = area.scrollTop; mirror.scrollLeft = area.scrollLeft;
+  try {
+    let node, offset;
+    if (document.caretPositionFromPoint) {
+      const caret = document.caretPositionFromPoint(x, y); node = caret?.offsetNode; offset = caret?.offset;
+    } else {
+      const caret = document.caretRangeFromPoint(x, y); node = caret?.startContainer; offset = caret?.startOffset;
+    }
+    if (!node || !mirror.contains(node)) return {index:area.selectionStart};
+    const before = document.createRange(); before.selectNodeContents(mirror); before.setEnd(node, offset);
+    const index = Math.min(area.value.length, before.toString().length);
+    const caret = document.createRange(); caret.setStart(node, offset); caret.collapse(true);
+    let caretRect = caret.getBoundingClientRect();
+    if (!caretRect.height && node.nodeType === 3 && offset < node.length) {
+      caret.setEnd(node, offset + 1); caretRect = caret.getBoundingClientRect();
+    }
+    return {index, x:caretRect.left, y:caretRect.top, height:caretRect.height || parseFloat(style.lineHeight)};
+  } finally { mirror.remove(); }
+}
+
+function manuscriptConfirm(message) {
+  return new Promise(resolve => {
+    const dialog = modal(i18n.t('common.confirm'), h('div', {text:message}), [
+      h('button', {text:i18n.t('common.cancel'), onclick:() => dialog.close()}),
+      h('button', {class:'primary', text:i18n.t('common.confirm'), onclick:() => {resolve(true); dialog.close();}})
+    ], () => resolve(false));
+  });
+}
+
+function manuscriptInsertedText(value, content, index) {
+  index = Math.max(0, Math.min(value.length, index));
+  return {value:value.slice(0, index) + content + value.slice(index), cursor:index + content.length};
+}
+
 // ═══════════════════════════════════════════
 // 稿件处理页
 //
@@ -48,9 +95,15 @@ function viewManuscript(main) {
     const s = state.db.state = state.db.state || {};
     return s.textPanel = s.textPanel || {};
   };
-  if (!state.ui.text) {
+  if (!state.ui.text || state.ui.text.novelId !== state.activeNovelId) {
     const saved = draftSlot();
     state.ui.text = {
+      novelId: state.activeNovelId,
+      materials: saved.materials || [],
+      materialFolders: saved.materialFolders || [],
+      materialFolder: '',
+      undo: [], redo: [],
+      selectionStart: 0, selectionEnd: 0,
       path: saved.path || '',
       value: saved.value || '',
       dirty: !!saved.dirty,
@@ -59,6 +112,18 @@ function viewManuscript(main) {
     };
   }
   const ui = state.ui.text;
+  ui.materialFolders = ui.materialFolders || [];
+  ui.materialHistory = ui.materialHistory || [ui.materialFolder || ''];
+  ui.materialHistoryIndex = ui.materialHistoryIndex || 0;
+  if (!ui.materialFolders.some(folder => folder.id === ui.materialFolder)) ui.materialFolder = '';
+  if (!draftSlot().materialsInitialized) {
+    const examples = [1, 2, 3].map(n => ({id:'sample_' + n, title:i18n.t('manuscript.sample_' + n + '_title'),
+      content:i18n.t('manuscript.sample_' + n + '_content'), source:'sample'}));
+    ui.materials.push(...examples);
+    draftSlot().materials = ui.materials;
+    draftSlot().materialsInitialized = true;
+    touch('state', true);
+  }
 
   // 服务端保存的结果（比如生成中刷新、另一个标签页完成）优先于旧的内存结果。
   const savedAi = draftSlot().aiResult || null;
@@ -75,9 +140,11 @@ function viewManuscript(main) {
   // ── 草稿：内容 + 当前文件名 + AI 结果一起存进 data/state.json ──
   const writeDraft = () => {
     const d = draftSlot();
+    d.materials = ui.materials;
+    d.materialFolders = ui.materialFolders;
     d.path = ui.path;
-    d.value = tooBig() ? '' : ui.value;      // 超大文本只留文件名，靠文件自动保存兜底
-    d.skipped = tooBig();
+    d.value = tooBig() && ui.path ? '' : ui.value;      // 超大文本只留文件名，靠文件自动保存兜底
+    d.skipped = tooBig() && !!ui.path;
     d.dirty = !!ui.dirty;
     d.scrollTop = ui.scrollTop || 0;
     if (ui.aiResult) d.aiResult = ui.aiResult;
@@ -131,9 +198,41 @@ function viewManuscript(main) {
   };
 
   const area = h('textarea', {
-    rows: 30, class: 'notepad manuscript-area', placeholder: i18n.t('manuscript.editor_placeholder'),
+    rows: 18, class: 'notepad manuscript-area', placeholder: i18n.t('manuscript.composer_placeholder'),
     value: ui.value,
+    'aria-label': i18n.t('manuscript.editor_label'),
+    onbeforeinput: () => rememberSelection(),
     oninput: () => setText(area.value),
+    onselect: () => rememberSelection(), onclick: () => rememberSelection(), onkeyup: () => rememberSelection(),
+    onkeydown: e => {
+      if ((e.ctrlKey || e.metaKey) && !e.isComposing && ['z', 'y'].includes(e.key.toLowerCase())) {
+        e.preventDefault(); undoEdit(e.key.toLowerCase() === 'y' || e.shiftKey);
+      }
+    },
+    ondragover: e => {
+      if (Array.from(e.dataTransfer.types).includes('Files')) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; return; }
+      if (!Array.from(e.dataTransfer.types).includes('application/x-novelhelper-material')) return;
+      e.preventDefault(); e.dataTransfer.dropEffect = 'copy';
+      const bounds = area.getBoundingClientRect();
+      if (e.clientY < bounds.top + 32) area.scrollTop -= 20;
+      else if (e.clientY > bounds.bottom - 32) area.scrollTop += 20;
+      const pos = manuscriptDropPosition(area, e.clientX, e.clientY);
+      if (pos.height) {
+        if (!dropCaret.isConnected) document.body.appendChild(dropCaret);
+        Object.assign(dropCaret.style, {left:pos.x+'px', top:pos.y+'px', height:pos.height+'px'});
+      }
+      area.classList.add('material-drop-active');
+    },
+    ondragleave: () => clearDrop(),
+    ondrop: e => {
+      if (e.dataTransfer.files.length) { e.preventDefault(); clearDrop(); importFiles(Array.from(e.dataTransfer.files)); return; }
+      const id = e.dataTransfer.getData('application/x-novelhelper-material');
+      const material = ui.materials.find(item => item.id === id);
+      if (!material) return;
+      e.preventDefault();
+      const pos = manuscriptDropPosition(area, e.clientX, e.clientY); clearDrop();
+      insertMaterial(material, pos.index);
+    },
     onscroll: () => { ui.scrollTop = area.scrollTop; }
   });
   const statLine = h('div', { class: 'small muted' });
@@ -153,18 +252,33 @@ function viewManuscript(main) {
     statLine.textContent = i18n.t('manuscript.stat_line', { chars: t.length, han: cjk, lines: lines, paras: paras, save: save });
   };
 
-  // 所有内容改动都走这里：先进内存草稿，再排队写盘
-  const setText = (value) => {
+  const rememberSelection = () => { ui.selectionStart = area.selectionStart; ui.selectionEnd = area.selectionEnd; };
+  const snapshot = () => ({value:ui.value, start:ui.selectionStart || 0, end:ui.selectionEnd || 0});
+  const setText = (value, record = true) => {
+    if (record && value !== ui.value) {
+      ui.undo.push(snapshot()); ui.redo = [];
+      while (ui.undo.length > 50 || (ui.undo.length > 1 && ui.undo.reduce((n, entry) => n + entry.value.length, 0) > 4000000)) ui.undo.shift();
+    }
     if (area.value !== value) area.value = value;
-    ui.value = value;
-    ui.dirty = true;
-    scheduleDraft();
-    scheduleFileSave();
-    updateStat();
+    ui.value = value; ui.dirty = true;
+    scheduleDraft(); scheduleFileSave(); updateStat();
   };
+  const undoEdit = (redo = false) => {
+    const from = redo ? ui.redo : ui.undo, to = redo ? ui.undo : ui.redo;
+    if (!from.length) return;
+    to.push(snapshot()); const entry = from.pop();
+    setText(entry.value, false); area.focus(); area.setSelectionRange(entry.start, entry.end); rememberSelection();
+  };
+  const insertMaterial = (material, index = ui.selectionStart || 0) => {
+    const result = manuscriptInsertedText(ui.value, material.content, index);
+    setText(result.value); area.focus(); area.setSelectionRange(result.cursor, result.cursor); rememberSelection();
+  };
+  const dropCaret = h('div', {class:'manuscript-drop-caret', 'aria-hidden':'true'});
+  const clearDrop = () => { dropCaret.remove(); area.classList.remove('material-drop-active'); };
 
   // 离开本页 / 切栏目时：草稿与文件都立刻落盘
   const flushNow = () => {
+    clearDrop();
     clearTimeout(draftTimer);
     clearTimeout(fileTimer);
     const done = async () => { writeDraft(); await saveNow('state'); };
@@ -172,9 +286,9 @@ function viewManuscript(main) {
     return done();
   };
 
-  const keepAiResult = () => {
+  const keepAiResult = async () => {
     if (!ui.aiResult) return true;
-    if (!confirm(i18n.t('manuscript.ai_result_warning'))) return false;
+    if (!await manuscriptConfirm(i18n.t('manuscript.ai_result_warning'))) return false;
     ui.aiResult = null;
     return true;
   };
@@ -182,12 +296,16 @@ function viewManuscript(main) {
   const saveLocal = async () => {
     clearTimeout(fileTimer);
     if (!ui.path) {
-      const folder = (state.paths.text || 'workspace/text').replace(/[\\/]+$/, '');
-      let name = prompt(i18n.t('manuscript.save_prompt', { folder: folder }), i18n.t('defaults.text.draft_prefix') + new Date().toISOString().slice(0, 10) + '.txt');
-      if (!name) return;
-      if (!/\.(txt|md)$/i.test(name)) name += '.txt';
-      ui.path = folder + '/' + name.replace(/[\\/]/g, '_');
-      refreshHint();
+      askDialog(i18n.t('common.save'), i18n.t('common.filename'),
+        i18n.t('defaults.text.draft_prefix') + new Date().toISOString().slice(0, 10) + '.txt', async value => {
+          let name = value.trim();
+          if (!name) return;
+          if (!/\.(txt|md)$/i.test(name)) name += '.txt';
+          const folder = (state.paths.text || 'workspace/text').replace(/[\\/]+$/, '');
+          ui.path = folder + '/' + name.replace(/[\\/]/g, '_');
+          refreshHint(); await saveLocal();
+        });
+      return;
     }
     if (!await saveToFile(ui.path, ui.value, false)) return;
     writeDraft();
@@ -200,69 +318,53 @@ function viewManuscript(main) {
   const newText = async () => {
     if (ui.dirty) {
       if (ui.path) await flushFile();
-      else if (!confirm(i18n.t('manuscript.unsaved_clear'))) return;
+      else if (!await manuscriptConfirm(i18n.t('manuscript.unsaved_clear'))) return;
     }
-    if (!keepAiResult()) return;
+    if (!await keepAiResult()) return;
     clearTimeout(fileTimer); clearTimeout(draftTimer);
-    ui.path = ''; ui.value = ''; ui.dirty = false; ui.scrollTop = 0;
+    ui.path = ''; ui.value = ''; ui.dirty = false; ui.scrollTop = 0; ui.undo = []; ui.redo = []; ui.selectionStart = 0; ui.selectionEnd = 0;
     writeDraft();
     saveNow('state').catch(() => { });
     renderMain();
     toast(i18n.t('manuscript.cleared'), 'ok');
   };
 
-  const loadPath = async (path) => {
-    if (path === ui.path) return;
-    if (ui.dirty) {
-      if (ui.path) await flushFile();
-      else if (!confirm(i18n.t('manuscript.unsaved_discard'))) return;
-    }
-    if (!keepAiResult()) return;
-    try {
-      const r = await api('/api/file?path=' + encodeURIComponent(path));
-      clearTimeout(fileTimer); clearTimeout(draftTimer);
-      ui.path = path; ui.value = r.content; ui.dirty = false; ui.scrollTop = 0;
-      writeDraft();
-      saveNow('state').catch(() => { });
-      renderMain();
-    } catch (e) { toast(i18n.t('manuscript.open_failed_reason', { reason: e.message }), 'err'); }
+  const addMaterial = (content, title, source = 'file') => {
+    const material = {id:newId('material'), title, content, source, folderId:ui.materialFolder || '', created:new Date().toISOString()};
+    ui.materials.push(material); writeDraft(); touch('state', true); renderMaterials();
+    return material;
   };
-
-  // 从产出（workspace/output/）导入：.md 先转成 txt（去掉输出头、清理空行），再拷进文本文件夹。
-  const importPath = async (path) => {
-    if (ui.dirty) {
-      if (ui.path) await flushFile();
-      else if (!confirm(i18n.t('manuscript.unsaved_discard'))) return;
-    }
-    if (!keepAiResult()) return;
+  const importPath = async (path, source = 'chapter') => {
+    const novel = state.activeNovelId;
     try {
-      let source = path;
-      if (/\.md$/i.test(path)) {
-        const conv = await api('/api/txt', { method: 'POST', body: { path } });
-        source = conv.path;
-      }
-      const r = await api('/api/file?path=' + encodeURIComponent(source));
-      const name = source.split(/[\\/]/).pop();
-      const folder = (state.paths.text || 'workspace/text').replace(/[\\/]+$/, '');
-      if ((state.io.files || []).some(f => f.name === name) &&
-          !confirm(i18n.t('manuscript.file_overwrite_confirm', { name: name }))) return;
-      await api('/api/io/save', { method: 'POST', body: { path: folder + '/' + name, content: r.content } });
-      await refreshFiles();
-      writeDraft();          // refreshFiles 换掉了 state.db.state，把草稿重新贴回去
-      ui.path = '';          // 强制 loadPath 重新读取，即使导入的是当前已打开的文件
-      ui.dirty = false;
-      await loadPath(folder + '/' + name);
-      toast(i18n.t('manuscript.imported', { path: folder + '/' + name }), 'ok');
-    } catch (e) { toast(i18n.t('records.import_failed_reason', { reason: e.message }), 'err'); }
+      const result = await api('/api/file?path=' + encodeURIComponent(path));
+      if (novel !== state.activeNovelId) return;
+      addMaterial(result.content, manuscriptShortName(path), source);
+    } catch (e) { toast(i18n.t('records.import_failed_reason', {reason:e.message}), 'err'); }
   };
-
   const pickChapter = () => {
-    const opts = (state.chapters || [])
-      .filter(c => c.path.endsWith('.md') || c.path.endsWith('.txt'))
-      .map(c => ({ value: c.path, label: c.name, meta: c.dir + ' · ' + c.mtime }));
+    const opts = (state.chapters || []).filter(c => /\.(md|txt)$/i.test(c.path))
+      .map(c => ({value:c.path, label:c.name, meta:c.dir}));
     if (!opts.length) { toast(i18n.t('manuscript.no_outputs'), 'err'); return; }
-    pickDialog(i18n.t('manuscript.import_output'), opts.slice(0, 120), rel => importPath(rel));
+    pickDialog(i18n.t('manuscript.import_chapter'), opts, path => importPath(path));
   };
+  const importFiles = async files => {
+    const novel = state.activeNovelId;
+    for (const file of files) {
+      if (!/\.(txt|md)$/i.test(file.name)) { toast(i18n.t('manuscript.text_files_only'), 'err'); continue; }
+      if (file.size > 8 * 1024 * 1024) { toast(i18n.t('manuscript.file_too_large'), 'err'); continue; }
+      try {
+        const bytes = await file.arrayBuffer();
+        let content;
+        try { content = new TextDecoder('utf-8', {fatal:true}).decode(bytes); }
+        catch (e) { content = new TextDecoder('gb18030').decode(bytes); }
+        if (novel !== state.activeNovelId) return;
+        addMaterial(content, file.name);
+      } catch (e) { toast(e.message, 'err'); }
+    }
+  };
+  const fileInput = h('input', {type:'file', accept:'.txt,.md,text/plain,text/markdown', multiple:true, hidden:true,
+    onchange: async e => { await importFiles(Array.from(e.target.files || [])); e.target.value = ''; }});
 
   // ── 文本清理 / 查找替换 ───────────────────
   const ops = [
@@ -275,6 +377,14 @@ function viewManuscript(main) {
     [i18n.t('manuscript.clean_cn_quotes'), t => t.replace(/[“”]/g, '"').replace(/[‘’]/g, "'")]
   ];
 
+  const transformText = fn => {
+    const start = ui.selectionStart || 0, end = ui.selectionEnd || 0;
+    if (processSelection.checked && end > start) {
+      const text = fn(ui.value.slice(start, end));
+      setText(ui.value.slice(0, start) + text + ui.value.slice(end));
+      area.setSelectionRange(start, start + text.length); rememberSelection();
+    } else setText(fn(ui.value));
+  };
   const openFindReplace = () => {
     const find = h('input', { type: 'text', placeholder: i18n.t('common.find') });
     const repl = h('input', { type: 'text', placeholder: i18n.t('common.replace_with') });
@@ -289,55 +399,11 @@ function viewManuscript(main) {
         class: 'primary', text: i18n.t('common.replace'),
         onclick: () => {
           if (!find.value) return;
-          setText(all.checked ? area.value.split(find.value).join(repl.value)
-                              : area.value.replace(find.value, repl.value));
+          transformText(text => all.checked ? text.split(find.value).join(repl.value) : text.replace(find.value, repl.value));
           m.close();
         }
       })
     ]);
-  };
-
-  // ── 文本文件夹 ───────────────────────────
-  const openTextFolderDialog = () => {
-    const body = h('div');
-    const draw = () => {
-      clear(body);
-      const files = (state.io.files || []).filter(f => ['.txt', '.md', '.json'].includes(f.ext));
-      body.appendChild(h('div', { class: 'small muted', style: { marginBottom: '8px' } },
-        i18n.t('manuscript.dir_status', { dir: state.io.rel || 'workspace/text/', file: ui.path || i18n.t('common.unnamed_paren') })));
-      if (!files.length) {
-        body.appendChild(h('div', { class: 'muted small', style: { marginBottom: '10px' } },
-          i18n.t('manuscript.no_text_files')));
-      } else {
-        const list = h('div', { class: 'list scroll', style: { maxHeight: '360px' } },
-          files.map(f => h('div', {
-            class: 'list-item' + (ui.path === f.path ? ' active' : ''),
-            onclick: async () => { m.close(); await loadPath(f.path); }
-          },
-            h('div', { class: 'name', text: f.name }),
-            h('div', { class: 'meta', text: (f.size / 1024).toFixed(1) + 'KB' }))));
-        body.appendChild(list);
-      }
-      body.appendChild(h('div', { class: 'inline', style: { marginTop: '10px' } },
-        h('button', { class: 'mini', text: i18n.t('manuscript.new_text'), onclick: async () => { m.close(); await newText(); } }),
-        h('button', {
-          class: 'mini', text: i18n.t('common.refresh'),
-          onclick: async ev => {
-            const btn = ev.target;
-            btn.disabled = true;
-            try {
-              clearTimeout(draftTimer);
-              writeDraft();
-              await refreshFiles();
-              writeDraft();
-              draw();
-            } catch (e) { toast(i18n.t('common.refresh_failed_reason', { reason: e.message }), 'err'); }
-            finally { btn.disabled = false; }
-          }
-        })));
-    };
-    const m = modal(i18n.t('manuscript.folder_title'), body, [h('button', { text: i18n.t('common.close'), onclick: () => m.close() })]);
-    draw();
   };
 
   // ── 导出 / 转存到记忆库 ───────────────────
@@ -385,14 +451,22 @@ function viewManuscript(main) {
     ]);
   };
 
-  const exportCurrentToMemory = () => {
+  const importToChapter = () => {
     if (!ui.value.trim()) { toast(i18n.t('manuscript.nothing_export'), 'err'); return; }
-    const base = manuscriptShortName(ui.path).replace(/\.(txt|md|json)$/i, '');
-    openSaveToMemoryDialog(ui.value, {
-      title: (base || i18n.t('defaults.source.manuscript')) + ' · ' + new Date().toLocaleDateString(),
-      chapter: manuscriptShortName(ui.path),
-      source: i18n.t('defaults.source.manuscript_workspace')
-    });
+    const name = h('input', {type:'text', value:ui.path ? manuscriptShortName(ui.path).replace(/\.(txt|md)$/i, '') : '',
+      'aria-label':i18n.t('manuscript.chapter_name')});
+    const dialog = modal(i18n.t('manuscript.to_chapter'), h('div', {class:'field'},
+      h('label', {text:i18n.t('manuscript.chapter_name')}), name), [
+      h('button', {text:i18n.t('common.cancel'), onclick:() => dialog.close()}),
+      h('button', {class:'primary', text:i18n.t('manuscript.to_chapter'), dataset:{noclose:'1'}, onclick:async e => {
+        if (!name.value.trim()) { name.focus(); return; }
+        e.target.disabled = true;
+        try {
+          await api('/api/chapters', {method:'POST', body:{name:name.value.trim(),content:ui.value}});
+          await refreshFiles(); dialog.close(); toast(i18n.t('manuscript.chapter_saved'), 'ok');
+        } catch (err) { toast(err.message, 'err'); e.target.disabled = false; }
+      }})]);
+    name.focus();
   };
 
   // ── AI 辅助 ──────────────────────────────
@@ -562,7 +636,7 @@ function viewManuscript(main) {
         onclick: async () => {
           const content = ui.aiResult.text || '';
           if (!content.trim()) { toast(i18n.t('manuscript.result_empty'), 'err'); return; }
-          if (!confirm(i18n.t('manuscript.overwrite_confirm'))) return;
+          if (!await manuscriptConfirm(i18n.t('manuscript.overwrite_confirm'))) return;
           setText(content);
           ui.aiResult = null;
           writeDraft();
@@ -599,8 +673,8 @@ function viewManuscript(main) {
       h('span', { style: { flex: '1' } }),
       h('button', {
         class: 'danger', text: i18n.t('manuscript.delete_result'),
-        onclick: () => {
-          if (!confirm(i18n.t('manuscript.delete_result_confirm'))) return;
+        onclick: async () => {
+          if (!await manuscriptConfirm(i18n.t('manuscript.delete_result_confirm'))) return;
           ui.aiResult = null;
           writeDraft();
           saveNow('state').catch(() => { });
@@ -612,35 +686,111 @@ function viewManuscript(main) {
   };
 
   // ── 页面 ─────────────────────────────────
-  main.appendChild(pageHead(i18n.t('nav.text'),
-    i18n.t('manuscript.page_desc')));
+  main.appendChild(pageHead(i18n.t('nav.text'), '',
+    h('div', {class:'inline'}, h('button', {text:i18n.t('manuscript.import_files'), title:'TXT / MD', onclick:() => fileInput.click()}),
+      h('button', {text:i18n.t('manuscript.import_chapter'), onclick:pickChapter}))));
+  main.appendChild(fileInput);
+  const shelf = h('section', {class:'material-shelf', 'aria-label':i18n.t('manuscript.materials'),
+    ondragover:e => { if (Array.from(e.dataTransfer.types).includes('Files')) { e.preventDefault(); shelf.classList.add('material-drop-active'); } },
+    ondragleave:() => shelf.classList.remove('material-drop-active'),
+    ondrop:e => { if (e.dataTransfer.files.length) { e.preventDefault(); shelf.classList.remove('material-drop-active'); importFiles(Array.from(e.dataTransfer.files)); } }
+  });
+  const renderMaterials = () => {
+    clear(shelf);
+    const persistMaterials = () => { writeDraft(); touch('state', true); renderMaterials(); };
+    const moveMaterial = (id, folderId) => {
+      const material = ui.materials.find(item => item.id === id);
+      if (material) { material.folderId = folderId; persistMaterials(); }
+    };
+    const navigateFolder = id => {
+      if (id === ui.materialFolder) return;
+      ui.materialHistory = ui.materialHistory.slice(0, ui.materialHistoryIndex + 1);
+      ui.materialHistory.push(id); ui.materialHistoryIndex++; ui.materialFolder=id; renderMaterials();
+    };
+    const traverseFolder = step => {
+      ui.materialHistoryIndex += step; ui.materialFolder=ui.materialHistory[ui.materialHistoryIndex]; renderMaterials();
+    };
+    const newFolder = () => askDialog(i18n.t('manuscript.new_folder'), i18n.t('common.name'), '', name => {
+      if (!name.trim()) return;
+      ui.materialFolders.push({id:newId('folder'),name:name.trim()}); writeDraft(); touch('state', true);
+      if (ui.materialFolder) navigateFolder(''); else renderMaterials();
+    });
+    const folder = ui.materialFolders.find(item => item.id === ui.materialFolder);
+    const head = h('div', {class:'material-shelf-head'},
+      h('div', {class:'inline material-navigation'},
+        h('button', {class:'material-nav-arrow',text:'←', title:i18n.t('manuscript.folder_back'),
+          'aria-label':i18n.t('manuscript.folder_back'),disabled:ui.materialHistoryIndex===0,onclick:()=>traverseFolder(-1)}),
+        h('button', {class:'material-nav-arrow',text:'→', title:i18n.t('manuscript.folder_forward'),
+          'aria-label':i18n.t('manuscript.folder_forward'),disabled:ui.materialHistoryIndex>=ui.materialHistory.length-1,onclick:()=>traverseFolder(1)}),
+        h('span', {class:'small muted',text:folder ? folder.name : i18n.t('manuscript.materials_count',{count:ui.materials.length})})),
+      h('button', {class:'mini material-new-folder',title:i18n.t('manuscript.new_folder'),
+        'aria-label':i18n.t('manuscript.new_folder'),onclick:newFolder},
+        h('span', {class:'blue-folder-icon','aria-hidden':'true'}),h('span', {class:'folder-plus','aria-hidden':'true',text:'+'})));
+    shelf.appendChild(head);
+    const cards = h('div', {class:'material-grid'});
+    if (!folder) ui.materialFolders.forEach(item => {
+      const count = ui.materials.filter(material => material.folderId === item.id).length;
+      cards.appendChild(h('button', {class:'material-folder-card',
+        'aria-label':i18n.t('manuscript.open_folder', {name:item.name}),
+        onclick:() => navigateFolder(item.id),
+        ondragover:e => {if(Array.from(e.dataTransfer.types).includes('application/x-novelhelper-material')) {
+          e.preventDefault();e.stopPropagation();e.dataTransfer.dropEffect='move';e.currentTarget.classList.add('material-drop-active');}},
+        ondragleave:e => e.currentTarget.classList.remove('material-drop-active'),
+        ondrop:e => {const id=e.dataTransfer.getData('application/x-novelhelper-material');if(id){e.preventDefault();e.stopPropagation();moveMaterial(id,item.id);}}},
+        h('strong', {text:item.name}), h('span', {class:'small muted',text:i18n.t('manuscript.folder_count',{count})})));
+    });
+    const visibleMaterials=ui.materials.filter(material => (material.folderId || '') === (ui.materialFolder || ''));
+    visibleMaterials.forEach(material => {
+      const preview = () => {
+        const body = h('div', {class:'material-preview-body'},
+          h('div', {class:'small muted', text:i18n.t('manuscript.' + (material.source === 'ai' ? 'material_source_ai' : 'source_' + material.source))}),
+          h('pre', {class:'material-preview-text', text:material.content}));
+        const dialog = modal(material.title, body, [h('button', {text:i18n.t('common.close'), onclick:() => dialog.close()}),
+          h('button', {class:'primary', text:i18n.t('manuscript.insert_cursor'), onclick:() => { dialog.close(); insertMaterial(material); }})]);
+        dialog.dlg.classList.add('material-preview');
+      };
+      const card = h('article', {class:'material-card' + (material.source === 'sample' ? ' sample-material' : ''), draggable:'true',
+        ondragstart:e => { e.dataTransfer.setData('application/x-novelhelper-material', material.id); e.dataTransfer.setData('text/plain', material.content); e.dataTransfer.effectAllowed = 'copyMove'; card.classList.add('dragging'); },
+        ondragend:() => { card.classList.remove('dragging'); clearDrop(); }});
+      card.appendChild(h('button', {class:'material-card-open', onclick:preview, 'aria-label':i18n.t('manuscript.preview_material', {title:material.title})},
+        h('span', {class:'material-card-type', text:i18n.t('manuscript.' + (material.source === 'ai' ? 'material_source_ai' : 'source_' + material.source))}),
+        h('strong', {class:'material-card-title', text:material.title}),
+        h('span', {class:'material-card-excerpt', text:material.content.replace(/\s+/g, ' ').slice(0, 65)}),
+        h('span', {class:'material-card-count', text:i18n.t('workstation.char_count', {count:material.content.length})})));
+      card.appendChild(h('button', {class:'material-card-remove', text:'×', title:i18n.t('manuscript.remove_material'),
+        'aria-label':i18n.t('manuscript.remove_material_title', {title:material.title}), onclick:() => {
+          ui.materials = ui.materials.filter(item => item.id !== material.id); writeDraft(); touch('state', true); renderMaterials();
+        }}));
+      if (ui.materialFolders.length) card.appendChild(h('button', {class:'material-card-move',text:'↗',
+        title:i18n.t('manuscript.move_material'), 'aria-label':i18n.t('manuscript.move_material_title',{title:material.title}),
+        onclick:() => pickDialog(i18n.t('manuscript.move_material'),
+          [{value:'',label:i18n.t('manuscript.all_materials')},...ui.materialFolders.map(item=>({value:item.id,label:item.name}))]
+            .filter(item=>item.value !== (material.folderId || '')), folderId=>moveMaterial(material.id,folderId))}));
+      cards.appendChild(card);
+    });
+    if (!visibleMaterials.length && (folder || !ui.materialFolders.length)) cards.appendChild(h('div', {class:'small muted material-empty', text:i18n.t('manuscript.materials_empty')}));
+    shelf.appendChild(cards);
+  };
+  renderMaterials(); main.appendChild(shelf);
 
-  const toolbar = h('div', { class: 'manuscript-toolbar' },
-    h('button', { class: 'primary', text: i18n.t('manuscript.ai_assist'), onclick: openAiAssist }),
-    h('button', { text: i18n.t('manuscript.folder_title'), onclick: openTextFolderDialog }),
-    h('button', { text: i18n.t('manuscript.export_memory'), onclick: exportCurrentToMemory }),
-    h('span', { class: 'toolbar-sep' }),
-    h('button', { text: i18n.t('common.save'), onclick: saveLocal }),
-    h('button', { text: i18n.t('manuscript.import_output_btn'), onclick: pickChapter }),
-    h('button', { text: i18n.t('manuscript.import_other_btn'), onclick: () => browseOpen(path => importPath(path)) }),
-    h('button', { text: i18n.t('manuscript.export_txt_btn'), onclick: () => exportAs(ui.value) }),
-    h('span', { class: 'toolbar-sep' }),
-    h('button', { text: i18n.t('manuscript.find_replace_btn'), onclick: openFindReplace }));
-
-  const cleanTools = h('details', { class: 'input-details' });
-  cleanTools.appendChild(h('summary', null, i18n.t('manuscript.clean_tools')));
-  cleanTools.appendChild(h('div', { class: 'inline', style: { flexWrap: 'wrap' } },
-    ops.map(([label, fn]) => h('button', {
-      class: 'mini', text: label,
-      onclick: () => setText(fn(area.value))
-    }))));
-
-  const panel = h('div', { class: 'card' });
-  panel.appendChild(h('h2', null, i18n.t('manuscript.workspace_title'), pathHint));
-  panel.appendChild(toolbar);
-  panel.appendChild(cleanTools);
-  panel.appendChild(area);
-  panel.appendChild(statLine);
+  const processSelection = h('input', {type:'checkbox', checked:true});
+  const cleanTools = h('details', {class:'manuscript-process-tools'});
+  cleanTools.appendChild(h('summary', {text:i18n.t('manuscript.process_tools')}));
+  cleanTools.appendChild(h('div', {class:'process-tools-body'},
+    h('label', {class:'check small'}, processSelection, i18n.t('manuscript.selection_scope')),
+    h('div', {class:'inline process-tools-actions'},
+      h('button', {class:'mini', text:i18n.t('manuscript.find_replace'), onclick:openFindReplace}),
+      ops.map(([label, fn]) => h('button', {class:'mini', text:label, onclick:() => transformText(fn)})))));
+  const toolbar = h('div', {class:'manuscript-toolbar'},
+    h('button', {class:'primary', text:i18n.t('manuscript.ai_assist'), onclick:openAiAssist}),
+    h('button', {text:i18n.t('manuscript.undo'), title:'Ctrl+Z', onclick:() => undoEdit()}),
+    h('button', {text:i18n.t('manuscript.redo'), title:'Ctrl+Shift+Z', onclick:() => undoEdit(true)}),
+    h('span', {class:'toolbar-sep'}),
+    h('button', {text:i18n.t('common.save'), onclick:saveLocal}),
+    h('button', {text:i18n.t('manuscript.export_txt_btn'), onclick:() => exportAs(ui.value)}),
+    h('button', {text:i18n.t('manuscript.to_chapter'), onclick:importToChapter}));
+  const panel = h('div', {class:'card manuscript-editor-panel'},
+    toolbar, cleanTools, h('div', {class:'manuscript-document-name'}, pathHint), area, statLine);
   main.appendChild(panel);
 
   if (ui.aiResult) {

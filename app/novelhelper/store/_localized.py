@@ -44,6 +44,7 @@ _AXIS_RE = re.compile(r"^([北南东西])(\d+)$")
 # Built-in Chinese string -> translation key. The same string always maps to the
 # same key so repeated labels (基本 / 类型 / 概述 …) stay consistent.
 _KEYS = {
+    '世界设定': 'nav.world_setting',
     '【接口】当前使用 {name} 的 OpenAI 兼容接口。': 'providers.note',
     '【接口】当前使用自定义 OpenAI 兼容接口。不要假定具体模型名称、厂商或特殊能力；以用户提供的设定与提示词为准。': 'providers.note_generic',
     '上一步': 'language.back',

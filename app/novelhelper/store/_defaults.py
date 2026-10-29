@@ -248,28 +248,10 @@ def default_meta() -> dict:
     return {"version": 3, "created": now_str(), "last_import": {}, "notes": ""}
 
 def default_sections() -> dict:
-    """
-    设定栏目：把设定分成若干独立栏目。
-    用户可以在「自定义栏目」页自由增删改名；每个栏目是独立的 JSON 文件
-    （data/section_<key>.json），记录形状和其它设定集合完全一致。
-    `auto_from` 用来一键把「其他设定」里的内容按原分类归位。
-    """
+    """Default record section; other setting pages keep their existing collections."""
     return {
         "items": [
-            {"key": "world", "label": "世界观", "desc": "世界背景、大陆概况、总体设定",
-             "auto_from": ["世界背景", "设定", "关于世界"]},
-            {"key": "species", "label": "物种", "desc": "种族、生理特征、社会地位与亚种",
-             "auto_from": ["物种"]},
-            {"key": "magic", "label": "魔法与技能", "desc": "属性、来源、技能类型、学习方式",
-             "auto_from": ["魔法"]},
-            {"key": "history", "label": "历史与时间线", "desc": "重大事件、战争、条约、预言",
-             "auto_from": ["时间线以及重大事件", "历史事件"]},
-            {"key": "economy", "label": "经济与物价", "desc": "货币、物价参考、贸易",
-             "auto_from": ["货币"]},
-            {"key": "rules", "label": "规则与疾病", "desc": "世界规则、特殊疾病、习俗",
-             "auto_from": ["特殊疾病"]},
-            {"key": "religion", "label": "宗教与信仰", "desc": "教会、神系、信仰",
-             "auto_from": ["宗教"]},
+            {"key": "world", "label": "世界设定", "desc": "世界背景、大陆概况、总体设定", "on": True},
         ]
     }
 
@@ -308,6 +290,8 @@ def default_for(name: str) -> Any:
         return default_worldmap()
     if name == "meta":
         return default_meta()
+    if name == "relations":
+        return {"items": [], "initialized": False}
     if name == "history":
         return default_history()
     raise KeyError(t("errors.unknown_collection", name=name))

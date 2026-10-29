@@ -303,7 +303,7 @@ def run() -> None:
                     switched_state["collections"]["schema"]["characters"]["label"]
                     == "Character profiles"
                     and switched_state["collections"]["sections"]["items"][0]["label"]
-                    == "Worldview"
+                    == "World settings"
                     and switched_state["collections"]["modes"]["items"][0]["label"]
                     == "Logic writing",
                 )

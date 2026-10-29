@@ -34,8 +34,8 @@ function flatValues(obj, out) {
 // 人物背包
 // ═══════════════════════════════════════════
 function viewInventory(main) {
-  main.appendChild(pageHead(i18n.t('nav.inventory'),
-    i18n.t('inventory.page_desc')));
+  main.appendChild(pageHead(settingLabel('inventory', i18n.t('nav.inventory')),
+    settingEntries(true).find(entry => entry.id === 'inventory')?.desc || i18n.t('inventory.page_desc')));
   const chars = collItems('characters');
   if (!chars.length) {
     main.appendChild(h('div', { class: 'card muted', text: i18n.t('inventory.no_characters') }));
@@ -272,9 +272,10 @@ function viewWorld(main) {
   state.ui.world = state.ui.world || { sel: null };
   const ui = state.ui.world;
 
-  main.appendChild(pageHead(i18n.t('nav.worldmap'),
-    i18n.t('worldmap.page_desc', { max: WORLD_MAX_DEPTH }),
+  main.appendChild(pageHead(settingLabel('world', i18n.t('nav.worldmap')),
+    '',
     h('div', { class: 'inline' },
+      guidanceButton(i18n.t('nav.worldmap'),i18n.t('worldmap.page_desc',{max:WORLD_MAX_DEPTH})),
       exportButtons('worldmap'),
       h('button', {
         text: i18n.t('worldmap.rename'),
@@ -284,7 +285,7 @@ function viewWorld(main) {
         })
       }))));
 
-  main.appendChild(importPanel('json', { title: i18n.t('worldmap.import_json'), kinds: ['json'], target: 'worldmap' }));
+
 
   const row = h('div', { class: 'row' });
   const left = h('div', { class: 'col', style: { flex: '1 1 620px' } });
@@ -640,6 +641,7 @@ function viewWorld(main) {
     crumbs.appendChild(h('span', { text: '›' }));
     crumbs.appendChild(h('span', { text: i18n.t('worldmap.depth_crumb', { name: region.name, depth: depth }) }));
     card.appendChild(crumbs);
+    card.appendChild(h('button',{class:'mini',text:i18n.t('relations.graph'),onclick:()=>openRelationRecord({collection:'worldmap',id:region.id})}));
 
     card.appendChild(h('div', { class: 'field' }, h('label', { text: i18n.t('worldmap.region_name_label') }),
       h('input', { type: 'text', value: region.name || '', oninput: e => { region.name = e.target.value; touch('worldmap'); drawGrid(); } })));
@@ -731,13 +733,17 @@ function viewMemories(main) {
   const coll = state.db.memories;
   coll.items = coll.items || [];
   coll.categories = coll.categories || [i18n.t('defaults.memory.short')];
-  state.ui.memories = state.ui.memories || { sel: null, q: '', cat: '' };
-  const ui = state.ui.memories;
+  // Relation navigation may initialize only sel; complete the page state on every entry.
+  const ui = state.ui.memories = state.ui.memories || {};
+  ui.sel = ui.sel ?? null;
+  ui.q = typeof ui.q === 'string' ? ui.q : '';
+  ui.cat = typeof ui.cat === 'string' ? ui.cat : '';
   if (!coll.items.some(r => r.id === ui.sel)) ui.sel = coll.items.length ? coll.items[0].id : null;
 
   main.appendChild(pageHead(i18n.t('nav.memories'),
-    i18n.t('memories.page_desc'),
+    '',
     h('div', { class: 'inline' },
+      guidanceButton(i18n.t('nav.memories'),i18n.t('memories.page_desc')),
       exportButtons('memories'),
       h('button', { text: i18n.t('memories.compress_all'), onclick: () => compressMemories(coll.items) }),
       h('button', {
@@ -749,7 +755,7 @@ function viewMemories(main) {
         }
       }))));
 
-  main.appendChild(importPanel('json', { title: i18n.t('memories.import_json'), kinds: ['json'], target: 'memories' }));
+
 
   const row = h('div', { class: 'row' });
   const left = h('div', { class: 'col', style: { flex: '0 0 300px' } });
@@ -797,6 +803,7 @@ function viewMemories(main) {
     if (!rec) { right.appendChild(h('div', { class: 'card muted', text: i18n.t('memories.pick_hint') })); return; }
     const card = h('div', { class: 'card' });
     card.appendChild(h('h2', null, i18n.t('memories.edit_title'), h('span', { class: 'hint', text: i18n.t('common.autosave') })));
+    card.appendChild(h('button',{class:'mini',text:i18n.t('relations.graph'),onclick:()=>openRelationRecord({collection:'memories',id:rec.id})}));
     card.appendChild(h('div', { class: 'field' }, h('label', { text: i18n.t('common.title') }),
       h('input', { type: 'text', value: rec.title || '', oninput: e => { rec.title = e.target.value; touch('memories'); } })));
     card.appendChild(h('div', { class: 'inline' },
@@ -907,7 +914,7 @@ function viewChapters(main) {
         onclick: async () => {
           try {
             const r = await api('/api/file?path=' + encodeURIComponent(c.path));
-            appendToTextPanel(r.content);
+            appendToTextPanel(r.content, false, { title: c.name, source: 'chapter' });
             go('text');
           } catch (e) { toast(i18n.t('common.read_failed_reason', { reason: e.message }), 'err'); }
         }
