@@ -100,8 +100,10 @@ class _GenerationMixin:
                 work_prompt=work_prompt,
                 source_text=source_text if surface == "manuscript" else "",
             )
+            prior = history.context_messages(body.get("session_id") or history.current_session_id()) if surface == "workstation" else []
             messages = [
                 {"role": "system", "content": assembled["system"]},
+                *prior,
                 {"role": "user", "content": assembled["user"]},
             ]
             settings = ai.mode_settings(config, mode)
@@ -174,7 +176,7 @@ class _GenerationMixin:
                     ws = state.setdefault("workstation", store.default_workstation())
                     ws.update({
                         "mode": mode_id,
-                        "prompt": user_prompt,
+                        "prompt": "",
                         "work_prompt": work_prompt,
                         "current_state": selection.get("current_state") or "",
                         "extra": selection.get("extra") or "",
@@ -184,6 +186,7 @@ class _GenerationMixin:
                         "viewing_session": "",
                         "selection": _compact_selection(selection),
                     })
+                    ws.setdefault("drafts", {})[session_id] = ""
                     state["updated"] = store.now_str()
                     store.save("state", state)
                 except Exception:

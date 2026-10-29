@@ -23,80 +23,66 @@
 // ═══════════════════════════════════════════
 // 元素模板
 // ═══════════════════════════════════════════
-const SCHEMA_KEYS = [
-  ['characters', i18n.t('nav.characters')],
-  ['factions', i18n.t('nav.factions')],
-  ['items', i18n.t('nav.items')],
-  ['equipment', i18n.t('nav.equipment')],
-  ['other', i18n.t('nav.other')]
-];
-
-/** 元素模板页的可选集合 = 内置 5 个 + 所有自定义栏目。 */
-function schemaKeyChoices() {
-  return SCHEMA_KEYS.concat(sectionDefs(true).map(sec =>
-    ['section_' + sec.key, sec.on === false ? i18n.t('common.disabled_name', {name: sec.label || sec.key}) : (sec.label || sec.key)]));
+/** Compatibility route: template editing now belongs to each setting's management page. */
+function viewElements(main) {
+  state.view = 'sections';
+  const entry = settingEntries(true).find(item => item.coll === state.ui.elements?.key)
+    || settingEntries(true).find(item => item.coll && item.coll !== 'worldmap');
+  state.ui.settingEditor = entry?.id || null;
+  viewSections(main);
 }
 
-function viewElements(main) {
-  state.db.schema = state.db.schema || {};
-  state.ui.elements = state.ui.elements || { key: 'characters' };
-  const ui = state.ui.elements;
-  const entry = state.db.schema[ui.key] = state.db.schema[ui.key] || { label: '', elements: [] };
-  entry.elements = entry.elements || [];
-
-  main.appendChild(pageHead(i18n.t('nav.elements'),
-    i18n.t('elements.page_desc'),
-    h('div', { class: 'inline' },
-      h('button', {
-        text: i18n.t('elements.apply_to_all'),
-        onclick: () => {
-          const coll = ui.key;
-          const items = collItems(coll);
-          if (!items.length) { toast(i18n.t('elements.no_records'), 'err'); return; }
-          if (!confirm(i18n.t('elements.apply_confirm', { collection: coll, count: items.length }))) return;
-          let total = 0;
-          items.forEach(rec => { rec.elements = rec.elements || []; total += applyPreset(rec.elements, entry.elements); });
-          touch(coll);
-          toast(i18n.t('elements.applied_count', { count: total }), 'ok');
-        }
-      }),
-      h('button', {
-        text: i18n.t('elements.export_json'),
-        onclick: async () => {
-          try {
-            await saveNow('schema');
-            const blob = JSON.stringify(state.db.schema[ui.key] || {}, null, 2);
-            const res = await api('/api/io/export', {
-              method: 'POST',
-              body: { path: (state.paths.export || 'workspace/export') + '\\schema_' + ui.key + '.json', content: blob }
-            });
-            toast(i18n.t('common.exported_to', { path: res.path }), 'ok');
-          } catch (e) { toast(i18n.t('common.export_failed_reason', { reason: e.message }), 'err'); }
-        }
-      }))));
-
-  const card = h('div', { class: 'card' });
-  card.appendChild(h('div', { class: 'field' },
-    h('label', { text: i18n.t('elements.edit_which') }),
-    h('select', {
-      onchange: e => { ui.key = e.target.value; renderMain(); }
-    }, schemaKeyChoices().map(([v, l]) => h('option', { value: v, selected: v === ui.key, text: l })))));
-
-  card.appendChild(h('div', { class: 'sep' }));
-  card.appendChild(h('div', { class: 'small muted', style: { marginBottom: '8px' } },
-    i18n.t('elements.group_hint')));
-  card.appendChild(elementTree(entry.elements, 'schema', {
-    hideValues: true,
-    onChange: () => { entry.label = entry.label || ''; }
-  }));
-  main.appendChild(card);
-
-  const help = h('div', { class: 'card' });
-  help.appendChild(h('h2', null, i18n.t('elements.help_title')));
-  help.appendChild(h('div', { class: 'md', html: md(
-    i18n.t('elements.help')
-  ) }));
-  main.appendChild(help);
+function settingMetadataEditor(main, entry, settings) {
+  const prefs = entry.section || ((settings.builtins = settings.builtins || {})[entry.id]
+    = settings.builtins[entry.id] || {});
+  const hasTemplate = !!entry.coll && entry.coll !== 'worldmap';
+  const schema = state.db.schema = state.db.schema || {};
+  const template = hasTemplate ? (schema[entry.coll] = schema[entry.coll] || {label:entry.label,elements:[]}) : null;
+  if (template) template.elements = template.elements || [];
+  const back = () => {state.ui.settingEditor=null; renderNav(); renderMain();};
+  main.appendChild(pageHead(i18n.t('sections.edit_named',{name:entry.label}), '', h('div',{class:'inline'},
+    h('button',{text:i18n.t('sections.back_management'),onclick:back}),
+    guidanceButton(i18n.t('sections.metadata_title'),i18n.t('sections.metadata_help')))));
+  const name = h('input',{type:'text',value:entry.label,id:'setting-edit-name',
+    oninput:e=>{
+      const label=e.target.value.trim(); if(!label)return;
+      prefs.label=label; if(template){template.label=label;touch('schema',true);} touch('sections',true);renderNav();
+    },onblur:e=>{if(!e.target.value.trim())e.target.value=prefs.label || entry.label;}});
+  const desc = h('textarea',{rows:2,value:entry.desc,id:'setting-edit-desc',
+    oninput:e=>{prefs.desc=e.target.value;touch('sections',true);}});
+  main.appendChild(h('div',{class:'card setting-metadata-basics'},
+    h('div',{class:'small muted',text:i18n.t('records.autosave_hint')}),
+    h('div',{class:'field'},h('label',{for:'setting-edit-name',text:i18n.t('common.name')}),name),
+    h('div',{class:'field'},h('label',{for:'setting-edit-desc',text:i18n.t('sections.desc_label')}),desc)));
+  if(template){
+    const tools=h('div',{class:'record-section-head'},
+      h('h2',{text:i18n.t('sections.metadata_title')}),
+      h('div',{class:'inline'},h('button',{text:i18n.t('elements.apply_to_all'),onclick:()=>{
+        const items=collItems(entry.coll);
+        if(!items.length){toast(i18n.t('elements.no_records'),'err');return;}
+        confirmDialog(i18n.t('elements.apply_to_all'),i18n.t('elements.apply_confirm',{collection:entry.label,count:items.length}),()=>{
+          let added=0;
+          items.forEach(rec=>{rec.elements=rec.elements || [];added+=applyPreset(rec.elements,template.elements);});
+          touch(entry.coll);toast(i18n.t('elements.applied_count',{count:added}),'ok');
+        });
+      }}),h('button',{text:i18n.t('elements.export_json'),onclick:async()=>{
+        try{
+          await saveNow('schema');
+          const res=await api('/api/io/export',{method:'POST',body:{
+            path:(state.paths.export || 'workspace/export')+'/schema_'+entry.coll+'.json',content:JSON.stringify(template,null,2)
+          }});
+          toast(i18n.t('common.exported_to',{path:res.path}),'ok');
+        }catch(error){toast(error.message,'err');}
+      }})));
+    main.appendChild(h('div',{class:'card setting-metadata-fields'},tools,
+      elementTree(template.elements,'schema',{hideValues:true,compact:true})));
+  }
+  if(!entry.builtin && entry.id!=='section_world') main.appendChild(h('button',{
+    class:'danger',text:i18n.t('sections.delete'),onclick:()=>confirmDialog(i18n.t('sections.delete'),
+      i18n.t('sections.delete_confirm',{label:prefs.label || entry.label,key:entry.section.key}),()=>{
+        settings.items=settings.items.filter(sec=>sec!==entry.section);
+        settings.order=(settings.order || []).filter(id=>id!==entry.id);touch('sections');back();
+      })}));
 }
 
 // ═══════════════════════════════════════════
@@ -106,91 +92,148 @@ function viewElements(main) {
 // ═══════════════════════════════════════════
 // 设定栏目（自定义分类）
 // ═══════════════════════════════════════════
+/** Move a card relative to a drop target, preserving every other section's order. */
+function reorderSettingIds(ids, source, target, after) {
+  if (source === target || !ids.includes(source) || !ids.includes(target)) return ids.slice();
+  const next = ids.filter(id => id !== source);
+  next.splice(next.indexOf(target) + (after ? 1 : 0), 0, source);
+  return next;
+}
+
 function viewSections(main) {
-  state.db.sections = state.db.sections || { items: [] };
-  const defs = state.db.sections.items = state.db.sections.items || [];
+  const settings = state.db.sections = state.db.sections || { items: [] };
+  settings.items = settings.items || [];
+  const entries = settingEntries(true).sort((a, b) => Number(b.on) - Number(a.on));
+  const editing=entries.find(entry=>entry.id===state.ui.settingEditor);
+  if(editing){settingMetadataEditor(main,editing,settings);return;}
 
-  main.appendChild(pageHead(i18n.t('nav.sections'),
-    i18n.t('sections.page_desc'),
+  const edit = entry => {
+    if (entry.section) return entry.section;
+    settings.builtins = settings.builtins || {};
+    return settings.builtins[entry.id] = settings.builtins[entry.id] || {};
+  };
+  const refresh = () => { touch('sections'); renderNav(); renderMain(); };
+  let opening = false;
+  const open = async entry => {
+    if (opening) return;
+    opening = true;
+    try {
+      edit(entry).on = true;
+      touch('sections');
+      await flushPendingSaves();
+      await refreshFiles();
+      state.ui.navCollapsed.settings = false;
+      go(entry.id);
+    } catch (e) { toast(e.message, 'err'); }
+    finally { opening = false; }
+  };
+  const showEditor = entry => { state.ui.settingEditor=entry.id; state.ui.elemMode='tree'; renderMain(); };
+  main.appendChild(pageHead(i18n.t('nav.sections'), '',
     h('div', { class: 'inline' },
-      h('button', {
-        class: 'primary', text: i18n.t('sections.add'),
-        onclick: () => {
-          const label = prompt(i18n.t('sections.name_prompt'));
+      guidanceButton(i18n.t('nav.sections'),i18n.t('sections.guidance')),
+      h('button',{text:i18n.t('sections.import_settings'),onclick:showSettingImport}),
+      h('button', { class: 'primary', text: i18n.t('sections.add'), onclick: () => {
+        askDialog(i18n.t('sections.add'), i18n.t('sections.name_prompt'), '', value => {
+          const label = value.trim();
           if (!label) return;
-          let key = (prompt(i18n.t('sections.key_prompt')) || '').trim().toLowerCase();
-          if (!/^[a-z][a-z0-9_]*$/.test(key)) {
-            key = 'sec' + Math.random().toString(36).slice(2, 6);
-            toast(i18n.t('sections.key_invalid', { key: key }), 'err');
-          }
-          if (defs.some(s => s.key === key)) { toast(i18n.t('sections.key_exists'), 'err'); return; }
-          defs.push({ key, label, desc: '', auto_from: [], on: true });
-          touch('sections'); renderNav(); renderMain();
-        }
-      }),
-      h('button', {
-        text: i18n.t('sections.auto_sort'),
-        title: i18n.t('sections.auto_sort_title'),
-        onclick: async ev => {
-          ev.target.disabled = true;
-          status(i18n.t('common.sorting'), 'busy');
+          let key;
+          do { key = 'sec_' + Math.random().toString(36).slice(2, 10); }
+          while (settings.items.some(sec => sec.key === key));
+          settings.items.push({ key, label, desc: '', on: true });
+          refresh();
+        });
+      }}),
+      h('button', { text: i18n.t('sections.auto_sort'), title: i18n.t('sections.auto_sort_pending'),
+        onclick: () => toast(i18n.t('sections.auto_sort_pending')) }))));
+  main.appendChild(h('p', { class: 'sr-only', id: 'setting-card-help', text: i18n.t('sections.card_hint') }));
+
+  const list = h('div', { class: 'setting-management' });
+  let draggedId = null;
+  let suppressClick = false;
+  const clearDropMarks = () => list.querySelectorAll('.drop-before, .drop-after')
+    .forEach(card => card.classList.remove('drop-before', 'drop-after'));
+  const reorder = (source, target, after) => {
+    if (entries.find(entry => entry.id === source)?.on !== entries.find(entry => entry.id === target)?.on) return;
+    const previous = entries.map(item => item.id);
+    const next = reorderSettingIds(previous, source, target, after);
+    if (next.every((id, index) => id === previous[index])) return;
+    settings.order = next;
+    refresh();
+    document.getElementById('setting-card-' + source)?.focus({ preventScroll: true });
+  };
+  entries.forEach((entry, index) => {
+    const count = entry.coll && entry.coll !== 'worldmap' ? collItems(entry.coll).length : null;
+    const card = h('article', {
+      id: 'setting-card-' + entry.id,
+      class: 'card setting-card' + (entry.on ? '' : ' setting-card-hidden'),
+      tabindex: '0', role: 'group', draggable: 'true',
+      'aria-label': i18n.t('sections.open_named', { name: entry.label }),
+      'aria-describedby': 'setting-card-help', 'aria-keyshortcuts': 'Alt+ArrowLeft Alt+ArrowRight',
+      onpointerdown: () => { if (!draggedId) suppressClick = false; },
+      onclick: () => { if (!suppressClick) open(entry); },
+      onkeydown: e => {
+        if (e.target !== e.currentTarget) return;
+        if (e.altKey && ['ArrowLeft', 'ArrowRight'].includes(e.key)) {
+          e.preventDefault();
+          const delta = e.key === 'ArrowLeft' ? -1 : 1;
+          const target = entries[index + delta];
+          if (target) reorder(entry.id, target.id, delta > 0);
+        } else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(entry); }
+      },
+      ondragstart: e => {
+        if (opening || e.target.closest('.setting-card-controls')) { e.preventDefault(); return; }
+        draggedId = entry.id; suppressClick = true;
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', entry.id);
+        card.classList.add('dragging');
+      },
+      ondragover: e => {
+        if (!draggedId || draggedId === entry.id || entries.find(item => item.id === draggedId)?.on !== entry.on) return;
+        e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+        clearDropMarks();
+        const bounds = card.getBoundingClientRect();
+        card.classList.add(e.clientX >= bounds.left + bounds.width / 2 ? 'drop-after' : 'drop-before');
+      },
+      ondragleave: e => {
+        if (!card.contains(e.relatedTarget)) card.classList.remove('drop-before', 'drop-after');
+      },
+      ondrop: e => {
+        if (!draggedId) return;
+        e.preventDefault(); e.stopPropagation();
+        const source = draggedId;
+        const after = card.classList.contains('drop-after');
+        draggedId = null; clearDropMarks();
+        list.querySelectorAll('.dragging').forEach(node => node.classList.remove('dragging'));
+        reorder(source, entry.id, after);
+      },
+      ondragend: () => {
+        draggedId = null; clearDropMarks(); card.classList.remove('dragging');
+      }
+    });
+    card.appendChild(h('div', { class: 'setting-card-top' },
+      h('span', { class: 'setting-card-drag', text: '⠿', title: i18n.t('sections.drag_hint'), 'aria-hidden': 'true' }),
+      count === null ? null : h('span', { class: 'small muted', text: i18n.t('records.total', { count }) })));
+    card.appendChild(h('h2', { class: 'setting-card-name', text: entry.label }));
+    card.appendChild(h('p', { class: 'setting-card-description' + (entry.desc ? '' : ' muted'),
+      text: entry.desc || i18n.t('sections.no_description') }));
+    card.appendChild(h('div', { class: 'setting-card-controls',
+      onclick: e => e.stopPropagation() },
+      h('label', { class: 'check' }, h('input', {
+        type: 'checkbox', checked: entry.on, 'aria-label': i18n.t('sections.show_named', { name: entry.label }),
+        onchange: async e => {
+          edit(entry).on = e.target.checked;
+          touch('sections');
           try {
-            const res = await api('/api/sections/auto-sort', { method: 'POST', body: {} });
-            setDb(res.collections);
-            toast(res.message, 'ok');
-            renderNav(); renderMain();
-          } catch (e) { toast(i18n.t('sections.sort_failed_reason', { reason: e.message }), 'err'); }
-          finally { ev.target.disabled = false; }
+            await flushPendingSaves(); await refreshFiles(); renderNav(); renderMain();
+          } catch (error) { toast(error.message, 'err'); }
         }
-      }))));
-
-  const card = h('div', { class: 'card' });
-  card.appendChild(h('h2', null, i18n.t('sections.list_title'), h('span', { class: 'hint', text: i18n.t('sections.hide_hint') })));
-  if (!defs.length) card.appendChild(h('div', { class: 'muted small', text: i18n.t('sections.empty') }));
-  defs.forEach((sec, i) => {
-    const view = 'section_' + sec.key;
-    const count = collItems(view).length;
-    card.appendChild(h('div', { class: 'row', style: { borderBottom: '1px solid var(--line)', padding: '10px 0' } },
-      h('div', { class: 'col', style: { flex: '0 0 240px' } },
-        h('label', { class: 'check' },
-          h('input', {
-            type: 'checkbox', checked: sec.on !== false,
-            onchange: e => { sec.on = e.target.checked; touch('sections'); renderNav(); renderMain(); }
-          }), i18n.t('sections.enable')),
-        h('div', { class: 'field', style: { marginTop: '6px' } },
-          h('input', { type: 'text', value: sec.label || '', placeholder: i18n.t('sections.name_placeholder'), oninput: e => { sec.label = e.target.value; touch('sections'); renderNav(); } })),
-        h('div', { class: 'small muted', text: i18n.t('sections.key_count', { key: sec.key, count: count }) })),
-      h('div', { class: 'col' },
-        h('div', { class: 'field' }, h('label', { text: i18n.t('sections.desc_label') }),
-          h('input', { type: 'text', value: sec.desc || '', oninput: e => { sec.desc = e.target.value; touch('sections'); } })),
-        h('div', { class: 'field' }, h('label', { text: i18n.t('sections.auto_from_label') }),
-          h('input', {
-            type: 'text', value: (sec.auto_from || []).join('，'),
-            oninput: e => { sec.auto_from = e.target.value.split(/[，,、]/).map(s => s.trim()).filter(Boolean); touch('sections'); }
-          })),
-        h('div', { class: 'inline' },
-          h('button', { class: 'mini', text: '↑', title: i18n.t('common.move_up'), onclick: () => { if (i > 0) { [defs[i - 1], defs[i]] = [defs[i], defs[i - 1]]; touch('sections'); renderNav(); renderMain(); } } }),
-          h('button', { class: 'mini', text: '↓', title: i18n.t('common.move_down'), onclick: () => { if (i < defs.length - 1) { [defs[i + 1], defs[i]] = [defs[i], defs[i + 1]]; touch('sections'); renderNav(); renderMain(); } } }),
-          h('button', {
-            text: i18n.t('sections.open'), onclick: () => go(view)
-          }),
-          h('button', {
-            class: 'danger', text: i18n.t('sections.delete'),
-            onclick: () => {
-              if (!confirm(i18n.t('sections.delete_confirm', {label: sec.label || sec.key, key: sec.key}))) return;
-              defs.splice(i, 1);
-              touch('sections'); renderNav(); renderMain();
-            }
-          })))));
+      }), i18n.t('sections.show_in_nav')),
+      h('button', { class: 'mini', text: i18n.t('sections.edit_action'),
+        'aria-label': i18n.t('sections.edit_named', { name: entry.label }), onclick: () => showEditor(entry) })));
+    list.appendChild(card);
   });
-  main.appendChild(card);
+  main.appendChild(list);
 
-  const tip = h('div', { class: 'card' });
-  tip.appendChild(h('h2', null, i18n.t('common.help')));
-  tip.appendChild(h('div', { class: 'md', html: md(
-    i18n.t('sections.help')
-  ) }));
-  main.appendChild(tip);
 }
 
 // ═══════════════════════════════════════════
@@ -1169,5 +1212,23 @@ function showOnboarding(force) {
 
   dialog = modal(i18n.t('welcome.title', { version: i18n.defaults.version }),
     h('div', null, body, foot), null);
+  draw();
+}
+
+function showSettingImport() {
+  const choices=settingEntries(true).filter(entry=>entry.coll);
+  choices.push({coll:'memories',label:i18n.t('nav.memories')});
+  const select=h('select',{'aria-label':i18n.t('sections.import_target'),onchange:()=>draw()},
+    choices.map(entry=>h('option',{value:entry.coll,text:entry.label})));
+  const content=h('div');
+  const draw=()=>{
+    clear(content);
+    const target=select.value;
+    content.appendChild(importPanel('json',{target,compact:true,kinds:target==='other'?['json','md']:['json'],onSuccess:()=>dialog.close()}));
+  };
+  const dialog=modal(i18n.t('sections.import_settings'),h('div',null,
+    h('div',{class:'field'},h('label',{text:i18n.t('sections.import_target')}),select),content),[
+      h('button',{text:i18n.t('common.close'),onclick:()=>dialog.close()}),
+      guidanceButton(i18n.t('sections.import_settings'),i18n.t('sections.import_guidance'))]);
   draw();
 }

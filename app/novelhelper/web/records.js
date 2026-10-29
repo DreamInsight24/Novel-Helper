@@ -136,8 +136,8 @@ function elementTree(nodes, coll, opts) {
   const box = h('div', { class: 'tree' });
 
   const addNode = (path, prefix) => {
-    const input = prompt(i18n.t(prefix ? 'elements.new_group_prompt' : 'elements.new_prompt', {group: prefix}));
-    if (input === null) return;
+    const message=i18n.t(prefix ? 'elements.new_group_prompt' : 'elements.new_prompt', {group:prefix});
+    askDialog(message,message,'',input=>{
     const isGroup = /[\/／]\s*$/.test(input);
     const key = input.replace(/[\/／]\s*$/, '').trim();
     if (!key) return;
@@ -156,6 +156,7 @@ function elementTree(nodes, coll, opts) {
     touch(coll);
     draw();
     if (opts.onChange) opts.onChange();
+    });
   };
 
   const drawNodes = (list, path, depth) => {
@@ -223,12 +224,13 @@ function elementTree(nodes, coll, opts) {
       row.appendChild(h('button', {
         class: 'ghost mini', title: i18n.t('elements.delete_title'), text: '✕',
         onclick: () => {
-          if (!confirm(i18n.t('elements.delete_confirm', { key: item.key || '' }))) return;
+          confirmDialog(i18n.t('common.delete'),i18n.t('elements.delete_confirm',{key:item.key || ''}),()=>{
           const container = containerOf(nodes, p);
           if (container) container.splice(p[p.length - 1], 1);
           touch(coll);
           draw();
           if (opts.onChange) opts.onChange();
+          });
         }
       }));
       box.appendChild(row);
@@ -264,7 +266,7 @@ function elementTree(nodes, coll, opts) {
       h('button', { class: 'mini', text: i18n.t('elements.add_top'), onclick: () => addNode([], '') }),
       mode === 'tree' ? h('button', { class: 'mini', text: i18n.t('elements.expand_all'), onclick: () => { setAll(nodes, true); draw(); } }) : null,
       mode === 'tree' ? h('button', { class: 'mini', text: i18n.t('elements.collapse_all'), onclick: () => { setAll(nodes, false); draw(); } }) : null,
-      h('span', { class: 'small muted', style: { marginLeft: '4px' } },
+      opts.compact ? null : h('span', { class: 'small muted', style: { marginLeft: '4px' } },
         mode === 'tree' ? i18n.t('elements.tree_hint') : i18n.t('elements.doc_hint'))));
     if (!nodes.length) box.appendChild(h('div', { class: 'muted small', text: i18n.t('elements.empty') }));
     if (mode === 'doc') drawDoc(nodes, [], 0); else drawNodes(nodes, [], 0);
@@ -308,10 +310,11 @@ function elementTree(nodes, coll, opts) {
       tools.appendChild(h('button', {
         class: 'ghost mini', title: i18n.t('elements.delete_title'), text: '✕',
         onclick: () => {
-          if (!confirm(i18n.t('elements.delete_confirm', { key: item.key || '' }))) return;
+          confirmDialog(i18n.t('common.delete'),i18n.t('elements.delete_confirm',{key:item.key || ''}),()=>{
           const container = containerOf(nodes, p);
           if (container) container.splice(p[p.length - 1], 1);
           touch(coll); draw(); if (opts.onChange) opts.onChange();
+          });
         }
       }));
       line.appendChild(tools);
@@ -367,17 +370,76 @@ function subtreeStat(item) {
 // ═══════════════════════════════════════════
 // 记录列表 + 编辑器
 // ═══════════════════════════════════════════
+function recordCategoryNames(bucket) {
+  return [...new Set([...(bucket.categories || []), ...(bucket.items || []).map(rec => rec.category)]
+    .filter(value => typeof value === 'string' && value.trim()))];
+}
+
+/** Rename/delete a category without changing record IDs or any content. */
+function renameRecordCategory(bucket, from, to) {
+  to = to.trim();
+  if (to !== from && to && recordCategoryNames(bucket).includes(to)) return false;
+  bucket.categories = recordCategoryNames(bucket).map(name => name === from ? to : name).filter(Boolean);
+  (bucket.items || []).forEach(rec => { if (rec.category === from) rec.category = to; });
+  return true;
+}
+
+function matchesRecordFilter(rec, query, category) {
+  return (category == null || (rec.category || '') === category)
+    && (!query || JSON.stringify(rec).toLowerCase().includes(query.toLowerCase()));
+}
+
+function manageRecordCategories(coll, onChange) {
+  const bucket = state.db[coll];
+  const body = h('div');
+  const draw = () => {
+    clear(body);
+    body.appendChild(h('p', { class: 'small muted', text: i18n.t('records.category_help') }));
+    recordCategoryNames(bucket).forEach(name => {
+      const input = h('input', { type: 'text', value: name, 'aria-label': i18n.t('common.category') });
+      body.appendChild(h('div', { class: 'inline category-manage-row' }, input,
+        h('button', { text: i18n.t('common.save'), onclick: () => {
+          const value = input.value.trim();
+          if (!value) { toast(i18n.t('records.category_name_required'), 'err'); return; }
+          if (!renameRecordCategory(bucket, name, value)) { toast(i18n.t('records.category_exists'), 'err'); return; }
+          touch(coll); onChange(); draw();
+        }}),
+        h('button', { class: 'danger', text: i18n.t('common.delete'), onclick: () => {
+          confirmDialog(i18n.t('common.delete'), i18n.t('records.category_delete_confirm', { name }), () => {
+            renameRecordCategory(bucket, name, ''); touch(coll); onChange();
+            manageRecordCategories(coll, onChange);
+          });
+        }})));
+    });
+    const input = h('input', { type: 'text', placeholder: i18n.t('records.new_category_prompt'),
+      'aria-label': i18n.t('records.new_category_prompt') });
+    const add = () => {
+      const name = input.value.trim();
+      if (!name) { toast(i18n.t('records.category_name_required'), 'err'); return; }
+      if (recordCategoryNames(bucket).includes(name)) { toast(i18n.t('records.category_exists'), 'err'); return; }
+      bucket.categories = recordCategoryNames(bucket).concat(name);
+      touch(coll); onChange(); draw();
+    };
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') add(); });
+    body.appendChild(h('div', { class: 'inline category-manage-row' }, input,
+      h('button', { text: i18n.t('records.add_category'), onclick: add })));
+  };
+  draw();
+  modal(i18n.t('records.manage_categories'), body, [h('button', { text: i18n.t('common.close') })]);
+}
+
 function newRecord(def) {
   const stamp = nowStr();
   const rec = { id: newId(def.idPrefix), name: i18n.t('defaults.record.unnamed'), elements: [], tags: [], created: stamp, updated: stamp };
   if (def.tagLabel) rec.tag = '';
   if (def.notesLabel) rec.notes = '';
-  if (def.hasCategory) rec.category = ((state.db[def.coll].categories || [])[0]) || i18n.t('defaults.category.other');
+  if (def.hasCategory) rec.category = '';
   if (def.hasSlot) rec.slot = ((state.db.equipment.slots || [])[0]) || i18n.t('defaults.category.other');
   if (def.hasContent) rec.content = '';
   if (def.hasInventory) { rec.inventory = []; rec.equipment = []; }
   if (def.hasMembers) rec.members = [];
-  rec.elements = JSON.parse(JSON.stringify(presetsOf(def.coll) || []));
+  rec.content = '';
+  rec.summary = '';
   return rec;
 }
 
@@ -389,25 +451,24 @@ function viewRecords(main, key) {
   bucket.items = bucket.items || [];
   state.ui[key] = state.ui[key] || { sel: null, q: '' };
   const ui = state.ui[key];
+  ui.q = ui.q || '';
   if (!bucket.items.some(r => r.id === ui.sel)) ui.sel = bucket.items.length ? bucket.items[0].id : null;
   state.sel[key] = state.sel[key] || new Set();
 
-  main.appendChild(pageHead(def.label, def.desc,
+  main.appendChild(pageHead(settingLabel(key, def.label), '',
     h('div', { class: 'inline' },
+      guidanceButton(i18n.t('records.help_title'), i18n.t('records.edit_guidance')),
       exportButtons(def.coll),
-      h('button', {
-        class: 'primary', text: i18n.t('records.new', { singular: def.singular }),
-        onclick: () => { const rec = newRecord(def); bucket.items.unshift(rec); ui.sel = rec.id; touch(def.coll); renderMain(); }
-      }))));
-
-  main.appendChild(importPanel(key === 'other' ? 'md' : 'json', key === 'other'
-    ? { title: i18n.t('records.import_title_other'), kinds: ['md', 'json'], target: 'other' }
-    : { title: i18n.t('records.import_title', { label: def.label }), kinds: ['json'], target: def.coll }));
+      h('button', {class:'primary', text:i18n.t('records.new', {singular:def.singular}),
+        onclick:() => showRecordCreate(def, rec => {
+          if (def.hasCategory && ui.category != null) rec.category = ui.category;
+          bucket.items.unshift(rec); ui.sel=rec.id; ui.q=''; touch(def.coll); renderNav(); renderMain();
+        })}))));
   if (key === 'other') main.appendChild(moveBar(def.coll, key));
 
   const row = h('div', { class: 'row' });
-  const listBox = h('div', { class: 'col', style: { flex: '0 0 320px' } });
-  const editBox = h('div', { class: 'col' });
+  const listBox = h('div', { class: 'col record-list-column' });
+  const editBox = h('div', { class: 'col record-editor-column' });
   row.appendChild(listBox); row.appendChild(editBox);
   main.appendChild(row);
 
@@ -420,17 +481,20 @@ function viewRecords(main, key) {
   const updateCount = () => {
     countLine.textContent = key === 'other' && state.sel[key] && state.sel[key].size
       ? i18n.t('records.count_selected', {total: bucket.items.length, selected: state.sel[key].size})
-      : i18n.t('records.total', {count: bucket.items.length});
+      : ui.q || ui.category != null
+        ? i18n.t('records.count_filtered', {
+          shown: bucket.items.filter(rec => matchesRecordFilter(rec, ui.q, ui.category)).length,
+          total: bucket.items.length
+        })
+        : i18n.t('records.total', {count: bucket.items.length});
   };
   const setActive = id => rowEls.forEach((el, rid) => el.classList.toggle('active', rid === id));
 
   const drawList = () => {
     const keepTop = listScroll.scrollTop;
-    clear(listBox);
     rowEls.clear();
-    const search = h('input', { type: 'text', placeholder: i18n.t('common.search'), value: ui.q, oninput: e => { ui.q = e.target.value; drawList(); } });
     const q = ui.q.toLowerCase();
-    const items = bucket.items.filter(r => !q || JSON.stringify(r).toLowerCase().includes(q));
+    const items = bucket.items.filter(r => matchesRecordFilter(r, q, ui.category));
     clear(listScroll);
     items.forEach(rec => {
       const rowEl = h('div', {
@@ -458,10 +522,6 @@ function viewRecords(main, key) {
       listScroll.appendChild(h('div', { class: 'muted small', style: { padding: '10px' } }, i18n.t('records.no_match')));
     }
     updateCount();
-    listBox.appendChild(h('div', { class: 'card' },
-      h('div', { class: 'field' }, search),
-      countLine,
-      listScroll));
     listScroll.scrollTop = keepTop;
   };
 
@@ -472,124 +532,146 @@ function viewRecords(main, key) {
     editBox.appendChild(recordEditor(def, rec, drawList, drawEditor));
   };
 
-  drawList(); drawEditor();
+  const chooseVisible = () => {
+    const visible = bucket.items.filter(rec => matchesRecordFilter(rec, ui.q, ui.category));
+    if (!visible.some(rec => rec.id === ui.sel)) ui.sel = visible[0]?.id || null;
+    drawList(); drawEditor();
+  };
+  const search = h('input', { type: 'text', placeholder: i18n.t('common.search'),
+    'aria-label': i18n.t('common.search'), value: ui.q,
+    oninput: e => { ui.q = e.target.value; chooseVisible(); } });
+  const listCard = h('div', { class: 'card' }, h('div', { class: 'field' }, search));
+  if (def.hasCategory) {
+    const names = recordCategoryNames(bucket);
+    if (ui.category && !names.includes(ui.category)) ui.category = null;
+    listCard.appendChild(h('div', { class: 'field' },
+      h('label', { text: i18n.t('common.category') }),
+      h('select', { value: JSON.stringify(ui.category ?? null),
+        onchange: e => { ui.category = JSON.parse(e.target.value); chooseVisible(); },
+        'aria-label': i18n.t('records.filter_category')
+      }, [[null, i18n.t('records.all_categories')], ['', i18n.t('records.uncategorized')],
+        ...names.map(name => [name, name])].map(([value, label]) => h('option', {
+          value: JSON.stringify(value), selected: value === (ui.category ?? null), text: label
+        }))),
+      h('button', { class: 'mini', text: i18n.t('records.manage_categories'),
+        onclick: () => manageRecordCategories(def.coll, () => renderMain()) })));
+  }
+  listCard.append(countLine, listScroll);
+  listBox.appendChild(listCard);
+  chooseVisible();
+}
+
+function showRecordCreate(def, onCreate) {
+  const name = h('input', {type:'text', id:'record-create-name', maxlength:160, 'aria-label':i18n.t('common.name')});
+  const summary = h('input', {type:'text', id:'record-create-summary', 'aria-label':i18n.t('records.summary')});
+  const content = h('textarea', {rows:7, id:'record-create-content', 'aria-label':i18n.t('records.prose'), placeholder:i18n.t('records.prose_placeholder')});
+  const create = () => {
+    if (!name.value.trim()) { name.focus(); toast(i18n.t('records.name_required'), 'err'); return; }
+    const rec = newRecord(def); rec.name=name.value.trim(); rec.summary=summary.value.trim(); rec.content=content.value;
+    dialog.close(); onCreate(rec);
+  };
+  const dialog = modal(i18n.t('records.new', {singular:def.singular}), h('div', {class:'record-create-form'},
+    h('div', {class:'field'}, h('label', {for:'record-create-name', text:i18n.t('common.name')}), name),
+    h('div', {class:'field'}, h('label', {for:'record-create-summary', text:i18n.t('records.summary')}), summary),
+    h('div', {class:'field'}, h('label', {for:'record-create-content', text:i18n.t('records.prose')}), content)), [
+      h('button', {text:i18n.t('common.cancel'), onclick:() => dialog.close()}),
+      h('button', {class:'primary', text:i18n.t('records.create'), dataset:{noclose:'1'}, onclick:create})]);
+  dialog.dlg.classList.add('record-create-dialog'); name.focus();
+}
+
+// The faction owns membership. Characters display the reverse lookup without a second list.
+function factionMemberLinks(faction) {
+  const roles = faction.member_roles || {};
+  const links = new Map();
+  (faction.members || []).forEach(member => {
+    const id = typeof member === 'string' ? member : member?.id;
+    if (id && !links.has(id)) links.set(id, {id, note:roles[id] || (typeof member === 'object' && member.note) || ''});
+  });
+  return Array.from(links.values());
+}
+
+function updateFactionMembership(faction, characterId, note = '', remove = false) {
+  const links = factionMemberLinks(faction).filter(link => !remove || link.id !== characterId);
+  if (!remove) {
+    const found = links.find(link => link.id === characterId);
+    if (found) found.note = note; else links.push({id:characterId, note});
+  }
+  faction.members = links.map(link => link.id);
+  faction.member_roles = Object.fromEntries(links.filter(link => link.note).map(link => [link.id,link.note]));
+}
+
+function recordRelations(def, rec, onEditorChange) {
+  return relationEditor({collection:def.coll,id:rec.id}, onEditorChange);
 }
 
 function recordEditor(def, rec, onListChange, onEditorChange) {
   const coll = def.coll;
-  if (!Array.isArray(rec.elements)) rec.elements = [];
-  if (def.hasInventory) { rec.inventory = rec.inventory || []; rec.equipment = rec.equipment || []; }
-  if (def.hasMembers) rec.members = rec.members || [];
-  const card = h('div', { class: 'card' });
-  const title = h('h2', null, recordName(rec), h('span', { class: 'hint', text: i18n.t('records.autosave_hint') }));
-  card.appendChild(title);
-
-  card.appendChild(h('div', { class: 'field' },
-    h('label', { text: i18n.t('common.name') }),
-    h('input', { type: 'text', value: rec.name || '', oninput: e => { rec.name = e.target.value; touch(coll); } })));
-
-  if (def.tagLabel) {
-    card.appendChild(h('div', { class: 'field' },
-      h('label', { text: def.tagLabel }),
-      h('input', { type: 'text', value: rec.tag || '', oninput: e => { rec.tag = e.target.value; touch(coll); } })));
-  }
-
-  if (def.hasSlot) {
-    card.appendChild(h('div', { class: 'field' },
-      h('label', { text: i18n.t('records.slot_label') }),
-      h('select', { onchange: e => { rec.slot = e.target.value; touch(coll); } },
-        (state.db.equipment.slots || []).map(s => h('option', { value: s, selected: s === rec.slot, text: s })))));
-  }
-
-  if (def.hasCategory) {
-    const store = state.db[coll];
-    store.categories = store.categories || [];
-    card.appendChild(h('div', { class: 'field' }, h('label', { text: i18n.t('common.category') }),
-      h('div', { class: 'inline' },
-        h('select', { onchange: e => { rec.category = e.target.value; touch(coll); } },
-          store.categories.map(c => h('option', { value: c, selected: c === rec.category, text: c }))),
-        h('button', {
-          class: 'mini', text: i18n.t('records.add_category'),
-          onclick: () => {
-            const v = prompt(i18n.t('records.new_category_prompt'));
-            if (!v) return;
-            store.categories.push(v); rec.category = v; touch(coll); onEditorChange();
-          }
-        }))));
-  }
-
-  card.appendChild(h('div', { class: 'sep' }));
-  const stat = h('span', { class: 'hint' });
-  const refreshStat = () => { stat.textContent = i18n.t('records.elem_stat', { total: countAll(rec.elements), filled: countFilled(rec.elements) }); };
-  refreshStat();
-  card.appendChild(h('div', { class: 'inline' },
-    h('label', { text: i18n.t('records.elements_label'), style: { flex: '1' } }),
-    stat,
-    h('button', {
-      class: 'mini', text: i18n.t('records.apply_template'),
-      title: i18n.t('records.apply_template_title'),
-      onclick: () => {
-        const added = applyPreset(rec.elements, presetsOf(coll));
-        touch(coll); refreshStat(); onEditorChange();
-        toast(added ? i18n.t('records.template_added', { count: added }) : i18n.t('records.template_exists'), 'ok');
-      }
-    }),
-    h('button', {
-      class: 'mini', text: i18n.t('records.preview'),
-      onclick: () => {
-        const lines = ['### ' + recordName(rec)].concat(renderElementsMd(rec.elements, 0));
-        if (rec.content) lines.push('', rec.content);
-        if (rec.notes) lines.push('', rec.notes);
-        modal(i18n.t('records.preview_title', { name: recordName(rec) }),
-          h('div', { class: 'md', html: md(lines.join('\n') || i18n.t('common.empty_paren')) }), [h('button', { text: i18n.t('common.close') })]);
-      }
-    })));
-  card.appendChild(elementTree(rec.elements, coll, {
-    onChange: () => { refreshStat(); if (onEditorChange) onEditorChange(); }
+  rec.elements = rec.elements || [];
+  const card = h('div', {class:'card record-detail'});
+  const tabs = state.ui.recordTabs = state.ui.recordTabs || {};
+  const tabKey = coll + ':' + rec.id, active = tabs[tabKey] || 'content';
+  const title = h('input', {class:'record-name-input', value:rec.name || '', 'aria-label':i18n.t('common.name'),
+    oninput:e => {rec.name=e.target.value; touch(coll); onListChange();}});
+  card.appendChild(h('div', {class:'record-detail-head'}, title, h('span', {class:'small muted', text:i18n.t('records.autosave_hint')})));
+  card.appendChild(h('div', {class:'record-tabs', role:'tablist', 'aria-label':i18n.t('records.editor_tabs')},
+    ['content','relations','more'].map(tab => h('button', {role:'tab', 'aria-selected':String(active === tab), class:active === tab ? 'active' : '',
+      text:i18n.t('records.tab_' + tab), onclick:() => {tabs[tabKey]=tab; onEditorChange();}}))));
+  const body = h('div', {class:'record-tab-body', role:'tabpanel'}); card.appendChild(body);
+  const field = (label, key, rows) => h('div', {class:'field'}, h('label', {text:label}), h(rows ? 'textarea' : 'input', {
+    type:rows ? null : 'text', rows:rows || null, value:rec[key] || '', 'aria-label':label,
+    oninput:e => {rec[key]=e.target.value; touch(coll); if(rows) autoGrow(e.target);}
   }));
-
-  if (def.hasContent) {
-    card.appendChild(h('div', { class: 'field', style: { marginTop: '10px' } },
-      h('label', { text: i18n.t('records.content_label') }),
-      h('textarea', {
-        rows: (rec.content || '').length > 400 ? 14 : 6, value: rec.content || '',
-        oninput: e => { rec.content = e.target.value; touch(coll); autoGrow(e.target); }
-      })));
-  }
-
-  if (rec.notes !== undefined) {
-    card.appendChild(h('div', { class: 'field' },
-      h('label', { text: def.notesLabel || i18n.t('collections.notes') }),
-      h('textarea', { rows: 3, value: rec.notes || '', oninput: e => { rec.notes = e.target.value; touch(coll); autoGrow(e.target); } })));
-  }
-
-  if (def.hasMembers) {
-    card.appendChild(h('div', { class: 'sep' }));
-    card.appendChild(h('div', { class: 'field' }, h('label', { text: i18n.t('records.members_label') })));
-    card.appendChild(pointerList(rec, 'members', coll, 'characters', 'id', onListChange));
-  }
-
-  if (def.hasInventory) {
-    card.appendChild(h('div', { class: 'sep' }));
-    card.appendChild(h('div', { class: 'small muted', text:
-      i18n.t('records.inventory_hint') }));
-  }
-
-  card.appendChild(h('div', { class: 'sep' }));
-  card.appendChild(h('div', { class: 'inline' },
-    rec.source ? h('span', { class: 'tag', text: i18n.t('common.source_prefix', { source: rec.source }) }) : null,
-    h('span', { style: { flex: '1' } }),
-    h('button', { text: i18n.t('records.move'), onclick: () => moveDialog(coll, [rec.id], () => { onListChange(); onEditorChange(); }) }),
-    h('button', {
-      class: 'danger', text: i18n.t('common.delete'),
-      onclick: () => {
-        if (!confirm(i18n.t('common.delete_confirm', { name: recordName(rec) }))) return;
-        const list = state.db[coll].items;
-        const idx = list.indexOf(rec);
-        if (idx >= 0) list.splice(idx, 1);
-        touch(coll); onListChange(); onEditorChange();
-      }
+  if (active === 'relations') body.appendChild(recordRelations(def,rec,onEditorChange));
+  else if (active === 'more') {
+    if (def.tagLabel) body.appendChild(field(def.tagLabel,'tag'));
+    if (def.hasCategory) {
+      const categories = recordCategoryNames(state.db[coll]);
+      body.appendChild(h('div', {class:'field'}, h('label', {text:i18n.t('common.category')}),
+        h('div', {class:'inline'}, h('select', {'aria-label':i18n.t('common.category'), onchange:e => {rec.category=e.target.value; touch(coll); onListChange();}},
+          ['',...categories].map(value => h('option', {value,selected:value === (rec.category || ''),text:value || i18n.t('records.uncategorized')}))),
+          h('button', {class:'mini',text:i18n.t('records.add_category'),onclick:() => askDialog(i18n.t('records.add_category'),i18n.t('common.name'),'',value => {
+            const name=value.trim(); if(!name) return;
+            state.db[coll].categories=Array.from(new Set([...categories,name]));rec.category=name;touch(coll);onListChange();onEditorChange();
+          })}))));
+    }
+    if (def.hasSlot) body.appendChild(h('div', {class:'field'}, h('label', {text:i18n.t('records.slot_label')}),
+      h('select', {'aria-label':i18n.t('records.slot_label'), onchange:e=>{rec.slot=e.target.value;touch(coll);}},
+        (state.db.equipment.slots || []).map(value=>h('option',{value,selected:rec.slot===value,text:value})))));
+    body.appendChild(field(def.notesLabel || i18n.t('collections.notes'),'notes',4));
+    if (rec.source) body.appendChild(h('div', {class:'small muted',text:i18n.t('common.source_prefix',{source:rec.source})}));
+    body.appendChild(h('div', {class:'record-more-actions'},
+      h('button', {text:i18n.t('records.edit_structure'),onclick:() => {
+        const dialog=modal(i18n.t('records.edit_structure'),elementTree(rec.elements,coll,{onChange:()=>{onListChange();onEditorChange();}}),[
+          h('button',{text:i18n.t('common.close'),onclick:()=>{dialog.close();onListChange();onEditorChange();}})]);
+      }}),
+      h('button', {text:i18n.t('records.move'),onclick:()=>moveDialog(coll,[rec.id],()=>{onListChange();onEditorChange();})}),
+      h('button', {class:'danger',text:i18n.t('common.delete'),onclick:()=>confirmDialog(i18n.t('common.delete'),i18n.t('common.delete_confirm',{name:recordName(rec)}),()=>{
+        state.db[coll].items=state.db[coll].items.filter(item=>item.id!==rec.id);touch(coll);onListChange();onEditorChange();
+      })})));
+  } else {
+    body.appendChild(field(i18n.t('records.summary'),'summary'));
+    body.appendChild(h('div', {class:'field'}, h('label', {text:i18n.t('records.prose')}),h('textarea',{
+      class:'record-prose',rows:8,value:rec.content || '',placeholder:i18n.t('records.prose_placeholder'),'aria-label':i18n.t('records.prose'),
+      oninput:e=>{rec.content=e.target.value;touch(coll);autoGrow(e.target);}
     })));
+    const renderFields = (nodes, parent='') => h('div',{class:'record-fields'},nodes.filter(node=>node.on!==false).map(node=>{
+      const label=parent ? parent+' · '+node.key : node.key;
+      if(node.children) return renderFields(node.children,label);
+      return h('div',{class:'field'},h('label',{text:label}),h('textarea',{rows:Math.min(5,valueRows(node.value)),value:node.value || '',
+        'aria-label':label,oninput:e=>{node.value=e.target.value;touch(coll);autoGrow(e.target);}}));
+    }));
+    rec.elements.filter(node=>node.on!==false).forEach((node,index)=>{
+      if(node.children) body.appendChild(h('details',{class:'record-field-group',open:countFilled(node.children)>0 || state.ui.recordNewGroup===coll+':'+rec.id+':'+node.key},h('summary',{text:node.key}),renderFields(node.children)));
+      else body.appendChild(renderFields([node]));
+    });
+    body.appendChild(h('button',{class:'mini',text:i18n.t('records.add_group'),onclick:()=>{
+      const options=(presetsOf(coll)||[]).filter(node=>!rec.elements.some(existing=>existing.key===node.key));
+      if(!options.length){toast(i18n.t('records.no_more_groups'));return;}
+      pickDialog(i18n.t('records.add_group'),options.map((node,index)=>({value:index,label:node.key})),index=>{
+        applyPreset(rec.elements,[options[index]]);state.ui.recordNewGroup=coll+':'+rec.id+':'+options[index].key;touch(coll);onEditorChange();
+      });
+    }}));
+  }
   return card;
 }
 
@@ -684,11 +766,13 @@ function importPanel(defaultKind, opts) {
     btn.disabled = true;
     status(i18n.t('common.importing'), 'busy');
     try {
+      await flushPendingSaves();
       const res = await api('/api/import', {
         method: 'POST',
         body: { kind: kindSel.value, source: sourceSel.value, target }
       });
       setDb(res.collections);
+      if (opts.onSuccess) opts.onSuccess();
       toast(res.message, 'ok');
       status(i18n.t('records.import_done'), 'ok');
       renderNav(); renderMain();
@@ -697,6 +781,27 @@ function importPanel(defaultKind, opts) {
       status(i18n.t('records.import_failed'), 'err');
     } finally { btn.disabled = false; }
   };
+
+  if (opts.compact) {
+    const input=h('input',{type:'file',accept:target==='other'?'.json,.md':'.json',hidden:true,onchange:async e=>{
+      const file=e.target.files?.[0];if(!file)return;
+      const novel=state.activeNovelId;
+      try {
+        const kind=/\.md$/i.test(file.name)?'md':'json';
+        if(!kinds.some(option=>option.id===kind))return;
+        const content=(await file.text()).replace(/^\uFEFF/,'');
+        if(novel!==state.activeNovelId)return;
+        const path=(state.paths.import || 'workspace/import').replace(/[\\/]+$/,'')+'/'+newId('import')+(kind==='md'?'.md':'.json');
+        await api('/api/io/save',{method:'POST',body:{path,content}});
+        kindSel.value=kind;
+        sourceSel.appendChild(h('option',{value:path,text:file.name,selected:true}));sourceSel.value=path;
+      }catch(error){toast(error.message,'err');}
+    }});
+    return h('div',{class:'settings-import-fields'},input,
+      h('div',{class:'field'},h('label',{text:i18n.t('records.import_format')}),kindSel),
+      h('div',{class:'field'},h('label',{text:i18n.t('records.import_source')}),sourceSel),
+      h('div',{class:'inline'},h('button',{text:i18n.t('records.pick_import_file'),onclick:()=>input.click()}),btn));
+  }
 
   return h('details', { class: 'card' },
     h('summary', null, i18n.t('records.import_panel_title', { title: opts.title || i18n.t('common.import'), path: state.paths.import || 'workspace/import' })),

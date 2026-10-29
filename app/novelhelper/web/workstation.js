@@ -17,7 +17,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-/* NovelHelper —— AI 工作站（左输入 / 右输出） */
+/* NovelHelper —— AI 工作站（对话记录 / 底部输入） */
 'use strict';
 
 const WORK_FALLBACK = [
@@ -61,25 +61,46 @@ function wsState() {
   ws.work_prompt = ws.work_prompt || '';
   ws.current_state = ws.current_state || '';
   ws.extra = ws.extra || '';
+  if(ws.work_prompt.trim()){
+    const extra=ws.extra.trim(), requirement=ws.work_prompt.trim();
+    ws.extra=extra && extra!==requirement ? extra+'\n\n'+requirement : requirement;
+    ws.work_prompt='';touch('state',true);
+  }
   ws.output = ws.output || '';
   return ws;
 }
 
+function wsSettingChoices() {
+  return settingEntries(true).filter(entry => entry.coll).map(entry => ({id:entry.coll,label:entry.label,visible:entry.on}))
+    .concat([{id:'memories',label:i18n.t('nav.memories'),visible:true}]);
+}
+
+function wsDetailedSelection(ws) {
+  const sel=ws.selection, choices=wsSettingChoices();
+  if (!sel.record_selections) {
+    sel.record_selections={characters:sel.character_ids.slice(),memories:sel.memory_ids.slice()};
+    if(sel.include.factions) sel.record_selections.factions=Array.isArray(sel.faction_ids)?sel.faction_ids.slice():collItems('factions').map(rec=>rec.id);
+    choices.filter(choice=>choice.id==='other'||choice.id.startsWith('section_')).forEach(choice=>{
+      sel.record_selections[choice.id]=collItems(choice.id).filter(rec=>sel.world_ids.includes(rec.id)).map(rec=>rec.id);
+    });
+  }
+  if(!Array.isArray(sel.setting_categories)) sel.setting_categories=choices.filter(choice=>{
+    const enabled=choice.id==='characters'?sel.include.characters:choice.id==='memories'?sel.include.memory:
+      choice.id==='factions'?sel.include.factions:choice.id==='worldmap'?sel.include.worldmap:
+      (choice.id==='other'||choice.id.startsWith('section_'))&&sel.include.world;
+    return !!enabled && (choice.visible || (sel.record_selections[choice.id]||[]).length>0);
+  }).map(choice=>choice.id);
+  return sel;
+}
+
 function wsSelection() {
-  const ws = wsState();
-  const sel = ws.selection;
+  const ws=wsState(), sel=wsDetailedSelection(ws);
   return {
-    prompt: ws.prompt || '',
-    extra: ws.extra || '',
-    current_state: ws.current_state || '',
-    work_prompt: ws.work_prompt || '',
-    include: sel.include || {},
-    character_ids: sel.character_ids || [],
-    memory_ids: sel.memory_ids || [],
-    world_ids: sel.world_ids || [],
-    target_chars: sel.target_chars || 0,
-    strict_length: sel.strict_length !== false,
-    project_files: []
+    prompt:ws.prompt || '',extra:ws.extra || '',current_state:'',work_prompt:'',
+    include:{worldmap:sel.setting_categories.includes('worldmap'),state:false},
+    setting_categories:sel.setting_categories.slice(),
+    record_selections:JSON.parse(JSON.stringify(sel.record_selections)),
+    target_chars:sel.target_chars || 0, strict_length:sel.strict_length!==false,project_files:[]
   };
 }
 
@@ -96,21 +117,8 @@ async function wsLoadProjectFiles() {
   return sel;
 }
 
-function shownSession() {
-  return state.ui.historySession || null;
-}
-
-function shownTurn() {
-  const session = shownSession();
-  if (!session) return null;
-  const turns = session.turns || [];
-  return state.ui.historyTurn || turns[turns.length - 1] || null;
-}
-
 function currentOutput() {
-  const turn = shownTurn();
-  if (turn) return turn.output || '';
-  return wsState().output || '';
+  return state.ui.currentSession?.turns?.slice(-1)[0]?.output || wsState().output || '';
 }
 
 function modeBadge(id) {
@@ -152,352 +160,208 @@ function toggleId(list, id, on) {
 
 function worldItems() {
   const out = [];
-  collItems('other').forEach(rec => out.push({ rec, group: i18n.t('nav.other') }));
+  collItems('other').forEach(rec => out.push({ id: rec.id, rec, group: i18n.t('nav.other') }));
   sectionDefs().forEach(sec => collItems('section_' + sec.key)
-    .forEach(rec => out.push({ rec, group: sec.label || sec.key })));
+    .forEach(rec => out.push({ id: rec.id, rec, group: settingLabel('section_' + sec.key, sec.label || sec.key) })));
   return out;
 }
 
 // ─────────────────────────────────────────────
 // 主界面
 // ─────────────────────────────────────────────
+function wsRememberDraft() {
+  const ws = wsState();
+  ws.drafts = ws.drafts || {};
+  ws.drafts[ws.current_session || '_new'] = ws.prompt;
+  touch('state', true);
+}
+
+function wsSummary() {
+  const ws=wsState(), sel=wsDetailedSelection(ws);
+  const bits=wsSettingChoices().filter(choice=>sel.setting_categories.includes(choice.id)).map(choice=>
+    choice.id==='worldmap' ? choice.label : choice.label+' '+collItems(choice.id).filter(rec=>(sel.record_selections[choice.id]||[]).includes(rec.id)).length);
+  if(sel.project_files.length)bits.push(i18n.t('common.file_count',{count:sel.project_files.length}));
+  return bits.join(' · ') || i18n.t('workstation.no_settings_selected');
+}
+
 function viewWorkstation(main) {
   const ws = wsState();
-  const sel = ws.selection;
   const busy = !!state.ui.busy;
-  const session = shownSession();
-  const isCurrentSession = !!(session && session.id === ws.current_session);
-  const turn = shownTurn();
-  const output = currentOutput();
+  const session = state.ui.currentSession;
   const modes = workModes();
-  const mode = modes.find(m => m.id === ws.mode) || modes[0] || null;
-
-  main.appendChild(pageHead(i18n.t('nav.writer'),
-    i18n.t('workstation.page_desc'),
-    h('div', { class: 'inline' },
-      h('button', { text: i18n.t('history.title'), onclick: () => openHistoryDialog() }),
-      h('button', { text: i18n.t('history.current'), onclick: () => returnToCurrent() }),
-      h('button', {
-        class: 'primary', text: i18n.t('history.new'),
-        onclick: () => newConversation()
-      }))));
-
-  if (session && !isCurrentSession) {
-    main.appendChild(h('div', { class: 'notice' },
-      h('span', { text: i18n.t('history.viewing', { title: session.title || i18n.t('common.unnamed') }) }),
-      h('button', { class: 'mini', text: i18n.t('history.return'), onclick: () => returnToCurrent() })));
-  }
-
-  const row = h('div', { class: 'workbench-row' });
-  const left = h('div', { class: 'workbench-input' });
-  const right = h('div', { class: 'workbench-output' });
-  row.appendChild(left);
-  row.appendChild(right);
-  main.appendChild(row);
-
-  // ── 左侧：写稿模式 ───────────────────────
-  const modeCard = h('div', { class: 'card' });
-  modeCard.appendChild(h('h2', null, i18n.t('modes.kind_write'),
-    h('span', { class: 'hint', text: i18n.t('workstation.mode_hint') })));
-  if (!modes.length) {
-    modeCard.appendChild(h('div', { class: 'notice warn' },
-      h('span', { text: i18n.t('workstation.no_mode') }),
-      h('button', {
-        class: 'mini', text: i18n.t('workstation.go_modes'),
-        onclick: () => { state.ui.modes = { kind: 'write', sel: '' }; go('modes'); }
-      })));
-  } else {
-    modeCard.appendChild(h('div', { class: 'field' },
-      h('select', {
-        onchange: e => { ws.mode = e.target.value; touch('state', true); renderMain(); }
-      }, modes.map(m => h('option', {
-        value: m.id, text: m.label, selected: m.id === ws.mode
-      })))));
-    modeCard.appendChild(h('div', { class: 'mode-desc', text: mode ? (mode.desc || '') : '' }));
-    const api = (state.db.config || {}).api || {};
-    modeCard.appendChild(h('div', { class: 'small muted', style: { marginTop: '6px' } },
-      i18n.t('workstation.meta_line', { model: mode.model || api.default_model || i18n.t('workstation.follow_default'), effort: mode.effort || api.default_effort || 'medium' })));
-    modeCard.appendChild(h('div', { class: 'field', style: { marginTop: '10px' } },
-      h('label', { text: i18n.t('workstation.extra_label') }),
-      h('textarea', {
-        rows: 4, value: ws.work_prompt || '',
-        placeholder: i18n.t('workstation.extra_placeholder'),
-        oninput: e => { ws.work_prompt = e.target.value; touch('state', true); }
-      })));
-  }
-  left.appendChild(modeCard);
-
-  // ── 左侧：输入设定 ───────────────────────
-  const inputCard = h('div', { class: 'card' });
-  inputCard.appendChild(h('h2', null, i18n.t('workstation.input_title'),
-    h('span', { class: 'hint', text: i18n.t('workstation.input_hint') })));
-
-  const summary = h('div', { class: 'small muted input-summary' });
-  const refreshSummary = () => {
-    const bits = [
-      i18n.t('workstation.chip_characters', { count: (sel.character_ids || []).length }),
-      i18n.t('workstation.chip_memory', { count: (sel.memory_ids || []).length }),
-      i18n.t('workstation.chip_world', { count: (sel.world_ids || []).length })
-    ];
-    if (sel.include.worldmap) bits.push(i18n.t('nav.worldmap'));
-    if (sel.include.factions) bits.push(i18n.t('workstation.chip_factions'));
-    bits.push(i18n.t('workstation.chip_target', { count: sel.target_chars || ((state.db.config || {}).writing || {}).target_chars || 8000 }));
-    summary.textContent = i18n.t('workstation.send_summary', { list: bits.join(' · ') });
-  };
-  refreshSummary();
-  inputCard.appendChild(summary);
-
-  const chip = (key, label) => h('span', {
-    class: 'chip' + (sel.include[key] ? ' on' : ''),
-    onclick: () => {
-      sel.include[key] = !sel.include[key];
-      touch('state', true);
-      renderMain();
+  const mode = modes.find(m => m.id === ws.mode);
+  const shell = h('section', { class: 'agent-workstation' });
+  shell.appendChild(h('header', { class: 'agent-head' },
+    h('div', null, h('div', { class: 'small muted', text: i18n.t('nav.writer') }),
+      h('h1', { text: session?.title || i18n.t('history.untitled') })),
+    h('details', { class: 'agent-info' }, h('summary', { text: i18n.t('workstation.log_title') }),
+      h('pre', { class: 'log', text: state.ui.log || i18n.t('workstation.log_empty') }))));
+  const feed = h('div', { class: 'agent-feed', tabindex: '0', 'aria-label': i18n.t('history.current'),
+    onscroll: e => {
+      const el = e.currentTarget;
+      state.ui.wsScroll = { id: ws.current_session, top: el.scrollTop,
+        bottom: el.scrollHeight - el.scrollTop - el.clientHeight < 80 };
     }
-  }, label);
-  inputCard.appendChild(h('div', { class: 'field' },
-    h('label', { text: i18n.t('workstation.include_label') }),
-    h('div', { class: 'chips' }, [
-      chip('characters', i18n.t('nav.characters')),
-      chip('memory', i18n.t('workstation.chip_memory_label')),
-      chip('world', i18n.t('workstation.chip_world_label')),
-      chip('factions', i18n.t('workstation.chip_factions_label')),
-      chip('worldmap', i18n.t('nav.worldmap')),
-      chip('state', i18n.t('workstation.chip_state'))
-    ])));
-
-  // 人物
-  const chars = collItems('characters');
-  const charDetails = h('details', { class: 'input-details', open: true });
-  charDetails.appendChild(h('summary', null,
-    i18n.t('nav.characters'), h('span', { class: 'hint', text: i18n.t('workstation.selected_of', { count: (sel.character_ids || []).length, total: chars.length }) })));
-  if (chars.length) {
-    charDetails.appendChild(h('div', { class: 'inline', style: { marginBottom: '6px' } },
-      h('button', {
-        class: 'mini', text: i18n.t('common.select_all'),
-        onclick: () => { sel.character_ids = chars.map(c => c.id); touch('state', true); renderMain(); }
-      }),
-      h('button', {
-        class: 'mini', text: i18n.t('common.clear'),
-        onclick: () => { sel.character_ids = []; touch('state', true); renderMain(); }
-      })));
-    charDetails.appendChild(pickerRows(chars, sel.character_ids,
-      (id, on) => { toggleId(sel.character_ids, id, on); touch('state', true); renderMain(); },
-      c => recordName(c) + (c.category ? ' · ' + c.category : '')));
-  } else {
-    charDetails.appendChild(h('div', { class: 'muted small', text: i18n.t('workstation.no_characters') }));
-  }
-  inputCard.appendChild(charDetails);
-
-  // 记忆
-  const mems = collItems('memories');
-  const memDetails = h('details', { class: 'input-details' });
-  memDetails.appendChild(h('summary', null,
-    i18n.t('workstation.chip_memory_label'), h('span', { class: 'hint', text: i18n.t('workstation.selected_of', { count: (sel.memory_ids || []).length, total: mems.length }) })));
-  memDetails.appendChild(h('div', { class: 'inline', style: { marginBottom: '6px' } },
-    h('button', {
-      class: 'mini', text: i18n.t('common.select_all'),
-      onclick: () => { sel.memory_ids = mems.map(m => m.id); touch('state', true); renderMain(); }
-    }),
-    h('button', {
-      class: 'mini', text: i18n.t('common.clear'),
-      onclick: () => { sel.memory_ids = []; touch('state', true); renderMain(); }
-    })));
-  memDetails.appendChild(pickerRows(mems, sel.memory_ids,
-    (id, on) => { toggleId(sel.memory_ids, id, on); touch('state', true); renderMain(); },
-    m => (m.category ? '[' + m.category + '] ' : '') + (m.title || i18n.t('common.unnamed'))));
-  inputCard.appendChild(memDetails);
-
-  // 世界观条目
-  const world = worldItems();
-  const worldDetails = h('details', { class: 'input-details' });
-  worldDetails.appendChild(h('summary', null,
-    i18n.t('workstation.world_entries'), h('span', { class: 'hint', text: i18n.t('workstation.selected_of', { count: (sel.world_ids || []).length, total: world.length }) })));
-  worldDetails.appendChild(pickerRows(world, sel.world_ids,
-    (id, on) => { toggleId(sel.world_ids, id, on); touch('state', true); renderMain(); },
-    entry => (entry.rec.name || entry.rec.title || i18n.t('common.unnamed')) + ' · ' + entry.group));
-  inputCard.appendChild(worldDetails);
-
-  // 附加项目文件
-  const files = state.sources || [];
-  const fileDetails = h('details', { class: 'input-details' });
-  fileDetails.appendChild(h('summary', null,
-    i18n.t('workstation.attachments'), h('span', { class: 'hint', text: i18n.t('common.file_count', {count: (sel.project_files || []).length}) })));
-  if (files.length) {
-    const fileBox = h('div', { class: 'picker' });
-    files.forEach(f => fileBox.appendChild(h('label', { class: 'check picker-row' },
-      h('input', {
-        type: 'checkbox', checked: (sel.project_files || []).includes(f.path),
-        onchange: e => {
-          sel.project_files = sel.project_files || [];
-          if (e.target.checked) { if (!sel.project_files.includes(f.path)) sel.project_files.push(f.path); }
-          else sel.project_files = sel.project_files.filter(x => x !== f.path);
-          touch('state', true);
-          renderMain();
-        }
-      }),
-      h('span', { class: 'name', text: f.path }))));
-    fileDetails.appendChild(fileBox);
-  } else {
-    fileDetails.appendChild(h('div', { class: 'muted small', text: i18n.t('workstation.attach_hint') }));
-  }
-  inputCard.appendChild(fileDetails);
-
-  // 当前状态 / 用户提示词 / 补充
-  inputCard.appendChild(h('div', { class: 'field' },
-    h('label', { text: i18n.t('workstation.state_label') }),
-    h('textarea', {
-      rows: 5, value: ws.current_state || '',
-      placeholder: i18n.t('workstation.state_placeholder'),
-      oninput: e => { ws.current_state = e.target.value; touch('state', true); }
-    })));
-  inputCard.appendChild(h('div', { class: 'field' },
-    h('label', { text: i18n.t('workstation.prompt_label') }),
-    h('textarea', {
-      rows: 12, value: ws.prompt || '', class: 'prompt-area',
-      placeholder: i18n.t('workstation.prompt_placeholder'),
-      oninput: e => { ws.prompt = e.target.value; touch('state', true); }
-    })));
-  inputCard.appendChild(h('div', { class: 'field' },
-    h('label', { text: i18n.t('workstation.extra2_label') }),
-    h('textarea', {
-      rows: 3, value: ws.extra || '',
-      placeholder: i18n.t('workstation.extra2_placeholder'),
-      oninput: e => { ws.extra = e.target.value; touch('state', true); }
-    })));
-
-  const defaultChars = ((state.db.config || {}).writing || {}).target_chars || 8000;
-  inputCard.appendChild(h('div', { class: 'field' },
-    h('label', { text: i18n.t('workstation.target_label') }),
-    h('div', { class: 'inline' },
-      h('input', {
-        type: 'number', style: { width: '120px' }, value: sel.target_chars || defaultChars,
-        oninput: e => { sel.target_chars = Number(e.target.value) || 0; touch('state', true); refreshSummary(); }
-      }),
-      h('label', { class: 'check' },
-        h('input', {
-          type: 'checkbox', checked: sel.strict_length !== false,
-          onchange: e => { sel.strict_length = e.target.checked; touch('state', true); }
-        }), i18n.t('workstation.strict')),
-      h('span', { class: 'small muted', text: i18n.t('workstation.target_default', { count: defaultChars }) }))));
-
-  const runBtn = h('button', {
-    class: 'primary wide run-btn', text: busy ? i18n.t('common.generating') : i18n.t('workstation.start'),
-    disabled: busy || !mode, onclick: () => runWorkstation()
   });
-  inputCard.appendChild(runBtn);
-  inputCard.appendChild(h('div', { class: 'inline', style: { marginTop: '8px' } },
-    h('button', { text: i18n.t('workstation.preview_send'), disabled: !mode, onclick: () => previewWorkstation() }),
-    h('button', {
-      text: i18n.t('workstation.clear_input'),
-      onclick: () => {
-        if (!confirm(i18n.t('workstation.clear_confirm'))) return;
-        ws.prompt = ''; ws.current_state = ''; ws.extra = ''; ws.work_prompt = '';
-        touch('state', true); renderMain();
-      }
-    })));
-  left.appendChild(inputCard);
+  const turns = session?.turns || [];
+  const shown = turns.length ? turns : (ws.output ? [{ output: ws.output, mode: ws.last_mode }] : []);
+  shown.forEach((turn, index) => {
+    const message = h('article', { class: 'agent-turn', dataset: { turn: turn.id || index } });
+    if (turn.user_prompt) message.appendChild(h('div', { class: 'agent-user', text: turn.user_prompt }));
+    message.appendChild(h('div', { class: 'agent-answer-head' }, modeBadge(turn.mode),
+      h('span', { class: 'small muted', text: i18n.t('workstation.char_count', { count: (turn.output || '').length }) })));
+    const body = h('div', { class: 'md agent-answer', html: md(turn.output || '') });
+    message.appendChild(body);
+    if ((turn.output || '').length > 5000) {
+      const collapsed = (state.ui.wsCollapsedTurns || {})[turn.id || index] === true;
+      body.classList.toggle('collapsed', collapsed);
+      const toggle = h('button', { class: 'mini agent-collapse', text: i18n.t(collapsed ? 'workstation.expand_result' : 'workstation.collapse_result'),
+        onclick: () => {
+          state.ui.wsCollapsedTurns = state.ui.wsCollapsedTurns || {};
+          const next = !body.classList.contains('collapsed');
+          state.ui.wsCollapsedTurns[turn.id || index] = next;
+          body.classList.toggle('collapsed', next);
+          toggle.textContent = i18n.t(next ? 'workstation.expand_result' : 'workstation.collapse_result');
+        }
+      });
+      message.appendChild(toggle);
+    }
+    const text = turn.output || '';
+    message.appendChild(h('div', { class: 'output-actions agent-actions' },
+      h('button', { text: i18n.t('common.copy'), onclick: () => copyOutput(text) }),
+      h('button', { text: i18n.t('workstation.save_txt'), onclick: () => saveOutputDialog('txt', text) }),
+      h('button', { text: i18n.t('workstation.to_manuscript'), disabled: busy, onclick: () => sendOutputToText(text) }),
+      h('details', { class: 'agent-more' }, h('summary', { text: i18n.t('workstation.more') }),
+        h('div', { class: 'agent-more-menu' },
+          h('button', { text: i18n.t('workstation.save_md'), onclick: () => saveOutputDialog('md', text) }),
+          h('button', { text: i18n.t('workstation.append_prompt'), disabled: busy, onclick: () => appendOutput(text) }),
+          h('button', { text: i18n.t('workstation.view_raw'), onclick: () => showRawOutput(text) })))));
+    feed.appendChild(message);
+  });
+  if (!shown.length) feed.appendChild(h('div', { class: 'agent-empty' },
+    h('div', { class: 'empty-icon', text: '✎' }),
+    h('h2', { text: i18n.t('workstation.welcome') }),
+    h('p', { class: 'muted', text: i18n.t('workstation.welcome_hint') })));
+  if (busy) feed.appendChild(h('div', { class: 'agent-pending', role: 'status' },
+    h('div', { class: 'spinner' }), h('span', { text: i18n.t('common.generating') })));
+  if (state.ui.wsError) feed.appendChild(h('div', { class: 'notice warn', role: 'alert' },
+    h('span', { text: state.ui.wsError }), h('button', { text: i18n.t('workstation.retry'), onclick: runWorkstation })));
+  shell.appendChild(feed);
+  const prompt = h('textarea', { class: 'agent-prompt', rows: 3, value: ws.prompt,
+    'aria-label': i18n.t('workstation.prompt_label'), placeholder: i18n.t('workstation.prompt_placeholder'), disabled: busy,
+    oninput: e => { ws.prompt = e.target.value; wsRememberDraft(); e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 180) + 'px'; },
+    onkeydown: e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !e.isComposing) { e.preventDefault(); runWorkstation(); } }
+  });
+  const composer = h('div', { class: 'agent-composer' }, prompt);
+  const target = h('details', { class: 'agent-target' },
+    h('summary', { text: i18n.t('workstation.chip_target', { count: ws.selection.target_chars || ((state.db.config || {}).writing || {}).target_chars || 8000 }) }));
+  target.appendChild(h('div', { class: 'agent-target-menu' },
+    h('label', { text: i18n.t('workstation.target_label') }),
+    h('input', { type: 'number', min: 1, value: ws.selection.target_chars || ((state.db.config || {}).writing || {}).target_chars || 8000,
+      'aria-label': i18n.t('workstation.target_label'), disabled: busy,
+      oninput: e => { ws.selection.target_chars = Number(e.target.value) || 0; touch('state', true);
+        target.querySelector('summary').textContent = i18n.t('workstation.chip_target', { count: ws.selection.target_chars }); }
+    }),
+    h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: ws.selection.strict_length !== false, disabled: busy,
+      onchange: e => { ws.selection.strict_length = e.target.checked; touch('state', true); }
+    }), i18n.t('workstation.strict'))));
+  composer.appendChild(h('div', { class: 'agent-controls' },
+    h('select', { class: 'agent-mode', 'aria-label': i18n.t('modes.kind_write'), disabled: busy || !modes.length,
+      onchange: e => { ws.mode = e.target.value; touch('state', true); }
+    }, modes.map(item => h('option', { value: item.id, text: item.label, selected: ws.mode === item.id }))),
+    target,
+    h('button', { text: i18n.t('workstation.details'), disabled: busy, onclick: openWorkstationDetails }),
+    h('button', { class: 'primary agent-send', text: i18n.t(busy ? 'common.generating' : 'workstation.start'),
+      title: 'Ctrl+Enter', disabled: busy || !mode, onclick: runWorkstation })));
+  composer.appendChild(h('div', { class: 'agent-summary small muted', text: wsSummary() }));
+  if (!modes.length) composer.appendChild(h('button', { text: i18n.t('workstation.go_modes'), onclick: () => go('modes') }));
+  shell.appendChild(h('div', { class: 'agent-compose-wrap' }, composer,
+    h('div', { class: 'agent-footnote', text: i18n.t('workstation.context_hint') })));
+  main.appendChild(shell);
+  const scroll = state.ui.wsScroll;
+  requestAnimationFrame(() => {
+    if (!feed.isConnected) return;
+    feed.scrollTop = !scroll || scroll.id !== ws.current_session || scroll.bottom ? feed.scrollHeight : scroll.top;
+  });
+}
 
-  // ── 右侧：输出 ───────────────────────────
-  const outputCard = h('div', { class: 'card output-card' });
-  const outHead = h('h2', null, i18n.t('workstation.output_title'),
-    modeBadge(session ? (turn && turn.mode) : ws.last_mode || ws.mode),
-    h('span', { class: 'hint', text: i18n.t('workstation.char_count', { count: output.length }) }));
-  outputCard.appendChild(outHead);
-
-  if (session && !isCurrentSession) {
-    outputCard.appendChild(h('div', { class: 'history-view-head' },
-      h('span', { text: i18n.t('history.viewing_short', { title: session.title || i18n.t('common.unnamed') }) }),
-      h('button', { class: 'mini', text: i18n.t('history.return'), onclick: () => returnToCurrent() })));
-  }
-
-  if (output.trim()) {
-    outputCard.appendChild(h('div', { class: 'md output-md', html: md(output) }));
-  } else {
-    outputCard.appendChild(h('div', { class: 'empty-output' },
-      h('div', { class: 'empty-icon', text: '✎' }),
-      h('div', { text: i18n.t('workstation.output_empty') }),
-      h('div', { class: 'small muted', text: i18n.t('workstation.output_empty_hint') })));
-  }
-
-  const meta = state.ui.lastMeta;
-  if (meta && !session) {
-    outputCard.appendChild(h('div', { class: 'small muted output-meta' },
-      i18n.t('workstation.output_meta', {model: meta.model || '—', effort: meta.effort || '—', elapsed: meta.elapsed != null ? meta.elapsed + 's' : '—', tokens: meta.usage?.total_tokens || '—'})));
-  }
-
-  outputCard.appendChild(h('div', { class: 'output-actions' },
-    h('button', { class: 'primary', text: i18n.t('workstation.append_prompt'), disabled: !output.trim(), onclick: () => appendOutput() }),
-    h('button', { text: i18n.t('workstation.save_txt'), disabled: !output.trim(), onclick: () => saveOutputDialog('txt') }),
-    h('button', { text: i18n.t('workstation.save_md'), disabled: !output.trim(), onclick: () => saveOutputDialog('md') }),
-    h('button', { text: i18n.t('workstation.to_manuscript'), disabled: !output.trim(), onclick: () => sendOutputToText() }),
-    h('button', { text: i18n.t('common.copy'), disabled: !output.trim(), onclick: () => copyOutput() }),
-    h('button', { text: i18n.t('workstation.view_raw'), disabled: !output.trim(), onclick: () => showRawOutput() })));
-  right.appendChild(outputCard);
-
-  // ── 右侧：当前对话 / 最近轮次 ────────────
-  const convCard = h('div', { class: 'card' });
-  const currentSession = state.ui.currentSession;
-  convCard.appendChild(h('h2', null, i18n.t('history.current'),
-    h('span', { class: 'hint', text: currentSession ? i18n.t('history.turn_count', { count: (currentSession.turns || []).length }) : i18n.t('history.not_started') }),
-    h('span', { style: { flex: '1' } }),
-    h('button', { class: 'mini', text: i18n.t('history.view_all'), onclick: () => openHistoryDialog() })));
-  if (currentSession && (currentSession.turns || []).length) {
-    convCard.appendChild(h('div', { class: 'small muted', style: { marginBottom: '8px' } },
-      currentSession.title || i18n.t('history.untitled')));
-    const turns = (currentSession.turns || []).slice(-4).reverse();
-    turns.forEach(t => {
-      convCard.appendChild(h('div', {
-        class: 'turn-row', onclick: () => viewHistoryTurn(currentSession, t)
-      },
-        h('div', { class: 'turn-top' },
-          modeBadge(t.mode),
-          h('span', { class: 'small muted', text: t.created || '' }),
-          h('span', { style: { flex: '1' } }),
-          h('span', { class: 'small muted', text: i18n.t('workstation.char_count', { count: (t.output || '').length }) })),
-        h('div', { class: 'turn-preview', text: i18n.t('history.input_prefix', { text: previewText(t.user_prompt, 64) }) }),
-        h('div', { class: 'turn-preview', text: i18n.t('history.output_prefix', { text: previewText(t.output, 88) }) })));
-    });
-  } else {
-    convCard.appendChild(h('div', { class: 'muted small', text: i18n.t('history.autosave_hint') }));
-  }
-  right.appendChild(convCard);
-
-  const logCard = h('div', { class: 'card' });
-  logCard.appendChild(h('h2', null, i18n.t('workstation.log_title'), h('span', { class: 'hint', text: i18n.t('workstation.log_hint') })));
-  logCard.appendChild(h('pre', { class: 'log', text: state.ui.log || i18n.t('workstation.log_empty') }));
-  right.appendChild(logCard);
-
-  main.appendChild(h('div', { class: 'legal-footer' },
-    h('strong', { text: i18n.t('workstation.disclaimer_label') }),
-    i18n.t('workstation.disclaimer')));
-
-  // 生成期间：禁用全部控件，并盖一层全屏锁。
-  if (busy) {
-    main.querySelectorAll('input, textarea, select, button').forEach(el => { el.disabled = true; });
-    main.appendChild(h('div', { class: 'work-lock' },
-      h('div', { class: 'work-lock-box' },
-        h('div', { class: 'spinner' }),
-        h('strong', { text: i18n.t('workstation.lock_title') }),
-        h('div', { class: 'small muted', text: i18n.t('workstation.lock_hint') }))));
-  }
+function openWorkstationDetails() {
+  if(state.ui.busy)return;
+  const oldDrawer=document.querySelector('.agent-drawer');
+  const detailOpen=new Map(oldDrawer?Array.from(oldDrawer.querySelectorAll('details')).map(el=>[el.dataset.setting,el.open]):[]);
+  const scroll=oldDrawer?.querySelector('.agent-detail-body')?.scrollTop || 0;
+  const focusIndex=oldDrawer?Array.from(oldDrawer.querySelectorAll('input, textarea, button, summary')).indexOf(document.activeElement):-1;
+  if(state.ui.wsDrawerClose){state.ui.wsDrawerClose();state.ui.wsDrawerClose=null;}
+  const ws=wsState(), sel=wsDetailedSelection(ws), choices=wsSettingChoices();
+  const body=h('div',{class:'agent-detail-body'});
+  const changed=()=>{touch('state',true);openWorkstationDetails();};
+  const chip=choice=>h('button',{class:'chip'+(sel.setting_categories.includes(choice.id)?' on':''),
+    'aria-pressed':String(sel.setting_categories.includes(choice.id)),
+    onclick:()=>{toggleId(sel.setting_categories,choice.id,!sel.setting_categories.includes(choice.id));changed();}},choice.label);
+  body.appendChild(h('div',{class:'field'},h('label',{text:i18n.t('workstation.include_label')}),
+    h('div',{class:'chips ws-setting-choices'},choices.filter(choice=>choice.visible).map(chip))));
+  const more=choices.filter(choice=>!choice.visible);
+  if(more.length)body.appendChild(h('details',{class:'input-details ws-more-settings',dataset:{setting:'more'},open:detailOpen.get('more') || false},
+    h('summary',{text:i18n.t('workstation.more_settings')}),h('div',{class:'chips'},more.map(chip))));
+  const selected=choices.filter(choice=>sel.setting_categories.includes(choice.id));
+  if(selected.length)body.appendChild(h('div',{class:'ws-detail-divider',text:i18n.t('workstation.pick_setting_records')}));
+  selected.forEach(choice=>{
+    const ids=sel.record_selections[choice.id]=sel.record_selections[choice.id] || [];
+    const records=collItems(choice.id);
+    const details=h('details',{class:'input-details ws-record-picker',dataset:{setting:choice.id},open:detailOpen.has(choice.id)?detailOpen.get(choice.id):true},
+      h('summary',null,choice.label,choice.id==='worldmap'?null:h('span',{class:'hint',text:i18n.t('workstation.selected_of',{count:records.filter(rec=>ids.includes(rec.id)).length,total:records.length})})));
+    if(choice.id==='worldmap') details.appendChild(h('div',{class:'small muted',text:i18n.t('workstation.map_whole')}));
+    else {
+      details.appendChild(h('div',{class:'inline ws-picker-actions'},
+        h('button',{class:'mini',text:i18n.t('common.select_all'),onclick:()=>{sel.record_selections[choice.id]=records.map(rec=>rec.id);changed();}}),
+        h('button',{class:'mini',text:i18n.t('common.clear'),onclick:()=>{sel.record_selections[choice.id]=[];changed();}})));
+      details.appendChild(pickerRows(records,ids,(id,on)=>{toggleId(ids,id,on);changed();},rec=>recordName(rec)+(rec.category?' · '+rec.category:'')));
+    }
+    body.appendChild(details);
+  });
+  const files=h('details',{class:'input-details',dataset:{setting:'files'},open:detailOpen.get('files') || false},
+    h('summary',null,i18n.t('workstation.attachments'),h('span',{class:'hint',text:i18n.t('common.file_count',{count:sel.project_files.length})})));
+  if((state.sources||[]).length) files.appendChild(h('div',{class:'picker'},state.sources.map(file=>h('label',{class:'check picker-row'},
+    h('input',{type:'checkbox',checked:sel.project_files.includes(file.path),onchange:e=>{toggleId(sel.project_files,file.path,e.target.checked);changed();}}),
+    h('span',{class:'name',text:file.path})))));
+  else files.appendChild(h('div',{class:'small muted',text:i18n.t('workstation.attach_hint')}));
+  body.appendChild(files);
+  body.appendChild(h('div',{class:'field ws-supplement'},h('label',{for:'ws-supplement',text:i18n.t('workstation.supplement')}),
+    h('textarea',{id:'ws-supplement',rows:5,value:ws.extra,placeholder:i18n.t('workstation.supplement_placeholder'),
+      oninput:e=>{ws.extra=e.target.value;touch('state',true);}})));
+  const dialog=modal(i18n.t('workstation.details'),body,[
+    h('button',{text:i18n.t('workstation.preview_send'),onclick:previewWorkstation,dataset:{noclose:'1'}}),
+    h('button',{text:i18n.t('workstation.clear_input'),dataset:{noclose:'1'},onclick:()=>{
+      dialog.close();confirmDialog(i18n.t('workstation.clear_input'),i18n.t('workstation.clear_confirm'),()=>{
+        ws.prompt='';ws.extra='';ws.work_prompt='';ws.current_state='';wsRememberDraft();openWorkstationDetails();
+      });
+    }}),h('button',{class:'primary',text:i18n.t('common.close'),onclick:()=>dialog.close()})
+  ],()=>renderMain());
+  dialog.dlg.classList.add('agent-drawer');state.ui.wsDrawerClose=dialog.close;
+  body.scrollTop=scroll;
+  const focusables=dialog.dlg.querySelectorAll('input, textarea, button, summary');
+  focusables[Math.max(0,focusIndex)]?.focus({preventScroll:true});
 }
 
 // ─────────────────────────────────────────────
 // 生成
 // ─────────────────────────────────────────────
 async function runWorkstation() {
-  if (state.ui.busy) return;
+  if (state.ui.busy || state.ui.wsSwitching) return;
   const ws = wsState();
   if (!ws.mode) { toast(i18n.t('workstation.no_mode_toast'), 'err'); return; }
+  state.ui.wsError = '';
+  wsRememberDraft();
   state.ui.busy = true;
+  renderNav();
   state.ui.historySession = null;
   state.ui.historyTurn = null;
   renderMain();
   status(i18n.t('common.generating'), 'busy');
 
   try {
-    await saveNow('modes').catch(() => {});
+    await flushPendingSaves();
+    await saveNow('modes');
     const selection = await wsLoadProjectFiles();
     const res = await api('/api/workstation/run', {
       method: 'POST',
@@ -536,6 +400,9 @@ async function runWorkstation() {
     next.mode = res.mode_id || res.work_mode || next.mode;
     next.last_mode = res.mode_id || res.work_mode || next.last_mode;
     next.current_session = res.session_id || next.current_session;
+    next.prompt = '';
+    wsRememberDraft();
+    await refreshWorkstationHistory();
     state.ui.currentSession = res.session || state.ui.currentSession;
     renderNav();
     renderMain();
@@ -543,6 +410,8 @@ async function runWorkstation() {
     toast(i18n.t('workstation.done_saved'), 'ok');
   } catch (e) {
     state.ui.busy = false;
+    state.ui.wsError = e.message;
+    renderNav();
     renderMain();
     status(i18n.t('workstation.failed'), 'err');
     toast(i18n.t('workstation.failed_reason', { reason: e.message }), 'err');
@@ -550,6 +419,7 @@ async function runWorkstation() {
 }
 
 function previewWorkstation() {
+  if (state.ui.wsDrawerClose) { state.ui.wsDrawerClose(); state.ui.wsDrawerClose = null; }
   const body = h('div', null, h('div', { class: 'muted', text: i18n.t('common.assembling') }));
   const m = modal(i18n.t('workstation.preview_title'), body, [h('button', { text: i18n.t('common.close'), onclick: () => m.close() })]);
   (async () => {
@@ -561,11 +431,12 @@ function previewWorkstation() {
         method: 'POST',
         body: {
           surface: 'workstation',
-          mode_id: ws.mode, work_prompt: ws.work_prompt,
+          mode_id: ws.mode, prompt: ws.prompt, work_prompt: ws.work_prompt, session_id: ws.current_session || '',
           selection
         }
       });
       clear(body);
+      if (res.history?.length) body.appendChild(h('pre', { class: 'log', text: res.history.map(message => message.role + ':\n' + message.content).join('\n\n') }));
       body.appendChild(h('div', { class: 'field' },
         h('label', { text: i18n.t('workstation.system_label', { count: res.system.length }) }),
         h('pre', { class: 'log', text: res.system })));
@@ -582,20 +453,17 @@ function previewWorkstation() {
 // ─────────────────────────────────────────────
 // 输出操作
 // ─────────────────────────────────────────────
-function appendOutput() {
-  const text = currentOutput();
+function appendOutput(text = currentOutput()) {
   if (!text.trim()) return;
   const ws = wsState();
   ws.prompt = (ws.prompt.trim() ? ws.prompt.replace(/\s+$/, '') + '\n\n' : '') + text;
   touch('state', true);
-  state.ui.historySession = null;
-  state.ui.historyTurn = null;
+  wsRememberDraft();
   renderMain();
   toast(i18n.t('workstation.appended'), 'ok');
 }
 
-function copyOutput() {
-  const text = currentOutput();
+function copyOutput(text = currentOutput()) {
   if (!text.trim()) return;
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(text).then(
@@ -615,14 +483,12 @@ function fallbackCopy(text) {
   ta.remove();
 }
 
-function showRawOutput() {
-  const text = currentOutput();
+function showRawOutput(text = currentOutput()) {
   const ta = h('textarea', { rows: 22, value: text, readonly: true });
   const m = modal(i18n.t('workstation.raw_title'), ta, [h('button', { text: i18n.t('common.close'), onclick: () => m.close() })]);
 }
 
-function saveOutputDialog(fmt) {
-  const text = currentOutput();
+function saveOutputDialog(fmt, text = currentOutput()) {
   if (!text.trim()) return;
   const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
   const folder = state.paths.export || '';
@@ -660,8 +526,7 @@ function saveOutputDialog(fmt) {
   ]);
 }
 
-function sendOutputToText() {
-  const text = currentOutput();
+function sendOutputToText(text = currentOutput()) {
   if (!text.trim()) return;
   appendToTextPanel(text);
   go('text');
@@ -670,31 +535,18 @@ function sendOutputToText() {
 // ─────────────────────────────────────────────
 // 对话历史
 // ─────────────────────────────────────────────
-function viewHistoryTurn(session, turn) {
-  if (!session || !turn) return;
-  state.ui.historySession = session;
-  state.ui.historyTurn = turn;
-  renderMain();
-}
-
-function returnToCurrent() {
-  state.ui.historySession = null;
-  state.ui.historyTurn = null;
-  const cs = state.ui.currentSession;
-  if (cs && (cs.turns || []).length) {
-    const last = cs.turns[cs.turns.length - 1];
-    const ws = wsState();
-    ws.output = last.output || ws.output;
-    ws.current_session = cs.id || ws.current_session;
-  }
-  renderMain();
-}
-
 async function newConversation() {
-  if (state.ui.busy) return;
+  if (state.ui.busy || state.ui.wsSwitching) return;
   const ws = wsState();
-  if ((ws.output || '').trim() && !confirm(i18n.t('history.new_confirm'))) return;
+  if (!ws.prompt.trim() && !ws.output.trim() && !(state.ui.currentSession?.turns || []).length) {
+    go('writer');
+    document.querySelector('.agent-prompt')?.focus();
+    return;
+  }
+  wsRememberDraft();
+  state.ui.wsSwitching = true;
   try {
+    await flushPendingSaves();
     const res = await api('/api/history/new', { method: 'POST', body: { mode: ws.mode } });
     ws.current_session = res.session.id;
     ws.output = '';
@@ -703,151 +555,16 @@ async function newConversation() {
     state.ui.lastMeta = null;
     state.ui.historySession = null;
     state.ui.historyTurn = null;
-    touch('state', true);
-    renderMain();
+    wsRememberDraft();
+    state.ui.wsScroll = null;
+    state.ui.wsError = '';
+    await refreshWorkstationHistory();
+    state.ui.wsSwitching = false;
+    go('writer');
     toast(i18n.t('history.started_new'), 'ok');
   } catch (e) {
     toast(i18n.t('history.new_failed_reason', { reason: e.message }), 'err');
-  }
-}
-
-async function openHistoryDialog() {
-  const body = h('div', { class: 'history-dialog' },
-    h('div', { class: 'muted', text: i18n.t('common.loading') }));
-  const m = modal(i18n.t('history.title'), body, [
-    h('button', { text: i18n.t('history.return'), onclick: () => { m.close(); returnToCurrent(); } }),
-    h('button', { text: i18n.t('common.close'), onclick: () => m.close() })
-  ]);
-  try {
-    const res = await api('/api/history');
-    drawHistoryDialog(body, res.items || [], res.current || '');
-  } catch (e) {
-    clear(body);
-    body.appendChild(h('div', { class: 'muted', text: i18n.t('common.load_failed_reason', { reason: e.message }) }));
-  }
-}
-
-function drawHistoryDialog(body, items, currentId) {
-  clear(body);
-  if (!items.length) {
-    body.appendChild(h('div', { class: 'muted', text: i18n.t('history.empty') }));
-    return;
-  }
-  const list = h('div', { class: 'history-list' });
-  const detail = h('div', { class: 'history-detail' });
-  let selectedId = items[0].id;
-
-  const loadDetail = async id => {
-    selectedId = id;
-    list.querySelectorAll('.list-item').forEach(el => {
-      el.classList.toggle('active', el.dataset.id === id);
-    });
-    clear(detail);
-    detail.appendChild(h('div', { class: 'muted', text: i18n.t('common.loading') }));
-    try {
-      const res = await api('/api/history/' + encodeURIComponent(id));
-      const session = res.session;
-      clear(detail);
-      detail.appendChild(h('div', { class: 'history-detail-head' },
-        h('strong', { text: session.title || i18n.t('history.untitled') }),
-        id === currentId ? h('span', { class: 'tag', text: i18n.t('history.current') }) : null,
-        h('span', { style: { flex: '1' } }),
-        h('span', { class: 'small muted', text: i18n.t('history.turn_count', { count: (session.turns || []).length }) })));
-      detail.appendChild(h('div', { class: 'inline', style: { marginBottom: '10px' } },
-        h('button', {
-          class: 'primary', text: i18n.t('history.view'),
-          onclick: () => {
-            state.ui.historySession = session;
-            state.ui.historyTurn = (session.turns || [])[(session.turns || []).length - 1] || null;
-            document.querySelector('#overlay-root').innerHTML = '';
-            renderMain();
-          }
-        }),
-        h('button', {
-          text: i18n.t('history.set_current'),
-          onclick: async () => {
-            try {
-              const r = await api('/api/history/current', { method: 'POST', body: { id } });
-              const ws = wsState();
-              ws.current_session = id;
-              ws.output = ((session.turns || [])[(session.turns || []).length - 1] || {}).output || ws.output;
-              state.ui.currentSession = r.session || session;
-              state.ui.historySession = null;
-              state.ui.historyTurn = null;
-              touch('state', true);
-              document.querySelector('#overlay-root').innerHTML = '';
-              renderMain();
-              toast(i18n.t('history.switched'), 'ok');
-            } catch (e) { toast(i18n.t('history.switch_failed_reason', { reason: e.message }), 'err'); }
-          }
-        }),
-        h('button', {
-          class: 'danger', text: i18n.t('common.delete'),
-          onclick: async () => {
-            if (!confirm(i18n.t('history.delete_confirm'))) return;
-            try {
-              await api('/api/history/' + encodeURIComponent(id), { method: 'DELETE' });
-              const again = await api('/api/history');
-              currentId = again.current || '';
-              if (state.ui.historySession && state.ui.historySession.id === id) {
-                state.ui.historySession = null;
-                state.ui.historyTurn = null;
-              }
-              const ws = wsState();
-              if (ws.current_session === id) {
-                ws.current_session = currentId;
-                ws.output = '';
-                state.ui.currentSession = null;
-                touch('state', true);
-              }
-              drawHistoryDialog(body, again.items || [], currentId);
-              toast(i18n.t('common.deleted'), 'ok');
-            } catch (e) { toast(i18n.t('common.delete_failed_reason', { reason: e.message }), 'err'); }
-          }
-        })));
-
-      const turns = session.turns || [];
-      turns.slice().reverse().forEach((turn, idx) => {
-        const box = h('details', { class: 'turn-detail', open: idx === 0 });
-        box.appendChild(h('summary', null,
-          modeBadge(turn.mode),
-          h('span', { class: 'small muted', text: ' ' + (turn.created || '') }),
-          h('span', { style: { flex: '1' } }),
-          h('span', { class: 'small muted', text: i18n.t('history.turn_chars', { input: (turn.user_prompt || '').length, output: (turn.output || '').length }) })));
-        box.appendChild(h('div', { class: 'field', style: { marginTop: '8px' } },
-          h('label', { text: i18n.t('workstation.prompt_label') }),
-          h('pre', { class: 'log', text: turn.user_prompt || i18n.t('common.empty_paren') })));
-        if (turn.work_prompt) {
-          box.appendChild(h('div', { class: 'field' },
-            h('label', { text: i18n.t('history.requirements_label') }),
-            h('pre', { class: 'log', text: turn.work_prompt })));
-        }
-        box.appendChild(h('div', { class: 'field' },
-          h('label', { text: i18n.t('workstation.output_title') }),
-          h('div', { class: 'md history-md', html: md(turn.output || i18n.t('common.empty_paren')) })));
-        if (turn.resolved && turn.resolved.missing) {
-          box.appendChild(h('div', { class: 'small muted', text: i18n.t('history.broken_pointers', { count: turn.resolved.missing }) }));
-        }
-        detail.appendChild(box);
-      });
-    } catch (e) {
-      clear(detail);
-      detail.appendChild(h('div', { class: 'muted', text: i18n.t('common.read_failed_reason', { reason: e.message }) }));
-    }
-  };
-
-  items.forEach(item => {
-    const row = h('div', {
-      class: 'list-item' + (item.id === selectedId ? ' active' : ''),
-      dataset: { id: item.id },
-      onclick: () => loadDetail(item.id)
-    },
-      h('div', { class: 'name', text: item.title || i18n.t('history.untitled') }),
-      h('div', { class: 'meta', text: i18n.t(item.id === currentId ? 'history.list_meta' : 'history.item_meta', {turns: item.turns || 0, updated: item.updated || ''}) }));
-    list.appendChild(row);
-  });
-  body.appendChild(h('div', { class: 'history-cols' }, list, detail));
-  loadDetail(selectedId);
+  } finally { state.ui.wsSwitching = false; }
 }
 
 // ─────────────────────────────────────────────
@@ -855,6 +572,7 @@ function drawHistoryDialog(body, items, currentId) {
 // ─────────────────────────────────────────────
 async function loadCurrentSession() {
   const ws = wsState();
+  await refreshWorkstationHistory();
   if (!ws.current_session) { state.ui.currentSession = null; return; }
   try {
     const res = await api('/api/history/' + encodeURIComponent(ws.current_session));
@@ -897,4 +615,131 @@ async function boot() {
   maybeShowOnboarding();
   const s = await api('/api/workstation/status').catch(() => null);
   if (s && s.busy) pollBusyState();
+}
+
+
+async function refreshWorkstationHistory() {
+  const novel = state.activeNovelId;
+  try {
+    const result = await api('/api/history');
+    if (novel === state.activeNovelId) state.ui.wsHistory = { novel, items: result.items || [] };
+  } catch (e) {
+    if (novel === state.activeNovelId) state.ui.wsHistory = { novel, items: [], error: e.message };
+  }
+}
+
+function renderWorkstationHistory(nav) {
+  const collapsed = state.ui.navCollapsed.history !== false;
+  const busy = !!(state.ui.busy || state.ui.wsSwitching);
+  nav.appendChild(h('div', { class: 'nav-group nav-settings-head conversation-nav-head' },
+    h('button', { class: 'nav-settings-toggle',
+      'aria-expanded': String(!collapsed), 'aria-controls': 'conversation-nav',
+      onclick: () => { state.ui.navCollapsed.history = !collapsed; renderNav(); }
+    }, h('span', { text: collapsed ? '▸' : '▾', 'aria-hidden': 'true' }),
+      h('span', { text: i18n.t('workstation.conversations') })),
+    h('button', { class: 'nav-settings-manage conversation-add', text: '+',
+      title: i18n.t('history.new'), 'aria-label': i18n.t('history.new'), disabled: busy, onclick: newConversation })));
+  const list = h('div', { id: 'conversation-nav', class: 'conversation-nav', hidden: collapsed });
+  if (collapsed) { nav.appendChild(list); return; }
+  const history = state.ui.wsHistory?.novel === state.activeNovelId ? state.ui.wsHistory : null;
+  (history?.items || []).forEach(item => {
+    list.appendChild(h('div', { class: 'conversation-nav-row' + (wsState().current_session === item.id ? ' active' : '') },
+      h('button', { class: 'conversation-nav-link', text: item.title || i18n.t('history.untitled'),
+        title: item.title, disabled: busy, 'aria-current': wsState().current_session === item.id ? 'true' : null,
+        onclick: () => switchWorkstationSession(item.id) }),
+      h('button', { class: 'conversation-menu-button', text: '⋯', disabled: busy,
+        'aria-label': i18n.t('workstation.conversation_actions'), 'aria-haspopup': 'dialog', 'aria-expanded': 'false', onclick: e => workstationSessionActions(item, e.currentTarget) })));
+  });
+  if (!(history?.items || []).length) list.appendChild(h('div', { class: 'small muted history-nav-empty',
+    text: history?.error ? i18n.t('common.load_failed_reason', { reason: history.error }) : i18n.t('history.empty') }));
+  nav.appendChild(list);
+}
+
+async function switchWorkstationSession(id) {
+  if (state.ui.busy || state.ui.wsSwitching) return;
+  state.ui.wsSwitching = true;
+  try {
+    wsRememberDraft();
+    await flushPendingSaves();
+    const result = await api('/api/history/current', { method: 'POST', body: { id } });
+    const ws = wsState();
+    ws.current_session = id;
+    ws.output = result.session?.turns?.slice(-1)[0]?.output || '';
+    ws.prompt = ws.drafts?.[id] || '';
+    state.ui.currentSession = result.session;
+    state.ui.historySession = null; state.ui.historyTurn = null;
+    state.ui.wsError = ''; state.ui.wsScroll = null; state.ui.wsCollapsedTurns = {};
+    touch('state', true);
+    go('writer');
+  } catch (e) { toast(i18n.t('history.switch_failed_reason', { reason: e.message }), 'err'); }
+  finally { state.ui.wsSwitching = false; }
+}
+
+function workstationSessionActions(item, anchor) {
+  if (state.ui.wsMenuClose) {
+    const same = state.ui.wsMenuAnchor === anchor;
+    state.ui.wsMenuClose();
+    if (same) return;
+  }
+  const popup = h('div', { class: 'conversation-popup', popover: 'auto', role: 'dialog',
+    'aria-label': i18n.t('workstation.conversation_actions') });
+  const close = () => {
+    if (popup.matches(':popover-open')) popup.hidePopover();
+    popup.remove();
+    if (state.ui.wsMenuClose === close) { state.ui.wsMenuClose = null; state.ui.wsMenuAnchor = null; }
+    anchor.setAttribute('aria-expanded', 'false');
+  };
+  const position = () => {
+    const rect = anchor.getBoundingClientRect();
+    popup.style.left = Math.max(8, Math.min(rect.right + 6, window.innerWidth - popup.offsetWidth - 8)) + 'px';
+    popup.style.top = Math.max(8, Math.min(rect.top, window.innerHeight - popup.offsetHeight - 8)) + 'px';
+  };
+  const rename = () => {
+    clear(popup);
+    const input = h('input', { value: item.title || '', maxlength: 160, 'aria-label': i18n.t('common.name') });
+    const save = h('button', { class: 'primary', text: i18n.t('common.save'), onclick: async () => {
+      const title = input.value.trim();
+      if (!title || state.ui.busy) return;
+      save.disabled = true;
+      try {
+        await api('/api/history/rename', { method: 'POST', body: { id: item.id, title } });
+        if (state.ui.currentSession?.id === item.id) state.ui.currentSession.title = title;
+        close(); await refreshWorkstationHistory(); renderNav(); renderMain();
+      } catch (e) { toast(e.message, 'err'); save.disabled = false; }
+    } });
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); save.click(); }
+    });
+    popup.append(h('label', { class: 'small muted', text: i18n.t('workstation.rename_conversation') }), input,
+      h('div', { class: 'conversation-popup-actions' },
+        h('button', { text: i18n.t('common.cancel'), onclick: close }), save));
+    position(); input.focus(); input.select();
+  };
+  popup.append(
+    h('button', { class: 'conversation-popup-item', text: i18n.t('workstation.rename_conversation'), onclick: rename }),
+    h('button', { class: 'conversation-popup-item danger', text: i18n.t('common.delete'), onclick: () => {
+      close();
+      confirmDialog(i18n.t('common.delete'), i18n.t('history.delete_confirm'), async () => {
+        if (state.ui.busy) return;
+        try {
+          await flushPendingSaves();
+          const result = await api('/api/history/' + encodeURIComponent(item.id), { method: 'DELETE' });
+          const ws = wsState();
+          if (ws.drafts) delete ws.drafts[item.id];
+          if (ws.current_session === item.id) {
+            ws.current_session = result.current || ''; ws.output = ''; ws.prompt = ws.drafts?.[ws.current_session] || '';
+            state.ui.historySession = null; state.ui.historyTurn = null;
+            await loadCurrentSession();
+            ws.output = state.ui.currentSession?.turns?.slice(-1)[0]?.output || '';
+            state.ui.wsError = ''; state.ui.wsScroll = null;
+          }
+          touch('state', true); await refreshWorkstationHistory(); renderNav(); renderMain();
+        } catch (e) { toast(e.message, 'err'); }
+      });
+    } }));
+  popup.addEventListener('toggle', () => { if (!popup.matches(':popover-open')) close(); });
+  document.body.appendChild(popup);
+  state.ui.wsMenuClose = close; state.ui.wsMenuAnchor = anchor;
+  anchor.setAttribute('aria-expanded', 'true');
+  popup.showPopover(); position(); popup.querySelector('button')?.focus();
 }

@@ -121,8 +121,6 @@ def list_sessions() -> list:
     index = _index()
     items = []
     for entry in index.get("items") or []:
-        if int(entry.get("turns") or 0) <= 0:
-            continue
         item = dict(entry)
         item["current"] = entry.get("id") == index.get("current")
         items.append(item)
@@ -262,6 +260,30 @@ def resolve_selection(db: dict, selection: dict | None) -> dict:
       missing    失效指针数量
     """
     selection = copy.deepcopy(selection or {})
+    if isinstance(selection.get("record_selections"), dict):
+        resolved = {}
+        missing = 0
+        mapping = selection["record_selections"]
+        categories = selection.get("setting_categories")
+        active = set(categories) if isinstance(categories, list) else set(mapping)
+        filtered = {}
+        for coll, ids in mapping.items():
+            if coll not in active:
+                continue
+            index = {item.get("id"): item for item in (db.get(coll) or {}).get("items") or []}
+            rows = []
+            kept = []
+            for rid in ids or []:
+                item = index.get(rid)
+                if item is None:
+                    missing += 1
+                    continue
+                kept.append(rid)
+                rows.append({"id": rid, "name": item.get("name") or item.get("title") or "未命名", "category": item.get("category") or ""})
+            filtered[coll] = kept
+            resolved[coll] = rows
+        selection["record_selections"] = filtered
+        return {"selection": selection, "resolved": resolved, "missing": missing}
     pools = {
         "character_ids": ("characters", list(((db.get("characters") or {}).get("items")) or [])),
         "memory_ids": ("memory", list(((db.get("memories") or {}).get("items")) or [])),
@@ -296,3 +318,25 @@ def session_for_client(session: dict, db: dict) -> dict:
     for turn in data["turns"]:
         turn["resolved"] = resolve_selection(db, turn.get("selection") or {})
     return data
+
+
+def context_messages(session_id: str, max_turns: int = 8, max_chars: int = 60000) -> list[dict]:
+    """Include a contiguous suffix of complete turns, bounded for long manuscripts."""
+    if not session_id:
+        return []
+    session = load_session(session_id)
+    if not session:
+        return []
+    pairs = []
+    used = 0
+    for turn in reversed((session.get("turns") or [])[-max_turns:]):
+        user = str(turn.get("user_prompt") or "")
+        selection = turn.get("selection") or {}
+        additions = [turn.get("work_prompt"), selection.get("current_state"), selection.get("extra")]
+        user = "\n\n".join([user] + [str(value) for value in additions if value])
+        output = str(turn.get("output") or "")
+        if used + len(user) + len(output) > max_chars:
+            break
+        used += len(user) + len(output)
+        pairs.append([{"role": "user", "content": user}, {"role": "assistant", "content": output}])
+    return [message for pair in reversed(pairs) for message in pair]

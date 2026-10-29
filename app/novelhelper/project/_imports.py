@@ -84,7 +84,7 @@ def merge_records(existing: list, incoming: list, key: str = "name",
             index[_key_of(rec, key, key_fields)] = rec
             added += 1
         else:
-            for field in ("elements", "notes", "content", "tag", "role", "category", "title", "source"):
+            for field in ("elements", "notes", "content", "summary", "tag", "role", "category", "title", "source"):
                 if field in rec and rec[field] not in (None, "", []):
                     current[field] = rec[field]
             current["updated"] = now_str()
@@ -124,7 +124,9 @@ def import_json(text: str, target: str) -> list:
                 base["category"] = body.get("category") or body.get("分类") or t("defaults.memory.short")
                 base.pop("name", None)
             else:
-                base["elements"] = _nested_to_elements(body)
+                base["elements"] = _nested_to_elements({k:v for k,v in body.items() if k not in {"summary", "概述", "content", "内容", "notes", "备注"}})
+                if "summary" in body or "概述" in body:
+                    base["summary"] = body.get("summary") or body.get("概述")
                 if "content" in body or "内容" in body:
                     base["content"] = body.get("content") or body.get("内容")
                 if "notes" in body or "备注" in body:

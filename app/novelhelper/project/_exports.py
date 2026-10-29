@@ -103,8 +103,10 @@ def clean_json(coll: str, db: dict) -> dict:
                 ]
         if coll == "factions" and rec.get("members"):
             body["成员"] = [
-                (ctx.item_brief(_find(db, "characters", mid)) or mid) for mid in rec["members"]
+                (ctx.item_brief(_find(db, "characters", mid)) or mid) + (f"（{note}）" if note else "") for mid, note in ctx.faction_members(rec)
             ]
+        if rec.get("summary"):
+            body["概述"] = rec["summary"]
         if rec.get("notes"):
             body["备注"] = rec["notes"]
         if rec.get("content"):
