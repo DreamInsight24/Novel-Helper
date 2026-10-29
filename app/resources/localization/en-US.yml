@@ -875,10 +875,10 @@ nav.items: Items
 nav.memories: Memories
 nav.modes: Mode Management
 nav.other: Other Settings
-nav.sections: Custom Sections
+nav.sections: "Manage settings"
 nav.settings: Model Settings
 nav.text: Manuscript
-nav.worldmap: World Map
+nav.worldmap: "Map settings"
 nav.writer: AI Workstation
 providers.note: '【API】Currently using the {name} OpenAI-compatible API.'
 providers.note_generic: 【API】Currently using a custom OpenAI-compatible API. Do not assume a specific model, vendor,
@@ -893,7 +893,7 @@ records.choose_file_first: Choose a file to import first.
 records.clear_selection: Clear selection
 records.content_label: Content (original text / long text)
 records.count_selected: '{total} entries · {selected} selected'
-records.custom_prefix: 'Custom: {label}'
+records.custom_prefix: "{label}"
 records.elem_stat: '{total} elements, {filled} filled'
 records.elements_label: Elements
 records.export_json: Export JSON
@@ -944,15 +944,13 @@ records.tidy_title: Organize imported content
 records.total: '{count} entries total'
 sections.add: + New Section
 sections.auto_from_label: Sorting rules (original category names from "Other Settings", comma-separated)
-sections.auto_sort: Auto-sort by category
+sections.auto_sort: "Auto-classify (coming later)"
 sections.auto_sort_title: Move content from "Other Settings" into matching sections based on the "Sorting rules"
   below
-sections.default_desc: Custom setting section (can be added, removed, or renamed on the Custom Sections page)
+sections.default_desc: "Setting entries. Configure this section in Manage settings."
 sections.delete: Delete Section
-sections.delete_confirm: 'Delete section "{label}"?
-
-  The sidebar entry will disappear; data/section_{key}.json stays on disk (the file is not deleted).'
-sections.desc_label: One-line description (shown under the page title)
+sections.delete_confirm: "Remove section “{label}”? Only the section entry is removed; existing content is retained."
+sections.desc_label: Section description
 sections.empty: (No sections yet)
 sections.enable: Enable
 sections.help: '- Each section is an ordinary settings collection: like "Other Settings", it can hold entries, element
@@ -980,7 +978,7 @@ sections.key_invalid: Invalid key; auto-using {key}
 sections.key_prompt: English key (used for the filename; letters, digits, underscores; e.g. politics)
 sections.list_title: Section list
 sections.name_placeholder: Section name
-sections.name_prompt: Section name (e.g., politics / military / folklore)
+sections.name_prompt: "Section name"
 sections.open: Open this section
 sections.page_desc: Split settings into sections (worldbuilding, species, magic & skills…). New sections add a page
   in the sidebar and their own JSON under data/.
@@ -1101,7 +1099,7 @@ workstation.chip_memory_label: Story memories
 workstation.chip_state: Current state
 workstation.chip_target: Target {count} chars
 workstation.chip_world: Worldbuilding {count}
-workstation.chip_world_label: Worldbuilding & custom sections
+workstation.chip_world_label: "World settings and other sections"
 workstation.clear_confirm: Clear the current input (prompt, current state, additional notes)? Setting selections
   are kept.
 workstation.clear_input: Clear input
@@ -1169,7 +1167,7 @@ workstation.target_label: Target length this run
 workstation.to_manuscript: Send to Manuscript
 workstation.user_label: user ({count} chars)
 workstation.view_raw: View raw
-workstation.world_entries: Worldbuilding entries
+workstation.world_entries: "World setting entries"
 worldmap.add_axis_end: Add a {axis} at the end
 worldmap.add_axis_front: Add a {axis} at the front
 worldmap.add_col_end: +Col·End
@@ -1249,3 +1247,199 @@ worldmap.subgrid_hint: Regions of level {depth} attach here
 worldmap.subgrid_label: 'Subgrid '
 worldmap.summary_label: One-line summary
 worldmap.swapped: Swapped "{a}" with "{b}"
+
+# Unified setting navigation and category management
+nav.group_settings: "Settings"
+nav.world_setting: "World settings"
+sections.manage_desc: "Manage setting sections, names, descriptions, order, and sidebar visibility."
+sections.auto_sort_pending: "Automatic classification is not implemented yet. Assign categories manually in each entry."
+sections.show_named: "Show {name} in the sidebar"
+sections.show_in_nav: "Show in sidebar"
+sections.builtin: "Built-in section"
+sections.record_section: "Setting section"
+sections.manage_help: "Characters, world, map, and factions are shown by default. Hidden sections retain their content. Enable older empty presets, inventory, items, or equipment as needed. Use categories within World settings for topics such as economy and history."
+records.manage_categories: "Manage categories"
+records.filter_category: "Filter by category"
+records.all_categories: "All categories"
+records.uncategorized: "Uncategorized"
+records.category_help: "Categories organize entries in this section. Renaming updates its entries; deleting a category leaves its entries uncategorized."
+records.category_name_required: "Enter a category name."
+records.category_exists: "This category already exists."
+records.category_delete_confirm: "Delete category “{name}”? Its entries will become uncategorized and retain their content."
+records.count_filtered: "Showing {shown} of {total} entries"
+
+# Setting management cards
+sections.card_desc: "Click a card to open its settings. Drag cards to reorder them."
+sections.card_hint: "Drag cards to reorder them, or focus a card and press Alt + Left/Right. Press Enter to open."
+sections.open_named: "Open {name}"
+sections.edit_named: "Edit {name}"
+sections.edit_title: "Edit setting section"
+sections.name_required: "Enter a section name."
+sections.drag_hint: "Drag to reorder"
+sections.no_description: "No description yet"
+sections.edit_action: Edit
+
+# Agent-style workstation
+workstation.details: "Detailed input"
+workstation.more: "More"
+workstation.welcome: "Start writing"
+workstation.welcome_hint: "Describe what to write below, choose a mode and references, then generate."
+workstation.context_hint: "Continuation includes up to 8 recent complete turns within 60,000 characters, with your current references. Ctrl+Enter to send. Review AI-generated content."
+workstation.retry: "Retry"
+workstation.expand_result: "Expand result"
+workstation.collapse_result: "Collapse result"
+workstation.conversation_actions: "Conversation actions"
+workstation.rename_conversation: "Rename conversation"
+
+workstation.conversations: "Conversations"
+
+manuscript.material_added: "Added to this novel’s materials."
+manuscript.materials: "Materials"
+manuscript.materials_count: "Materials · {count}"
+manuscript.materials_hint: "Click to preview · Drag into the manuscript"
+manuscript.materials_empty: "Import files or send results from the AI workstation."
+manuscript.import_files: "Import files"
+manuscript.import_chapter: "Import from chapters"
+manuscript.process_tools: "Text tools"
+manuscript.selection_scope: "Apply to selected text when available; otherwise the whole manuscript"
+manuscript.editor_label: "Manuscript editor"
+manuscript.composer_placeholder: "Write here, or drag a material to the desired insertion point…"
+manuscript.insert_cursor: "Insert at cursor"
+manuscript.preview_material: "Preview: {title}"
+manuscript.remove_material: "Remove material card (keep manuscript and original file)"
+manuscript.remove_material_title: "Remove material: {title}"
+manuscript.source_sample: "Sample"
+manuscript.source_file: "Imported file"
+manuscript.material_source_ai: "AI workstation"
+manuscript.source_chapter: "Chapter"
+manuscript.undo: "Undo"
+manuscript.redo: "Redo"
+manuscript.file_too_large: "Keep each material under 8 MB."
+manuscript.text_files_only: "Import TXT or Markdown files."
+manuscript.sample_1_title: "Rain at the gate · Opening.txt"
+manuscript.sample_1_content: "The gate was closing when Lin Zhou stepped out of the rain.\n\nHe held the letter beneath his coat and looked toward the only light on the street. The guard saw the red seal and quietly stepped aside.\n\n“Stay away from the river tonight.”\n\nWhen Lin turned back, the gate was shut."
+manuscript.sample_2_title: "Lin Zhou · Character notes.md"
+manuscript.sample_2_content: "## Immediate goal\nFind a missing friend and deliver a letter three years late.\n\n## Inner conflict\nHe calls himself a messenger, but his silence may have caused the disappearance.\n\n## Scene clues\nA red seal, three familiar knocks, and the guestbook at the riverside inn."
+manuscript.sample_3_title: "Riverside inn · Scene.txt"
+manuscript.sample_3_content: "The hinges creaked. Everyone in the inn looked up.\n\nThe innkeeper polished an already clean cup, watching the empty alley behind Lin. Three slow knocks sounded upstairs.\n\nLin set his letter on the counter.\n\n“I’m looking for someone.”\n\n“So is everyone here,” said the innkeeper."
+
+# Setting editor and centralized import
+records.help_title: "Setting help"
+records.edit_guidance: "Write a name, summary and content, then add structured details as needed.\nRelationships can connect entries across all categories, with custom labels, directions and notes. Each edge is stored once and visible from both ends. Existing faction memberships are preserved.\nThe graph centers on the current entry. Use + to expand neighbors; shared entries appear once and real edges may form cycles.\nLegacy free-text fields remain unchanged. Structure, notes, categories and deletion are in More."
+records.summary: "One-line summary"
+records.prose: "Description"
+records.prose_placeholder: "Describe this entry freely. Add details later…"
+records.name_required: "Enter a name first."
+records.create: "Create"
+records.editor_tabs: "Setting editor"
+records.tab_content: "Content"
+records.tab_relations: "Relationships"
+records.tab_more: "More"
+records.edit_structure: "Edit field structure"
+records.add_group: "＋ Add information group"
+records.no_more_groups: "All template groups have been added. Edit the structure under More."
+records.affiliations: "Affiliations"
+records.add_relation: "＋ Add relationship"
+records.create_linked: "Create and link"
+records.no_match_create: "No available entries. Create one to link it."
+records.relations_empty: "No relationships yet"
+records.relation_role: "Role / note (optional)"
+records.remove_relation: "Unlink"
+records.relations_legacy: "Relationships for this entry type remain in its description or existing fields."
+records.import_format: "File format"
+records.import_source: "Source file"
+records.pick_import_file: "Choose local file"
+sections.import_settings: "Import settings"
+sections.import_target: "Import into"
+sections.guidance: "Click a card to open it. Drag to reorder, or focus a card and press Alt + Left/Right.\nNavigation visibility does not delete entries.\nImport settings accepts JSON for characters, factions, world settings, maps, custom sections and memories.\nAutomatic classification is not available yet."
+sections.import_guidance: "Choose a destination and then a source or local file.\nJSON supports arrays, { \"items\": [...] }, and name-keyed objects. Same-name entries are merged; export a backup first. Relationships are not inferred from names.\nMap JSON requires rows, cols, cells and regions. Markdown can only be imported into Other settings."
+
+records.members_plain: "Members"
+records.relation_missing: "Deleted entry"
+
+sections.back_management: "← Settings management"
+sections.metadata_title: "Entry metadata"
+sections.metadata_help: "Manage the field template for this section: add groups or fields, rename them, adjust hierarchy and order, and enable or disable fields. End a new field name with / to create a group.\nEntries use these templates through Add information group. Template changes do not rewrite existing entries. Apply to all only adds missing fields and preserves existing values.\nExport the current template as JSON. All edits save automatically."
+
+workstation.more_settings: "More settings"
+workstation.pick_setting_records: "Choose entries"
+workstation.map_whole: "Include the full map and its regions."
+workstation.supplement: "Additional notes and requirements"
+workstation.supplement_placeholder: "Add context, style preferences, or constraints for this request…"
+workstation.no_settings_selected: "No settings selected"
+
+manuscript.to_chapter: "Save to chapters"
+
+manuscript.chapter_name: "Chapter name"
+
+manuscript.chapter_saved: "Saved to chapters"
+
+manuscript.new_folder: "New material folder"
+
+manuscript.all_materials: "All materials"
+
+manuscript.open_folder: "Open folder: {name}"
+
+manuscript.folder_count: "{count} materials"
+
+manuscript.move_material: "Move to folder"
+
+manuscript.move_material_title: "Move material: {title}"
+
+manuscript.folder_back: "Back"
+
+manuscript.folder_forward: "Forward"
+
+relations.search: "Search entries or categories"
+
+relations.type: "Relationship"
+
+relations.note: "Note (optional)"
+
+relations.direction: "Direction"
+
+relations.out: "Current entry → Target"
+
+relations.in: "Target → Current entry"
+
+relations.both: "Mutual relationship ↔"
+
+relations.filter: "Filter category"
+
+relations.all_categories: "All categories"
+
+relations.pick_target: "Choose an entry"
+
+relations.edit: "Edit relationship"
+
+relations.required: "Choose an entry and enter a relationship"
+
+relations.duplicate: "This relationship already exists"
+
+relations.direct: "Direct relationships · {count}"
+
+relations.remove_confirm: "Remove this relationship? Both entries will be kept."
+
+relations.graph: "Relationship graph"
+
+relations.center_here: "Center on entry"
+
+relations.expand: "Expand relationships"
+
+relations.collapse: "Collapse relationships"
+
+relations.current: "Current entry"
+
+relations.graph_count: "{nodes} entries · {edges} relationships"
+
+relations.limit: "60-node display limit reached"
+
+relations.zoom_out: "Zoom out"
+
+relations.zoom_in: "Zoom in"
+
+relations.reset: "Reset view"
+
+relations.hint: "Click a node to inspect; + expands its relationships. Drag to reposition; scroll to zoom."
+
+relations.large_view: "Open larger view"

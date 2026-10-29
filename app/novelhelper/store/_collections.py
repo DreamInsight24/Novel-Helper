@@ -23,11 +23,11 @@ from ._paths import COLLECTIONS, active_novel_id
 from ._repository import load
 
 def section_names() -> list:
-    """当前启用的栏目对应的存储名。"""
+    """所有已声明栏目的存储名，包括未在侧栏显示的栏目。"""
     out = []
     for item in (load("sections").get("items") or []):
         key = (item.get("key") or "").strip()
-        if key and item.get("on", True) is not False:
+        if key:
             out.append(section_store_name(key))
     return out
 
@@ -40,6 +40,14 @@ def load_all() -> dict:
     if "config" in result and active_novel_id():
         from ._novels import current_config
         result["config"] = current_config()
+    if active_novel_id():
+        from .. import relations
+        from ._repository import save
+        graph = relations.normalize(result.get("relations") or {}, result)
+        if graph != result.get("relations"):
+            save("relations", graph)
+        result["relations"] = graph
+        result["factions"] = relations.sync_memberships(result, graph)
     return result
 
 def load_all_names() -> list:

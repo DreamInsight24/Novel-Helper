@@ -257,6 +257,17 @@ class _ApiMixin:
             self._auto_sort()
             return
 
+        if path == "/api/chapters" and method == "POST":
+            body = self._body()
+            content = body.get("content") or ""
+            if not content.strip():
+                self._error(t('errors.empty_not_saved'))
+                return
+            target = project.write_chapter(content, str(body.get("name") or ""))
+            self._json({"ok": True, "path": str(target), "rel": project.rel_str(target),
+                        "chapters": project.list_chapters()})
+            return
+
         if path == "/api/output" and method == "POST":
             body = self._body()
             content = body.get("content") or ""
@@ -348,7 +359,8 @@ class _ApiMixin:
                 work_prompt=body.get("work_prompt") or "",
                 source_text=body.get("source_text") or "",
             )
-            self._json({"ok": True, "system": assembled["system"], "user": assembled["user"]})
+            prior = history.context_messages(body.get("session_id") or "") if surface == "workstation" else []
+            self._json({"ok": True, "system": assembled["system"], "user": assembled["user"], "history": prior})
             return
 
         if path == "/api/ai/ping" and method == "POST":
@@ -370,6 +382,18 @@ class _ApiMixin:
             session = history.set_current(body.get("id") or "")
             self._json({"ok": True, "current": history.current_session_id(),
                         "session": history.session_for_client(session, store.load_all()) if session else None})
+            return
+
+        if path == "/api/history/rename" and method == "POST":
+            body = self._body()
+            session = history.load_session(body.get("id") or "")
+            title = str(body.get("title") or "").strip()[:160]
+            if not session or not title:
+                self._error(t('errors.invalid_session_id'))
+                return
+            session["title"] = title
+            history.save_session(session)
+            self._json({"ok": True})
             return
 
         if path == "/api/history/new" and method == "POST":

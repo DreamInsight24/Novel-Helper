@@ -167,11 +167,28 @@ function md(text) {
 // ═══════════════════════════════════════════
 // 弹窗
 // ═══════════════════════════════════════════
-function modal(title, bodyNode, footNodes) {
+function modal(title, bodyNode, footNodes, onClose) {
   const root = document.getElementById('overlay-root');
-  const onKey = e => { if (e.key === 'Escape') close(); };
-  function close() { clear(root); document.removeEventListener('keydown', onKey); }
-  const dlg = h('div', { class: 'dialog' },
+  const onKey = e => {
+    if (e.key === 'Escape') { e.preventDefault(); close(); }
+    if (e.key === 'Tab') {
+      const controls = Array.from(dlg.querySelectorAll('button, input, textarea, select, summary, [tabindex="0"]'))
+        .filter(el => !el.disabled && el.getClientRects().length);
+      const first = controls[0], last = controls[controls.length - 1];
+      if (e.shiftKey && (document.activeElement === first || !dlg.contains(document.activeElement))) {
+        e.preventDefault(); last?.focus();
+      } else if (!e.shiftKey && (document.activeElement === last || !dlg.contains(document.activeElement))) {
+        e.preventDefault(); first?.focus();
+      }
+    }
+  };
+  let closed = false;
+  function close() {
+    if (closed) return;
+    closed = true; clear(root); document.removeEventListener('keydown', onKey);
+    if (onClose) onClose();
+  }
+  const dlg = h('div', { class: 'dialog', role: 'dialog', 'aria-modal': 'true', 'aria-label': title },
     h('h3', { text: title }),
     bodyNode,
     footNodes ? h('div', { class: 'dlg-foot' }, footNodes) : null);
@@ -283,6 +300,47 @@ function sectionDefs(includeHidden) {
   return raw.filter(s => s && s.key && (includeHidden || s.on !== false));
 }
 
+/** Navigation preferences use the existing sections collection; record formats stay intact. */
+function settingEntries(includeHidden) {
+  const prefs = ((state.db || {}).sections || {}).builtins || {};
+  const builtin = (id, coll, label, defaultOn) => {
+    const saved = prefs[id] || {};
+    return { id, coll, label: saved.label || label, desc: saved.desc || '', builtin: true,
+      on: saved.on === undefined ? defaultOn : saved.on !== false };
+  };
+  const sections = sectionDefs(true).map(sec => ({
+    id: 'section_' + sec.key, coll: 'section_' + sec.key, section: sec,
+    label: sec.key === 'world' && ['世界观', 'Worldview'].includes(sec.label)
+      ? i18n.t('nav.world_setting') : (sec.label || sec.key),
+    desc: sec.desc || '',
+    // Empty legacy presets remain available in management.
+    on: sec.on === undefined
+      ? sec.key === 'world' || !['species', 'magic', 'history', 'economy', 'rules', 'religion'].includes(sec.key)
+        || collItems('section_' + sec.key).length > 0
+      : sec.on !== false
+  }));
+  const world = sections.find(entry => entry.id === 'section_world');
+  const entries = [
+    builtin('characters', 'characters', i18n.t('nav.characters'), true),
+    ...(world ? [world] : []),
+    builtin('world', 'worldmap', i18n.t('nav.worldmap'), true),
+    builtin('factions', 'factions', i18n.t('nav.factions'), true),
+    ...sections.filter(entry => entry !== world),
+    builtin('inventory', null, i18n.t('nav.inventory'), false),
+    builtin('items', 'items', i18n.t('nav.items'), false),
+    builtin('equipment', 'equipment', i18n.t('nav.equipment'), false),
+    builtin('other', 'other', i18n.t('nav.other'), false)
+  ];
+  const order = ((state.db || {}).sections || {}).order || [];
+  const rank = id => order.includes(id) ? order.indexOf(id) : order.length;
+  entries.sort((a, b) => rank(a.id) - rank(b.id));
+  return includeHidden ? entries : entries.filter(entry => entry.on);
+}
+
+function settingLabel(id, fallback) {
+  return settingEntries(true).find(entry => entry.id === id)?.label || fallback;
+}
+
 function isSectionView(view) {
   return typeof view === 'string' && view.indexOf('section_') === 0;
 }
@@ -294,7 +352,7 @@ function defFor(view) {
   const key = view.slice('section_'.length);
   const sec = sectionDefs(true).find(s => s.key === key) || {};
   return {
-    coll: view, singular: i18n.t('collections.singular_entry'), label: sec.label || key, idPrefix: 'ot',
+    coll: view, singular: i18n.t('collections.singular_entry'), label: settingLabel(view, sec.label || key), idPrefix: 'ot',
     desc: sec.desc || i18n.t('sections.default_desc'),
     tagLabel: i18n.t('common.note'), notesLabel: i18n.t('common.field_notes'), hasCategory: true, hasContent: true
   };
@@ -398,24 +456,21 @@ async function persistConfig() {
   }
 }
 
-/** 把一段文本追加到稿件处理工作区（不清空已有内容）。 */
-function appendToTextPanel(content, quiet) {
+/** 工作站与章节转入的内容先进入当前小说的素材区。 */
+function appendToTextPanel(content, quiet, metadata = {}) {
   const text = String(content || '');
   if (!text.trim()) return;
-  const s = state.db.state = state.db.state || {};
-  const saved = s.textPanel = s.textPanel || {};
-  const base = state.ui.text ? state.ui.text.value : (saved.value || '');
-  const merged = base.trim() ? base.replace(/\s+$/, '') + '\n\n' + text : text;
-  if (state.ui.text) {
-    state.ui.text.value = merged;
-    state.ui.text.dirty = true;
-    saved.path = state.ui.text.path || saved.path || '';
-  }
-  saved.value = merged;
-  saved.dirty = true;
-  saved.updated = new Date().toISOString();
+  const saved = ((state.db.state = state.db.state || {}).textPanel = state.db.state.textPanel || {});
+  const source = {
+    id: newId('material'), title: metadata.title || text.split('\n').find(line => line.trim())?.replace(/^#+\s*/, '').slice(0, 50) || i18n.t('common.unnamed'),
+    content: text, source: metadata.source || 'ai', created: new Date().toISOString()
+  };
+  saved.materials = saved.materials || [];
+  saved.materials.push(source);
+  if (state.ui.text?.novelId === state.activeNovelId) state.ui.text.materials = saved.materials;
   touch('state', true);
-  if (!quiet) toast(i18n.t('common.appended_to_workspace'), 'ok');
+  if (!quiet) toast(i18n.t('manuscript.material_added'), 'ok');
+  return source;
 }
 
 // 浏览器端异常也写入本地日志，便于排查界面问题。
@@ -446,42 +501,60 @@ const HOME_NAV = [
 ];
 
 const NOVEL_NAV = [
-  { id: 'home', label: i18n.t('novels.back_home') },
+  { history: true },
   { group: i18n.t('nav.group_writing'), groupKey: 'writing' },
   { id: 'writer', label: i18n.t('nav.writer') },
   { id: 'chapters', label: i18n.t('nav.chapters') },
   { id: 'text', label: i18n.t('nav.text') },
-  { group: i18n.t('nav.group_core'), groupKey: 'core' },
-  { id: 'characters', label: i18n.t('nav.characters'), coll: 'characters' },
-  { id: 'inventory', label: i18n.t('nav.inventory') },
-  { id: 'world', label: i18n.t('nav.worldmap') },
-  { id: 'items', label: i18n.t('nav.items'), coll: 'items' },
-  { id: 'equipment', label: i18n.t('nav.equipment'), coll: 'equipment' },
-  { group: i18n.t('nav.group_custom'), groupKey: 'custom' },
-  { id: 'factions', label: i18n.t('nav.factions'), coll: 'factions' },
-  { sections: true },
-  { id: 'other', label: i18n.t('nav.other'), coll: 'other' },
+  { settings: true },
   { group: i18n.t('nav.group_memory'), groupKey: 'memory' },
   { id: 'memories', label: i18n.t('nav.memories'), coll: 'memories' },
   { group: i18n.t('nav.group_system'), groupKey: 'system' },
-  { id: 'elements', label: i18n.t('nav.elements') },
-  { id: 'sections', label: i18n.t('nav.sections') },
   { id: 'modes', label: i18n.t('nav.modes') },
   { id: 'settings', label: i18n.t('nav.settings') }
 ];
 
 function renderNav() {
+  if (state.ui.wsMenuClose) state.ui.wsMenuClose();
   const nav = document.getElementById('nav');
   clear(nav);
   state.ui.navCollapsed = state.ui.navCollapsed || {};
   const items = state.level === 'home' ? HOME_NAV : NOVEL_NAV;
   if (state.level === 'novel') {
     const active = state.novels.find(n => n.id === state.activeNovelId);
-    nav.appendChild(h('div', { class: 'nav-novel',
-      text: active && active.title ? active.title : i18n.t('common.unnamed') }));
+    const title = active?.title || i18n.t('common.unnamed');
+    nav.appendChild(h('div', { class: 'nav-novel' },
+      h('span', { class: 'nav-novel-title', text: title, title }),
+      h('button', { class: 'nav-novel-back', text: '↩', title: i18n.t('novels.back_home'),
+        'aria-label': i18n.t('novels.back_home'), onclick: () => go('home') })));
+
   }
   let skip = false;
   for (const entry of items) {
+    if (entry.history) { renderWorkstationHistory(nav); continue; }
+    if (entry.settings) {
+      const collapsed = state.ui.navCollapsed.settings !== false;
+      nav.appendChild(h('div', { class: 'nav-group nav-settings-head' },
+        h('button', { class: 'nav-settings-toggle',
+          'aria-expanded': String(!collapsed), 'aria-controls': 'setting-nav-items',
+          onclick: () => { state.ui.navCollapsed.settings = !collapsed; renderNav(); }
+        }, h('span', { text: collapsed ? '▸' : '▾', 'aria-hidden': 'true' }),
+          h('span', { text: i18n.t('nav.group_settings') })),
+        h('button', { class: 'nav-settings-manage' + (state.view === 'sections' ? ' active' : ''),
+          text: '⚙', title: i18n.t('nav.sections'), 'aria-label': i18n.t('nav.sections'),
+          onclick: () => go('sections') })));
+      const settingNav = h('div', { id: 'setting-nav-items', hidden: collapsed });
+      if (!collapsed) settingEntries().forEach(item => {
+        settingNav.appendChild(h('button', {
+          class: 'nav-item nav-setting-item' + (state.view === item.id ? ' active' : ''),
+          'aria-current': state.view === item.id ? 'page' : null,
+          onclick: () => go(item.id)
+        }, h('span', { text: item.label }), item.coll && item.coll !== 'worldmap'
+          ? h('span', { class: 'count', text: String(collItems(item.coll).length) }) : null));
+      });
+      nav.appendChild(settingNav);
+      continue;
+    }
     if (entry.group) {
       const toggleable = entry.groupKey === 'core' || entry.groupKey === 'custom';
       const collapsed = toggleable && state.ui.navCollapsed[entry.groupKey] !== false;
@@ -655,13 +728,16 @@ function confirmDeleteNovel(item) {
 }
 
 async function switchNovel(id) {
-  if (state.switchingNovel) return;
+  if (state.switchingNovel || state.ui.busy) return;
   state.switchingNovel = true;
   status(i18n.t('novels.switching'), 'busy');
   try {
+    if (state.ui.leave?.view === 'text') { const leave = state.ui.leave; state.ui.leave = null; await leave.fn(); }
     await flushPendingSaves();
+    const changedNovel = state.activeNovelId !== id;
     await api('/api/novels/open', { method: 'POST', body: { id } });
     state.activeNovelId = id;
+    if (changedNovel) { state.ui.text = null; state.ui.settingEditor = null; }
     state.level = 'novel';
     state.configMeta = null;
     await loadNovelList();
@@ -669,11 +745,18 @@ async function switchNovel(id) {
     await loadCurrentSession();
     state.view = 'writer';
     renderNav(); renderMain();
+    status(i18n.t('common.ready'), 'ok');
   } catch (error) { toast(error.message, 'err'); }
   finally { state.switchingNovel = false; }
 }
 
 function go(view) {
+  if (view === 'sections') state.ui.settingEditor = null;
+  else if (view === 'elements') {
+    state.ui.settingEditor = settingEntries(true).find(entry => entry.coll === state.ui.elements?.key)?.id
+      || settingEntries(true).find(entry => entry.coll && entry.coll !== 'worldmap')?.id || null;
+    state.ui.elemMode = 'tree'; view = 'sections';
+  }
   // 有些页（如稿件处理）需要在离开前把手上的内容落盘，各自注册 leave 钩子。
   const leave = state.ui.leave;
   if (leave && leave.view === state.view && leave.view !== view) {
@@ -701,6 +784,7 @@ function go(view) {
 function renderMain() {
   const main = document.getElementById('main');
   const keepTop = main.scrollTop;
+  main.classList.toggle('writer-main', state.view === 'writer');
   clear(main);
   if (state.debug) {
     main.appendChild(h('div', { class: 'debug-strip',
@@ -715,9 +799,22 @@ function renderMain() {
   if (map[state.view]) map[state.view](main);
   else if (defFor(state.view)) viewRecords(main, state.view);
   else main.appendChild(h('div', { class: 'card muted', text: i18n.t('common.unknown_page') }));
-  main.appendChild(h('div', {class: 'small muted', text: i18n.t('common.data_content')}));
+  if (!['writer', 'text'].includes(state.view)) main.appendChild(h('div', {class: 'small muted', text: i18n.t('common.data_content')}));
   i18n.apply(main);
   main.scrollTop = keepTop;
+}
+
+function guidanceButton(title, text) {
+  return h('button', {class:'guidance-button',text:'?',title,dataset:{noclose:'1'},'aria-label':title,onclick:e=>{
+    const anchor=e.currentTarget;
+    const popup=h('div',{class:'guidance-popup',popover:'auto',role:'dialog','aria-label':title},
+      h('strong',{text:title}),h('p',{text}));
+    popup.addEventListener('toggle',()=>{if(!popup.matches(':popover-open')) popup.remove();});
+    document.body.appendChild(popup);popup.showPopover();
+    const rect=anchor.getBoundingClientRect();
+    popup.style.left=Math.max(8,Math.min(rect.right-popup.offsetWidth,window.innerWidth-popup.offsetWidth-8))+'px';
+    popup.style.top=Math.max(8,Math.min(rect.bottom+8,window.innerHeight-popup.offsetHeight-8))+'px';
+  }});
 }
 
 function pageHead(title, desc, actions) {

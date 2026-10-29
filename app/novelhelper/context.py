@@ -49,6 +49,32 @@ def render_elements(nodes, head: int = 0) -> list:
     return el.render_md(nodes, head)
 
 
+def record_prose(rec: dict) -> list:
+    lines = []
+    summary = str(rec.get("summary") or "").strip()
+    content = str(rec.get("content") or "").strip()
+    if summary:
+        lines.append(f"- 概述：{summary}")
+    if content:
+        lines += ["", content]
+    return lines
+
+
+def faction_members(rec: dict) -> list[tuple[str, str]]:
+    """Read both legacy object pointers and canonical member IDs."""
+    roles = rec.get("member_roles") if isinstance(rec.get("member_roles"), dict) else {}
+    seen = set()
+    result = []
+    for entry in rec.get("members") or []:
+        mid = entry if isinstance(entry, str) else entry.get("id") if isinstance(entry, dict) else None
+        if not isinstance(mid, str) or not mid or mid in seen:
+            continue
+        seen.add(mid)
+        note = roles.get(mid) or (entry.get("note") if isinstance(entry, dict) else "") or ""
+        result.append((mid, str(note)))
+    return result
+
+
 def render_item(rec: dict) -> str:
     if not rec:
         return ""
@@ -56,6 +82,7 @@ def render_item(rec: dict) -> str:
     if rec.get("category"):
         lines.append(f"- 类别：{rec['category']}")
     lines += render_elements(rec.get("elements"))
+    lines += record_prose(rec)
     if (rec.get("notes") or "").strip():
         lines += ["", rec["notes"].strip()]
     return "\n".join(lines)
@@ -108,6 +135,7 @@ def render_equipment(rec: dict) -> str:
     if meta:
         lines.append("- " + "；".join(meta))
     lines += render_elements(rec.get("elements"))
+    lines += record_prose(rec)
     if (rec.get("notes") or "").strip():
         lines += ["", rec["notes"].strip()]
     return "\n".join(lines)
@@ -118,6 +146,15 @@ def render_character(rec: dict, db: dict) -> str:
         return ""
     lines = [f"### {_title(rec)}"]
     lines += render_elements(rec.get("elements"))
+    lines += record_prose(rec)
+
+    affiliations = []
+    for faction in (db.get("factions") or {}).get("items") or []:
+        for mid, note in faction_members(faction):
+            if mid == rec.get("id"):
+                affiliations.append(_title(faction) + (f"（{note}）" if note else ""))
+    if affiliations:
+        lines.append(f"- 所属势力：{'、'.join(affiliations)}")
 
     purse = (rec.get("purse") or "").strip()
     if purse:
@@ -154,6 +191,7 @@ def loadout(rec: dict, db: dict) -> dict:
             if target:
                 head = _title(target)
                 detail = el.render_md(target.get("elements"), 0)
+                detail += record_prose(target)
             else:
                 head = f"（指针失效：{rid}）"
                 detail = []
@@ -189,8 +227,9 @@ def render_faction(rec: dict, db: dict) -> str:
         return ""
     lines = [f"### {_title(rec)}"]
     lines += render_elements(rec.get("elements"))
+    lines += record_prose(rec)
     chars = _index(db.get("characters"))
-    members = [(_title(chars[mid]) if chars.get(mid) else f"（指针失效：{mid}）") for mid in (rec.get("members") or [])]
+    members = [(_title(chars[mid]) if chars.get(mid) else f"（指针失效：{mid}）") + (f"（{note}）" if note else "") for mid, note in faction_members(rec)]
     if members:
         lines.append(f"- 成员：{'、'.join(members)}")
     if (rec.get("notes") or "").strip():
@@ -203,8 +242,9 @@ def render_other(rec: dict) -> str:
         return ""
     lines = [f"### {_title(rec)}"]
     lines += render_elements(rec.get("elements"))
-    if (rec.get("content") or "").strip():
-        lines += ["", rec["content"].strip()]
+    lines += record_prose(rec)
+    if (rec.get("notes") or "").strip():
+        lines += ["", rec["notes"].strip()]
     return "\n".join(lines)
 
 
@@ -367,6 +407,62 @@ def _strict_length(config: dict, selection: dict) -> bool:
     return bool(value)
 
 
+def render_record_selection(db: dict, selection: dict) -> list[str]:
+    mapping = selection.get("record_selections") or {}
+    categories = selection.get("setting_categories")
+    active = set(categories) if isinstance(categories, list) else set(mapping)
+    labels = {"characters": "人物档案", "memories": "故事记忆", "factions": "势力设定", "items": "道具设定", "equipment": "服饰与装备", "other": "其他设定"}
+    custom = {"section_" + sec["key"] for sec in (db.get("sections") or {}).get("items") or [] if sec.get("key")}
+    parts = []
+    for coll, ids in mapping.items():
+        if coll not in active or coll not in set(labels) | custom:
+            continue
+        records = _pick(db, coll, ids)
+        if coll == "characters":
+            body = "\n\n".join(render_character(rec, db) for rec in records)
+        elif coll == "factions":
+            body = "\n\n".join(render_faction(rec, db) for rec in records)
+        elif coll == "items":
+            body = "\n\n".join(render_item(rec) for rec in records)
+        elif coll == "equipment":
+            body = "\n\n".join(render_equipment(rec) for rec in records)
+        elif coll == "memories":
+            body = "\n\n".join(render_memory(rec) for rec in records)
+        else:
+            body = "\n\n".join(render_other(rec) for rec in records)
+        if not body.strip():
+            continue
+        prefs = ((db.get("sections") or {}).get("builtins") or {}).get(coll) or {}
+        label = section_label(db, coll[8:]) if coll in custom else prefs.get("label") or labels[coll]
+        parts.append(f"## {label}\n\n{body}")
+    if (selection.get("include") or {}).get("worldmap"):
+        body = render_worldmap(db.get("worldmap") or {})
+        if body.strip():
+            parts.append(f"## 世界地图\n\n{body}")
+    return parts
+
+
+def render_selected_relations(db: dict, selection: dict) -> str:
+    from .relations import catalog, ref_key
+    mapping = selection.get("record_selections")
+    if not isinstance(mapping, dict):
+        return ""
+    active = set(selection.get("setting_categories", mapping.keys()))
+    selected = {(coll, rid) for coll, ids in mapping.items() if coll in active for rid in ids}
+    pool = catalog(db)
+    lines = []
+    for edge in (db.get("relations") or {}).get("items", []):
+        a, b = ref_key(edge["source"]), ref_key(edge["target"])
+        if a not in selected or b not in selected or a not in pool or b not in pool:
+            continue
+        left = pool[a].get("name") or pool[a].get("title") or a[1]
+        right = pool[b].get("name") or pool[b].get("title") or b[1]
+        arrow = "→" if edge.get("directed", True) else "↔"
+        note = "（" + edge["note"] + "）" if edge.get("note") else ""
+        lines.append(f"- {left} {arrow} {right}：{edge['type']}{note}")
+    return "## 条目关联\n\n" + "\n".join(lines) if lines else ""
+
+
 def build_user_message(
     config: dict,
     db: dict,
@@ -395,49 +491,56 @@ def build_user_message(
         path = entry.get("path") or "附加资料"
         parts.append(f"## 附加资料 · {path}\n\n{content}")
 
-    # 世界观 / 自定义栏目：按栏目名称分组，条目名由 render_other 自动生成
-    if include.get("world"):
-        for label, records in selected_world_groups(db, selection.get("world_ids")):
-            body = "\n\n".join(render_other(rec) for rec in records if rec)
-            if body.strip():
-                parts.append(f"## {label}\n\n{body}")
+    if isinstance(selection.get("record_selections"), dict):
+        parts.extend(render_record_selection(db, selection))
+    else:
+        # 世界观 / 自定义栏目：按栏目名称分组，条目名由 render_other 自动生成
+        if include.get("world"):
+            for label, records in selected_world_groups(db, selection.get("world_ids")):
+                body = "\n\n".join(render_other(rec) for rec in records if rec)
+                if body.strip():
+                    parts.append(f"## {label}\n\n{body}")
 
-    # 世界地图
-    if include.get("worldmap"):
-        map_md = render_worldmap(db.get("worldmap") or {})
-        if map_md.strip():
-            parts.append(f"## 世界地图\n\n{map_md}")
+        # 世界地图
+        if include.get("worldmap"):
+            map_md = render_worldmap(db.get("worldmap") or {})
+            if map_md.strip():
+                parts.append(f"## 世界地图\n\n{map_md}")
 
-    # 当前状态
-    state = (selection.get("current_state") or "").strip()
-    if include.get("state") and state:
-        parts.append(f"## 当前状态\n\n{state}")
+        # 当前状态
+        state = (selection.get("current_state") or "").strip()
+        if include.get("state") and state:
+            parts.append(f"## 当前状态\n\n{state}")
 
-    # 记忆
-    if include.get("memory"):
-        mems = _pick(db, "memories", selection.get("memory_ids"))
-        cats = selection.get("memory_categories") or []
-        if cats:
-            mems = [m for m in mems if (m.get("category") or "") in set(cats)]
-        mem_md = "\n\n".join(render_memory(rec) for rec in mems if rec)
-        if mem_md.strip():
-            parts.append(f"## 故事记忆\n\n{mem_md}")
+        # 记忆
+        if include.get("memory"):
+            mems = _pick(db, "memories", selection.get("memory_ids"))
+            cats = selection.get("memory_categories") or []
+            if cats:
+                mems = [m for m in mems if (m.get("category") or "") in set(cats)]
+            mem_md = "\n\n".join(render_memory(rec) for rec in mems if rec)
+            if mem_md.strip():
+                parts.append(f"## 故事记忆\n\n{mem_md}")
 
-    # 人物
-    if include.get("characters"):
-        chars = _pick(db, "characters", selection.get("character_ids"))
-        char_md = "\n\n".join(render_character(rec, db) for rec in chars if rec)
-        if char_md.strip():
-            parts.append(f"## 人物档案\n\n{char_md}")
+        # 人物
+        if include.get("characters"):
+            chars = _pick(db, "characters", selection.get("character_ids"))
+            char_md = "\n\n".join(render_character(rec, db) for rec in chars if rec)
+            if char_md.strip():
+                parts.append(f"## 人物档案\n\n{char_md}")
 
-    # 势力
-    if include.get("factions"):
-        facs = _pick(db, "factions", selection.get("faction_ids"), default_all=True)
-        fac_md = "\n\n".join(render_faction(rec, db) for rec in facs if rec)
-        if fac_md.strip():
-            parts.append(f"## 势力设定\n\n{fac_md}")
+        # 势力
+        if include.get("factions"):
+            facs = _pick(db, "factions", selection.get("faction_ids"), default_all=True)
+            fac_md = "\n\n".join(render_faction(rec, db) for rec in facs if rec)
+            if fac_md.strip():
+                parts.append(f"## 势力设定\n\n{fac_md}")
 
-    # 道具 / 服饰与装备不单独发送：它们跟着人物的背包与穿戴走。
+        # 道具 / 服饰与装备不单独发送：它们跟着人物的背包与穿戴走。
+
+    relation_text = render_selected_relations(db, selection)
+    if relation_text:
+        parts.append(relation_text)
 
     extra = (selection.get("extra") or "").strip()
     if extra:

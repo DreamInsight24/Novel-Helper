@@ -43,6 +43,26 @@ def write_output(content: str, mode_label: str = "AI 工作站生成", name: str
     return target
 
 
+def write_chapter(content: str, name: str) -> Path:
+    import re
+
+    title = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', name).strip(' .') or 'chapter'
+    title = re.sub(r'\.(txt|md)$', '', title, flags=re.IGNORECASE)[:120].strip(' .') or 'chapter'
+    if title.upper() in {'CON', 'PRN', 'AUX', 'NUL', *[f'COM{i}' for i in range(1, 10)], *[f'LPT{i}' for i in range(1, 10)]}:
+        title = '_' + title
+    directory = out_dir()
+    directory.mkdir(parents=True, exist_ok=True)
+    number = 1
+    while True:
+        target = directory / (title + (f' ({number})' if number > 1 else '') + '.txt')
+        try:
+            with target.open('x', encoding='utf-8') as output:
+                output.write(content)
+            return target
+        except FileExistsError:
+            number += 1
+
+
 def write_plan(content: str, chapter: str = "") -> Path:
     """写作计划，按新规矩用 .txt。"""
     target_dir = plan_dir()

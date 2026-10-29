@@ -71,6 +71,7 @@ COLLECTIONS = (
     "worldmap",
     "meta",
     "history",
+    "relations",
 )
 
 RECORD_COLLECTIONS = ("characters", "factions", "items", "equipment", "other", "memories")
