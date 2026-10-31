@@ -80,7 +80,9 @@ app/novelhelper/
 - `ports.normalize_server_config` 在启动时把旧配置迁移为 `server.port_mode`：无端口或旧默认端口（普通 8765 / 调试 8766）转为 `auto`，其他合法端口保留为 `fixed`；无效显式端口抛出 `PortConfigError`，不静默回退。
 - 端口优先级为 `--port` > 全局固定端口 > 自动分配。自动模式绑定端口 0，从 `httpd.server_address[1]` 读取实际端口；`--port 0` 被明确拒绝。
 - `desktop.ServerRuntime` 在守护线程中运行 HTTP 服务，`desktop.open_window` 在主线程调用 pywebview；窗口关闭后依次 `shutdown()`、`server_close()`、等待服务线程退出。
-- 默认创建 `1440×900`、最小 `1024×720` 的可缩放窗口；`--no-window` 只启动服务，`--no-browser` 是兼容别名，`--check`/`--version` 不依赖 GUI。
+- 默认创建 `1280×800`、最小 `1024×720` 的可缩放窗口；`desktop.window_bounds` 按主屏工作区收缩并居中，启动位置和尺寸不持久化，最大化关闭后重启仍回到默认状态。
+- 窗口先加载 `app/resources/splash.html` 开屏页，至少显示 1.2 秒并淡出后再导航到应用 URL；`desktop.splash_html` 将图标以 data URI 内联，避免依赖本地文件协议。
+- 打包 EXE 使用窗口子系统（`console=False`），双击不出现控制台；`--no-window` 只启动服务，`--no-browser` 是兼容别名，`--check`/`--version` 不依赖 GUI，终端或 CI 重定向时仍可输出。统一图标同时用于 EXE、WinForms 窗口和网页 favicon。
 - pywebview 在真正创建窗口时才导入。WebView2/pywebview 不可用时给出安装指引与日志提示，不回退浏览器；Windows 下同时尽力显示原生错误框。
 - 服务绑定在 Windows 上关闭 `SO_REUSEADDR`，确保显式固定端口被占用时直接失败，而不是静默复用端口。
 

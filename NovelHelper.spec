@@ -25,7 +25,7 @@ ROOT = Path(SPECPATH)
 
 datas = [
     (str(ROOT / "app" / "novelhelper" / "web"), "novelhelper/web"),
-    (str(ROOT / "app" / "resources" / "localization"), "resources/localization"),
+    (str(ROOT / "app" / "resources"), "resources"),
 ]
 binaries = []
 hiddenimports = [
@@ -80,10 +80,11 @@ exe = EXE(
     upx=False,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=True,
+    console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon=str(ROOT / "app" / "resources" / "NovelHelper.ico"),
 )

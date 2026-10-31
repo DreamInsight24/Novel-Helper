@@ -26,7 +26,8 @@ httpd.serve_forever()
 - 端口优先级：`--port` > 全局配置的固定端口 > 系统自动分配。`--port 0`、非数字、越界值均直接报错退出；固定端口冲突不回退。
 - 全局配置使用 `server.host`、`server.port_mode`（`auto`/`fixed`）与可选的 `server.port`。旧配置在 `store.ensure_dirs()` 中迁移：缺失端口或旧默认端口（普通 8765 / 调试 8766）转为 `auto`，其他合法端口保留为 `fixed`。
 - `POST /api/settings/config` 在 `scope=global` 时校验端口配置；`server` 属于全局配置，小说配置不会保存端口覆盖。
-- 窗口默认 1440×900、最小 1024×720。关闭窗口后停止服务并等待线程退出；pywebview/WebView2 不可用时提示安装运行时，不退回浏览器。
+- 窗口默认 1280×800、最小 1024×720，并按主屏工作区收缩后居中；位置和尺寸不持久化，最大化关闭后重启仍恢复默认。关闭窗口后停止服务并等待线程退出；pywebview/WebView2 不可用时提示安装运行时，不退回浏览器。
+- 窗口先显示至少 1.2 秒的开屏页再加载应用；打包 EXE 使用窗口子系统，双击不出现控制台。EXE、窗口和网页 favicon 共用 `app/resources/NovelHelper.ico`（网页使用 `web/icon.png`）。
 
 ## 小说与配置接口
 

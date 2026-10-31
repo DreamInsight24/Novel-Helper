@@ -12,8 +12,11 @@
 
 1. 打开 [最新版本](https://github.com/DreamInsight24/Novel-Helper/releases/latest)，下载 `NovelHelper.exe`。
 2. 把 EXE 放进一个有写入权限的文件夹，例如 `D:\NovelHelper\`，再双击运行。
-3. 应用会直接打开 NovelHelper 窗口，不再自动打开浏览器；端口由系统自动分配。关闭窗口即停止服务。
-4. Windows 10/11 需要 [Microsoft Edge WebView2 Runtime](https://go.microsoft.com/fwlink/p/?LinkId=2124703)。Windows 11 和较新的 Windows 10 通常已内置；缺失时程序会给出安装提示，不会静默改用浏览器。
+3. 应用会直接打开 NovelHelper 窗口，不再自动打开浏览器；端口由系统自动分配。启动时先显示约 1.2 秒的开屏页，关闭窗口即停止服务。
+4. 窗口每次启动都会在主屏工作区内居中，并按屏幕大小自动收缩，不会出现在右下角或超出屏幕；最大化后关闭再打开，也会恢复默认的大小和位置。
+5. EXE 是窗口程序，双击不会弹出控制台或命令行窗口；启动失败时会用原生对话框提示并写入 `log/`。
+6. EXE、窗口标题栏和网页图标使用统一的 NovelHelper 图标。
+7. Windows 10/11 需要 [Microsoft Edge WebView2 Runtime](https://go.microsoft.com/fwlink/p/?LinkId=2124703)。Windows 11 和较新的 Windows 10 通常已内置；缺失时程序会给出安装提示，不会静默改用浏览器。
 
 EXE 是单文件便携版，不需要安装。首次启动会在 EXE 旁边创建 `data/`、`workspace/` 和 `log/`，升级时只需替换 EXE。请保留这三个目录，否则设定、对话历史和导出文件不会保留。
 
@@ -53,7 +56,7 @@ $env:NOVELHELPER_HOME = "D:\NovelHelperData"
 ```bash
 python app/run.py                  # 打开桌面窗口
 python app/run.py --port 9000      # 本次使用固定端口
-python app/run.py --no-window      # 只启动本地服务，在控制台查看访问地址
+python app/run.py --no-window      # 只启动本地服务（源码运行时在控制台查看地址）
 ```
 
 不使用 `--port` 时，程序会读取全局配置 `app/data/config.json` 的端口设置。默认使用 `port_mode=auto`，由系统分配空闲端口；固定端口冲突会直接报错退出，不会自动换端口，也不会打开浏览器。`--no-browser` 仍可用，但已弃用，等同 `--no-window`。
@@ -191,7 +194,7 @@ python app/selftest.py
 
 ## 打包 Windows EXE
 
-本项目只保留一种 EXE 打包方式：[PyInstaller](https://pyinstaller.org/) 单文件构建，配置为 `NovelHelper.spec`。它会把 Python、`openai`、`pywebview`/pythonnet 依赖和网页资源一起打进单个 `NovelHelper.exe`。仓库不提供 `.bat` 启动脚本，也不维护其他打包器配置。
+本项目只保留一种 EXE 打包方式：[PyInstaller](https://pyinstaller.org/) 单文件构建，配置为 `NovelHelper.spec`。它会把 Python、`openai`、`pywebview`/pythonnet 依赖、图标、开屏页和网页资源一起打进单个 `NovelHelper.exe`。EXE 使用窗口子系统（`console=False`），双击不会弹出控制台；仓库不提供 `.bat` 启动脚本，也不维护其他打包器配置。
 
 ### 本地打包
 
@@ -215,13 +218,20 @@ python -m venv .venv
 
 构建结果位于 `dist\NovelHelper.exe`，可直接复制到其他 Windows 电脑运行。`build/`、`dist/` 已加入 `.gitignore`，不会提交到仓库。
 
-建议再手动启动一次窗口，确认首页加载、WebView2 正常、关闭窗口后进程退出：
+建议再手动启动一次窗口，确认开屏页至少显示约 1 秒、窗口居中且不超出屏幕、图标正常、首页加载、WebView2 可用，以及关闭窗口后进程退出：
 
 ```powershell
 .\dist\NovelHelper.exe
 ```
 
 `--check` 和 `exe_smoke_test.py` 会检查打包资源、版本、服务模式以及配置和历史的持久化；冒烟测试使用临时目录，不会修改真实数据。WebView2 缺失时程序会提示安装运行时，不会退回浏览器。
+
+EXE 是窗口程序，PowerShell 直接运行 `--check` 时可能不等待进程结束；需要等待并取得退出码时使用：
+
+```powershell
+$check = Start-Process .\dist\NovelHelper.exe -ArgumentList '--check' -Wait -NoNewWindow -PassThru
+$check.ExitCode
+```
 
 如果构建时出现无关第三方包的 hook 报错，删除 `.venv` 后按上面的步骤重建干净环境；如果 `dist` 中的 EXE 正在运行，先关闭再重新构建。
 
