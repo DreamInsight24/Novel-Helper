@@ -22,8 +22,9 @@ from typing import Any
 
 from .. import prompts as prompts_mod, providers
 from ..localization import t
+from ..ports import default_server_config
 from ._names import is_section, new_id, now_str
-from ._paths import DEBUG_MODE, DEFAULT_LOG_DIR
+from ._paths import DEFAULT_LOG_DIR
 
 def default_config() -> dict:
     return {
@@ -32,7 +33,7 @@ def default_config() -> dict:
         "initialized": True,
         "active_novel_id": "",
         "api": providers.default_api_config(),
-        "server": {"host": "127.0.0.1", "port": 8766 if DEBUG_MODE else 8765},
+        "server": default_server_config(),
         "onboarding": {"done": False, "version": 1},
         "efforts": list(providers.EFFORTS),
         "writing": {

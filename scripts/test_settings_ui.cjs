@@ -66,6 +66,19 @@ assert.equal(run(`matchesRecordFilter({category: 'Weapon', tags: ['common']}, ''
 assert.deepEqual(plain(run(`recordTags({tags: ['rare', ' rare ', '', 'common']})`)), ['rare', 'common']);
 assert.deepEqual(plain(run(`recordCategoryNames(state.db.section_world)`)), ['History']);
 
+// Port mode stays model-free: auto removes the fixed value; fixed keeps a valid 1-65535 port.
+assert.equal(run(`validPortNumber('65535')`), 65535);
+assert.equal(run(`validPortNumber('0')`), null);
+assert.equal(run(`validPortNumber('1.5')`), null);
+assert.equal(run(`validPortNumber('abc')`), null);
+run(`providerById = () => ({base_url: '', models: [], default_model: '', default_effort: 'medium'});
+     globalThis.autoCfg = {api: {}, server: {host: '127.0.0.1', port: 8765}, writing: {}, paths: {}};
+     ensureApiProfiles(globalThis.autoCfg);`);
+assert.deepEqual(plain(run(`globalThis.autoCfg.server`)), {host: '127.0.0.1', port_mode: 'auto'});
+run(`globalThis.fixedCfg = {api: {}, server: {host: '127.0.0.1', port_mode: 'fixed', port: '9000'}, writing: {}, paths: {}};
+     ensureApiProfiles(globalThis.fixedCfg);`);
+assert.deepEqual(plain(run(`globalThis.fixedCfg.server`)), {host: '127.0.0.1', port_mode: 'fixed', port: 9000});
+
 // Moving to the front, end, or either side preserves unrelated cards and hidden entries.
 const order = ['characters', 'section_world', 'world', 'factions', 'items'];
 context.testOrder = order;

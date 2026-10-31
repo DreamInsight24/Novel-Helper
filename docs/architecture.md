@@ -59,7 +59,9 @@ app/novelhelper/
   providers.py         # 提供商目录，保持独立模块
   tool_prompts.py      # 内置工具提示词与调用参数（记忆压缩等），保持独立模块
   setting_gen.py       # AI 设定生成：目标目录、隐藏提示词、分块抽取、校验映射、事务写入与撤销，保持独立模块
-  app.py               # 应用入口，保持原位置
+  ports.py             # 端口配置迁移、校验、优先级解析与错误消息
+  desktop.py           # pywebview 懒加载、窗口参数、ServerRuntime 与原生错误框
+  app.py               # 应用入口：参数、服务启动、窗口/服务模式与清理
   web/                 # 前端资源（HTML/CSS/JS）
 ```
 
@@ -71,6 +73,18 @@ app/novelhelper/
 - 每本小说的 `config.json` 在创建时复制当时的全局配置作为初值，并按顶层配置项记录 `use_global` 与 `values`。`use_global=true` 时有效值取全局配置；否则取小说覆盖值。创建默认所有可继承项跟随全局；日志、语言、首次引导和活动小说选择仍由全局配置管理。
 - 历史索引和会话文件位于小说数据目录；全局日志目录仍由全局配置管理。删除小说时数据目录及工作区通过 Windows Shell 移入系统回收站；失败时保留数据并返回可读错误。元数据正常时以标题确认，元数据损坏时以小说 ID 确认。
 - `store._layout` 在活动小说启动/打开时执行一次性 v2 布局迁移：补齐内置设定栏目并默认显示，将旧 `equipment` 记录按原 ID 合并进 `items`，同步人物装备指针与关系引用；迁移前在小说目录写入 `migration_backups/v2_<时间戳>/` 快照，迁移幂等。
+- `server` 配置属于全局配置，不参与小说级覆盖；`_novels._GLOBAL_ONLY_KEYS` 会从小说配置中移除 `server`。端口解析只在 `ports` 中进行，HTTP 服务按解析结果绑定。
+
+### v2610.3 桌面启动与端口
+
+- `ports.normalize_server_config` 在启动时把旧配置迁移为 `server.port_mode`：无端口或旧默认端口（普通 8765 / 调试 8766）转为 `auto`，其他合法端口保留为 `fixed`；无效显式端口抛出 `PortConfigError`，不静默回退。
+- 端口优先级为 `--port` > 全局固定端口 > 自动分配。自动模式绑定端口 0，从 `httpd.server_address[1]` 读取实际端口；`--port 0` 被明确拒绝。
+- `desktop.ServerRuntime` 在守护线程中运行 HTTP 服务，`desktop.open_window` 在主线程调用 pywebview；窗口关闭后依次 `shutdown()`、`server_close()`、等待服务线程退出。
+- 默认创建 `1280×800`、最小 `1024×720` 的可缩放窗口；`desktop.window_bounds` 按主屏工作区收缩并居中，启动位置和尺寸不持久化，最大化关闭后重启仍回到默认状态。
+- 窗口先加载 `app/resources/splash.html` 开屏页，至少显示 1.2 秒并淡出后再导航到应用 URL；`desktop.splash_html` 将图标以 data URI 内联，避免依赖本地文件协议。
+- 打包 EXE 使用窗口子系统（`console=False`），双击不出现控制台；`--no-window` 只启动服务，`--no-browser` 是兼容别名，`--check`/`--version` 不依赖 GUI，终端或 CI 重定向时仍可输出。统一图标同时用于 EXE、WinForms 窗口和网页 favicon。
+- pywebview 在真正创建窗口时才导入。WebView2/pywebview 不可用时给出安装指引与日志提示，不回退浏览器；Windows 下同时尽力显示原生错误框。
+- 服务绑定在 Windows 上关闭 `SO_REUSEADDR`，确保显式固定端口被占用时直接失败，而不是静默复用端口。
 
 ### 现状与配置交接（P0）
 
@@ -99,6 +113,9 @@ app/novelhelper/
 | `server` | HTTP 服务、静态资源和 API 编排 | `ai`、`context`、`history`、`logger`、`project`、`store` 等 | P3 已实施；接口见 `docs/api/server.md` |
 | `ai`、`context`、`elements`、`history`、`logger`、`prompts`、`providers`、`tool_prompts` | 保留职责相对单一的模块，作为根包公开模块 | 依具体模块而定；依赖方向以迁移计划为准 | 已保留；符号基线见 `docs/restructure/public-api-baseline.md` |
 | `setting_gen` | AI 设定生成：目标目录构建、隐藏系统提示词、按段落分块与修复重试、结果校验与确定性映射、事务写入与指纹撤销 | `store`、`logger`、`localization`；`server/_generation` 通过 `extract_records` / `validate_batch` / `write_batch` / `undo_last_batch` 调用 | v2610.3 任务 3 新增；接口见 `docs/api/server.md` 的 AI 设定生成接口 |
+| `ports` | 端口配置迁移、显式端口校验、优先级解析与错误消息 | 仅标准库 | v2610.3 任务 4 新增；供 `store`、`server` 与 `app` 使用 |
+| `desktop` | pywebview 懒加载、窗口参数、HTTP 服务线程与清理、Windows 错误框 | 标准库；仅在打开窗口时导入 pywebview | v2610.3 任务 4 新增 |
+| `app` | CLI 参数、启动顺序、服务/窗口模式、失败退出与日志 | `desktop`、`ports`、`server`、`store`、`logger` | v2610.3 任务 4 调整；`--no-window` 为测试入口 |
 
 `store`、`project` 与 `server` 均有接口说明。P1-P3 包内依赖如下；私有实现不反向导入所属包的 `__init__`：
 
@@ -106,12 +123,12 @@ app/novelhelper/
 |---|---|
 | `_paths` | 无 |
 | `_names` | `_paths` |
-| `_defaults` | `_names`、`_paths`、`prompts`、`providers` |
+| `_defaults` | `_names`、`_paths`、`ports`、`prompts`、`providers` |
 | `_repository` | `_defaults`、`_names`、`_paths`、`elements` |
 | `_localized` | `_defaults`、`_repository`、`localization` |
 | `_directories` | `_paths`、`_repository` |
 | `_collections` | `_names`、`_paths`、`_repository` |
-| `_bootstrap` | `_defaults`、`_directories`、`_paths`、`_repository`、`prompts`、`providers` |
+| `_bootstrap` | `_defaults`、`_directories`、`_paths`、`_repository`、`ports`、`prompts`、`providers` |
 | `_layout` | `_defaults`、`_names`、`_paths`、`_repository` |
 | `_backup` | `_collections`、`_directories`、`_names`、`_repository` |
 | `__init__` | 汇总导出，不承载业务实现 |
@@ -136,7 +153,7 @@ app/novelhelper/
 | `_state` | `threading` |
 | `_helpers` | `ai`、`context` |
 | `_base` | `_helpers`、`_state`、`ai`、`logger`、`store` |
-| `_api` | `_helpers`、`_state`、`ai`、`context`、`history`、`logger`、`project`、`prompts`、`providers`、`store` |
+| `_api` | `_helpers`、`_state`、`ai`、`context`、`history`、`logger`、`ports`、`project`、`prompts`、`providers`、`store` |
 | `_records` | `elements`、`logger`、`project`、`store` |
 | `_generation` | `_helpers`、`_state`、`ai`、`context`、`history`、`logger`、`project`、`prompts`、`providers`、`setting_gen`、`store`、`tool_prompts` |
 | `_handler` | `_api`、`_base`、`_generation`、`_records`、`store` |
@@ -150,7 +167,7 @@ app/novelhelper/
 
 | 路径 | 说明 |
 |---|---|
-| `app/run.py` 等启动入口 | 启动方式与端口不变 |
+| `app/run.py` 等启动入口 | v2610.2 重构期间不改；v2610.3 任务 4 已按桌面化与动态端口需求调整，见第 2 节 |
 | `app/__init__.py` | 不修改 |
 | `app/novelhelper/__init__.py` | 仅允许 re-export 公共 API 与声明 `__all__`，不含业务逻辑 |
 | `app/novelhelper/web/` | 前端资源整体不动，任务 3.1、3.2 才修改文案与语言 UI |
@@ -158,7 +175,7 @@ app/novelhelper/
 
 ## 5. 行为不变约束
 
-结构重构期间，以下内容不得改变：
+以下为 v2610.2 结构重构期间的约束；v2610.3 的功能/启动改动按对应需求文档执行，并在此记录差异。
 
 - 对外 URL 与路由；
 - JSON 存储路径与格式；

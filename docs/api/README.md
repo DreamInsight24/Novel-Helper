@@ -10,12 +10,14 @@
 | `novelhelper.project` | 工作区路径、导入导出、稿件输出、文本处理与文件浏览 | [project API](project.md) |
 | `novelhelper.server` | 本地 HTTP 服务、请求处理器与服务生命周期 | [server API](server.md) |
 | `novelhelper.localization` | 配置驱动的翻译表、取词、语言上下文与校验 | [localization API](i18n.md) |
+| `novelhelper.ports` | 端口配置迁移、校验、优先级解析与错误消息 | [server API · 桌面启动与端口](server.md#桌面启动与端口) |
+| `novelhelper.desktop` | pywebview 懒加载、窗口居中/尺寸、开屏、图标、HTTP 服务线程与清理 | [server API · 桌面启动与端口](server.md#桌面启动与端口) |
 
 以上包在 `__init__.py` 中显式声明 `__all__`。`server.ai` 仍作为兼容属性指向 `novelhelper.ai`，但不属于 `server.__all__`。
 
 ## 根包入口与保留模块
 
-`novelhelper.__all__` 声明根包可导入模块：`ai`、`app`、`context`、`elements`、`history`、`logger`、`project`、`providers`、`prompts`、`server`、`store`、`tool_prompts`，以及 `APP_VERSION`。`__version__` 继续作为兼容属性导出，但不列入 `__all__`。
+`novelhelper.__all__` 声明根包可导入模块：`ai`、`app`、`context`、`desktop`、`elements`、`history`、`logger`、`ports`、`project`、`providers`、`prompts`、`server`、`store`、`tool_prompts`，以及 `APP_VERSION`。`__version__` 继续作为兼容属性导出，但不列入 `__all__`。
 
 保留模块仍位于 `app/novelhelper/` 根目录，直接按模块名导入。重构前冻结的公开符号、签名和兼容调用清单见[公共 API 基线](../restructure/public-api-baseline.md)；该基线用于迁移前后核对，不代替具体模块的当前源码契约。
 

@@ -21,9 +21,9 @@ from __future__ import annotations
 
 import json
 import os
-import signal
 import shutil
 import socket
+import struct
 import subprocess
 import sys
 import tempfile
@@ -34,6 +34,23 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "app"))
+from novelhelper._version import APP_VERSION  # noqa: E402
+
+
+def pe_subsystem(path: Path) -> int:
+    """Return the PE subsystem: 2 = Windows GUI, 3 = console."""
+    with path.open("rb") as handle:
+        header = handle.read(4096)
+    if header[:2] != b"MZ":
+        raise ValueError("not a PE executable")
+    pe_offset = struct.unpack_from("<I", header, 0x3C)[0]
+    if header[pe_offset:pe_offset + 4] != b"PE\0\0":
+        raise ValueError("missing PE signature")
+    optional = pe_offset + 24
+    return struct.unpack_from("<H", header, optional + 68)[0]
 
 
 def free_port() -> int:
@@ -79,12 +96,20 @@ def stop(process: subprocess.Popen[Any]) -> None:
     if process.poll() is not None:
         return
     if os.name == "nt":
+        # A windowed PyInstaller build has no console, so CTRL_BREAK_EVENT is
+        # not delivered. Kill the whole one-file process tree; terminating
+        # only the bootloader would leave the child holding log files open.
+        subprocess.run(
+            ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+            capture_output=True,
+            timeout=15,
+        )
         try:
-            process.send_signal(signal.CTRL_BREAK_EVENT)
             process.wait(timeout=8)
-            return
-        except (OSError, subprocess.TimeoutExpired):
-            pass
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=5)
+        return
     process.terminate()
     try:
         process.wait(timeout=8)
@@ -130,6 +155,8 @@ def run(exe: Path) -> None:
     exe = exe.resolve()
     if not exe.is_file():
         raise FileNotFoundError(exe)
+    subsystem = pe_subsystem(exe)
+    check("EXE uses the Windows GUI subsystem (no console window)", subsystem == 2, str(subsystem))
 
     with tempfile.TemporaryDirectory(prefix="novelhelper_exe_smoke_") as temp_name:
         runtime = Path(temp_name) / "runtime"
@@ -149,6 +176,18 @@ def run(exe: Path) -> None:
         )
         check("packaged resources and writable data directory", check_result.returncode == 0,
               check_result.stdout.strip() or check_result.stderr.strip())
+        version_result = subprocess.run(
+            [str(isolated_exe), "--version"],
+            cwd=runtime,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+        )
+        check("packaged version matches source", version_result.returncode == 0
+              and version_result.stdout.strip() == APP_VERSION,
+              version_result.stdout.strip() or version_result.stderr.strip())
 
         mock_server = ThreadingHTTPServer(("127.0.0.1", free_port()), FakeModelHandler)
         mock_thread = threading.Thread(target=mock_server.serve_forever, daemon=True)
@@ -167,7 +206,7 @@ def run(exe: Path) -> None:
             for launch in (1, 2):
                 log_stream = (runtime / f"server-{launch}.log").open("wb")
                 process = subprocess.Popen(
-                    [str(isolated_exe), "--no-browser", "--host", "127.0.0.1", "--port", str(app_port)],
+                    [str(isolated_exe), "--no-window", "--host", "127.0.0.1", "--port", str(app_port)],
                     cwd=runtime,
                     env=env,
                     stdin=subprocess.DEVNULL,
@@ -179,8 +218,8 @@ def run(exe: Path) -> None:
 
                 status, home = request(app_base, "/")
                 check(f"EXE launch {launch} serves homepage", status == 200 and b"<!doctype html>" in home.lower())
-                for asset in ("/core.js", "/workstation.js", "/style.css", "/i18n/i18n.js",
-                              "/i18n/bootstrap.js", "/i18n/example.html"):
+                for asset in ("/core.js", "/workstation.js", "/style.css", "/icon.png",
+                              "/i18n/i18n.js", "/i18n/bootstrap.js", "/i18n/example.html"):
                     asset_status, asset_body = request(app_base, asset)
                     check(f"EXE launch {launch} serves {asset}", asset_status == 200 and bool(asset_body))
 

@@ -141,6 +141,7 @@ defaults.element.behavior: 行为特征
 defaults.element.birthday: 生日
 defaults.element.build: 体型
 defaults.element.casual_wear: 常服
+defaults.element.category: 类别
 defaults.element.character_anchor: 角色锚点
 defaults.element.clothing: 服装
 defaults.element.color_preference: 配色偏好
@@ -535,6 +536,7 @@ errors.no_api_url: 未配置接口 URL。请在「模型设置」中填写，或
 errors.no_choices: '返回中没有 choices: {detail}'
 errors.no_model: 未选择模型。请先在「模型设置」获取模型列表，或手动填写模型名。
 errors.no_text_summary: 没有可总结的正文内容
+errors.port_invalid: '端口配置无效：{reason}'
 errors.not_json: '返回内容不是合法 JSON: {detail}'
 errors.not_process_mode: 「{label}」不是稿件处理模式，不能在稿件处理页使用。
 errors.not_utf8: '{file} 不是 UTF-8 编码'
@@ -987,9 +989,17 @@ settings.no_key_hint: 还没有填写 API Key，请在下方填写。
 settings.no_model_option: （请先填写模型）
 settings.openai_compat_note: 当前使用 OpenAI 兼容接口。
 settings.page_desc: 支持多种 OpenAI 兼容提供商，也可以填写任意自定义 URL。API Key 只保存在本机 data/config.json。
-settings.port_desc: 默认 8765。保存后下一次启动会自动使用新端口；命令行 --port 可临时覆盖。
+settings.port_desc: 自动模式由系统选择空闲端口；固定模式使用指定端口。保存后下次启动生效，命令行 --port 可临时覆盖。
+settings.port_effective_hint: 修改端口不会影响当前正在运行的服务，需重启应用后生效。
+settings.port_fixed_label: 固定端口（1–65535）
+settings.port_global_current: 当前全局端口设置：{mode}
+settings.port_global_note: 端口是全局设置，请在首页「全局设置」中修改；本小说不保存端口覆盖。
 settings.port_hint: 端口修改后需要重新启动
-settings.port_label: 端口号（1–65535）
+settings.port_invalid: 请输入 1–65535 的整数；无效值不会保存。
+settings.port_mode: 端口分配方式
+settings.port_mode_auto: 自动选择端口
+settings.port_mode_fixed: 固定端口
+settings.port_mode_fixed_value: 固定端口 {port}
 settings.preset_hint: 使用「{label}」预设接口提示词。
 settings.provider_label: 提供商预设
 settings.provider_label_dashscope: 阿里云百炼 / DashScope

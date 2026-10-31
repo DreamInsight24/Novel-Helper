@@ -24,6 +24,7 @@ from .. import APP_VERSION
 import re
 
 from .. import ai, context, history, logger, project, prompts as prompts_mod, providers, store
+from ..ports import PortConfigError, normalize_server_config
 from ._helpers import _api_ready, _surface_error
 from ._language import first_run, save_language
 from ._state import _RUN_STATE
@@ -134,6 +135,12 @@ class _ApiMixin:
                 self._error(t("errors.novel_config_invalid"), status=400)
                 return
             if scope == "global":
+                try:
+                    data["server"], _ = normalize_server_config(
+                        data.get("server"), debug_mode=store.DEBUG_MODE)
+                except PortConfigError as exc:
+                    self._error(t("errors.port_invalid", reason=str(exc)), status=400)
+                    return
                 saved = store.save("config", _preserve_language_fields(data))
             elif scope == "novel" and store.active_novel_id():
                 saved = store.save_novel_config(store.active_novel_id(), data)

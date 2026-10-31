@@ -28,8 +28,10 @@ CHANGELOG.md                   # 仓库根目录，版本变更日志
 scripts/
   smoke_test.py                # 最小冒烟回归脚本
   check_dependencies.py        # 静态依赖与导入顺序检查
+  test_desktop.py              # 端口迁移/优先级/冲突、窗口契约与 --no-window
   test_layout_migration.py     # v2 设定布局 / equipment → items 迁移回归
   exe_smoke_test.py            # PyInstaller EXE 隔离运行验收
+  release_notes.py             # 从 CHANGELOG 提取 tag 对应的 Release 说明
 ```
 
 目录职责：

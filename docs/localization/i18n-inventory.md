@@ -269,8 +269,16 @@
 | 780 | `默认值会作为工作站目标字数的初始值；每次生成仍可单独修改。` | `settings.target_chars_hint` | `The default is used as the initial target length in the Workstation; it can be changed for each generation.` | [x] 已迁移 |
 | 784 | `应用` | `settings.app_section` | `Application` | [x] 已迁移 |
 | 785 | `端口修改后需要重新启动` | `settings.port_hint` | `Restart required after changing the port` | [x] 已迁移 |
-| 788 | `端口号（1–65535）` | `settings.port_label` | `Port (1–65535)` | [x] 已迁移 |
-| 801 | `默认 8765。保存后下一次启动会自动使用新端口；命令行 --port 可临时覆盖。` | `settings.port_desc` | `Default 8765. The new port takes effect on the next start; the --port command-line flag overrides it temporarily.` | [x] 已迁移 |
+| v2610.3 | `端口分配方式` | `settings.port_mode` | `Port allocation` | [x] 已迁移 |
+| v2610.3 | `自动选择端口` | `settings.port_mode_auto` | `Choose a free port automatically` | [x] 已迁移 |
+| v2610.3 | `固定端口` | `settings.port_mode_fixed` | `Fixed port` | [x] 已迁移 |
+| v2610.3 | `固定端口 {port}` | `settings.port_mode_fixed_value` | `Fixed port {port}` | [x] 已迁移 |
+| v2610.3 | `固定端口（1–65535）` | `settings.port_fixed_label` | `Fixed port (1–65535)` | [x] 已迁移 |
+| v2610.3 | `当前全局端口设置：{mode}` | `settings.port_global_current` | `Current global port setting: {mode}` | [x] 已迁移 |
+| v2610.3 | `端口是全局设置，请在首页「全局设置」中修改；本小说不保存端口覆盖。` | `settings.port_global_note` | `The port is a global setting. Change it in Global Settings on the home page; novels do not store port overrides.` | [x] 已迁移 |
+| v2610.3 | `修改端口不会影响当前正在运行的服务，需重启应用后生效。` | `settings.port_effective_hint` | `Changing the port does not affect the running service; restart the app to apply it.` | [x] 已迁移 |
+| v2610.3 | `请输入 1–65535 的整数；无效值不会保存。` | `settings.port_invalid` | `Enter an integer from 1 to 65535; invalid values are not saved.` | [x] 已迁移 |
+| 801 | `自动模式由系统选择空闲端口；固定模式使用指定端口。保存后下次启动生效，命令行 --port 可临时覆盖。` | `settings.port_desc` | `Auto lets the system choose a free port; Fixed uses the port you enter. Changes take effect on the next start; --port overrides them temporarily.` | [x] 已迁移 |
 | 805 | `目录设置` | `settings.dirs_section` | `Directories` | [x] 已迁移 |
 | 806 | `相对于 app/ 目录 {root}` | `settings.dirs_hint` | `Relative to app/ ({root})` | [x] 已迁移 |
 | 807 | `导入目录` | `settings.dir_import` | `Import directory` | [x] 已迁移 |
