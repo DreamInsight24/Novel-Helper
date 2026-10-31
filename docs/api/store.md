@@ -6,7 +6,7 @@
 from novelhelper import store
 
 config = store.default_config()
-print(config["server"]["port"])
+print(config["server"]["port_mode"])  # auto
 ```
 
 ## 公共常量
@@ -40,7 +40,7 @@ print(config["server"]["port"])
 | `stamp() -> str` | 返回当前本地时间，格式为 `YYYYMMDD_HHMMSS`，用于生成名称。 |
 | `new_id(prefix: str) -> str` | 返回 `<prefix>_<8 位十六进制字符>`。 |
 | `data_dir() -> Path` | 返回配置的 `DATA_DIR`。 |
-| `ensure_dirs() -> None` | 初始化全局配置、作品库和工作区目录；活动小说存在时补齐其集合默认值并执行 v2 布局迁移。 |
+| `ensure_dirs() -> None` | 初始化全局配置、作品库和工作区目录；迁移旧端口配置（缺失/旧默认端口转 `auto`），活动小说存在时补齐其集合默认值并执行 v2 布局迁移。显式固定端口无效时抛出 `PortConfigError`，不静默回退。 |
 | `active_novel_id() -> str` | 返回全局配置中的已校验活动小说 ID；没有活动小说时返回空字符串。 |
 | `validate_novel_id(novel_id: str) -> str` | 校验可作为目录段使用的小说 ID，非法值抛出 `ValueError`。 |
 | `novel_data_dir(novel_id: str) -> Path` | 返回已校验小说的数据目录。 |
@@ -52,7 +52,7 @@ print(config["server"]["port"])
 | `txt_dir() -> Path` | 返回配置的文本输出目录。 |
 | `text_dir() -> Path` | 返回配置的稿件处理目录。 |
 | `log_dir() -> Path` | 返回配置的日志目录；调试/冻结模式会将旧值 `../log` 规范为 `log`。 |
-| `default_config() -> dict` | 返回一份新的默认配置，包括版本 4、运行模式端口、写作默认项、提供商默认项和工作区路径设置。 |
+| `default_config() -> dict` | 返回一份新的默认配置，包括版本 4、`server.port_mode=auto`、写作默认项、提供商默认项和工作区路径设置。`server` 属于全局配置，不写入小说配置覆盖。 |
 | `default_workstation() -> dict` | 返回一份新的 AI 工作站状态及选择项默认值。 |
 | `default_state() -> dict` | 返回一份新的应用状态，包括工作站状态及兼容旧版的状态字段。 |
 | `default_schema() -> dict` | 返回一份新的内置记录与自定义栏目元素模板。 |

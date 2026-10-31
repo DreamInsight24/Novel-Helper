@@ -15,9 +15,19 @@ httpd.serve_forever()
 |---|---|
 | `MAX_BODY` | HTTP 请求体允许的最大尺寸：128 MiB。 |
 | `Handler` | 服务使用的 `BaseHTTPRequestHandler` 子类，负责处理现有静态资源和 JSON API 路由。 |
-| `serve(host: str = "127.0.0.1", port: int = 8765) -> ThreadingHTTPServer` | 确保应用目录存在，创建启用守护请求线程的多线程 HTTP 服务器，并返回该实例；不会启动事件循环。 |
+| `serve(host: str = "127.0.0.1", port: int = 0) -> ThreadingHTTPServer` | 确保应用目录存在，创建启用守护请求线程的多线程 HTTP 服务器，并返回该实例；不会启动事件循环。`port=0` 由系统分配空闲端口，实际端口读取 `httpd.server_address[1]`。 |
 
-`serve` 默认绑定到本机回环地址。对返回的服务器调用 `serve_forever()` 开始处理请求，调用 `shutdown()` 正常停止服务。显式传入其他 `host` 参数会改变绑定地址。
+`serve` 默认绑定到本机回环地址并自动选择端口。对返回的服务器调用 `serve_forever()` 开始处理请求，调用 `shutdown()` 正常停止服务。显式传入其他 `host` 参数会改变绑定地址。Windows 下服务器禁用 `SO_REUSEADDR`，固定端口已被占用时会抛出 `OSError`，不会静默复用。
+
+## 桌面启动与端口
+
+- 默认入口 `python app/run.py` 启动 HTTP 服务后创建 pywebview 窗口，窗口 URL 使用实际端口；不再调用 `webbrowser.open`。
+- 新增 `--no-window` 只启动服务；`--no-browser` 为已弃用别名。`--check` 与 `--version` 不依赖 GUI。
+- 端口优先级：`--port` > 全局配置的固定端口 > 系统自动分配。`--port 0`、非数字、越界值均直接报错退出；固定端口冲突不回退。
+- 全局配置使用 `server.host`、`server.port_mode`（`auto`/`fixed`）与可选的 `server.port`。旧配置在 `store.ensure_dirs()` 中迁移：缺失端口或旧默认端口（普通 8765 / 调试 8766）转为 `auto`，其他合法端口保留为 `fixed`。
+- `POST /api/settings/config` 在 `scope=global` 时校验端口配置；`server` 属于全局配置，小说配置不会保存端口覆盖。
+- 窗口默认 1280×800、最小 1024×720，并按主屏工作区收缩后居中；位置和尺寸不持久化，最大化关闭后重启仍恢复默认。关闭窗口后停止服务并等待线程退出；pywebview/WebView2 不可用时提示安装运行时，不退回浏览器。
+- 窗口先显示至少 1.2 秒的开屏页再加载应用；打包 EXE 使用窗口子系统，双击不出现控制台。EXE、窗口和网页 favicon 共用 `app/resources/NovelHelper.ico`（网页使用 `web/icon.png`）。
 
 ## 小说与配置接口
 

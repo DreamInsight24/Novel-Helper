@@ -1,0 +1,168 @@
+<!doctype html>
+<!--
+Copyright (C) 2026 DreamInsight24 and NovelHelper contributors
+
+SPDX-License-Identifier: GPL-3.0-or-later
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NovelHelper</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --ink: #070d1c;
+    --paper: #f7f3e8;
+    --accent: #6ea8ff;
+    --cyan: #8ee7ff;
+    --gold: #f3c969;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    background:
+      radial-gradient(900px 620px at 50% 36%, rgba(59, 110, 240, .22), transparent 70%),
+      radial-gradient(700px 500px at 82% 86%, rgba(34, 211, 238, .10), transparent 72%),
+      linear-gradient(145deg, #070d1c, #0b1630 55%, #0a1224);
+    color: #eef4ff;
+    font-family: "Segoe UI", "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+  }
+  body::before {
+    content: "";
+    position: fixed;
+    inset: -20%;
+    background-image:
+      linear-gradient(rgba(148, 180, 255, .045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(148, 180, 255, .045) 1px, transparent 1px);
+    background-size: 64px 64px;
+    -webkit-mask-image: radial-gradient(circle at 50% 45%, #000 0, transparent 68%);
+    mask-image: radial-gradient(circle at 50% 45%, #000 0, transparent 68%);
+    animation: drift 18s linear infinite;
+    pointer-events: none;
+  }
+  .splash {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 32px;
+    transform: translateY(-1vh);
+    animation: fade-in .45s ease-out both;
+  }
+  .halo {
+    position: absolute;
+    top: -34px;
+    width: 400px;
+    height: 400px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(96, 165, 250, .28), transparent 68%);
+    filter: blur(16px);
+    pointer-events: none;
+  }
+  .logo {
+    position: relative;
+    display: block;
+    width: 168px;
+    height: 168px;
+    filter:
+      drop-shadow(0 28px 50px rgba(2, 8, 24, .6))
+      drop-shadow(0 0 40px rgba(96, 165, 250, .2));
+    animation: logo-in .5s cubic-bezier(.2, .8, .2, 1) both;
+  }
+  h1 {
+    margin: 28px 0 0;
+    font-size: 34px;
+    line-height: 1.15;
+    font-weight: 650;
+    letter-spacing: .055em;
+    color: #fbfdff;
+    text-shadow: 0 10px 34px rgba(4, 12, 34, .5);
+    animation: rise-in .45s .06s ease-out both;
+  }
+  .tagline {
+    margin: 10px 0 0;
+    font-size: 14px;
+    letter-spacing: .16em;
+    color: #b4c6e4;
+    animation: rise-in .45s .12s ease-out both;
+  }
+  .loader {
+    width: 240px;
+    height: 4px;
+    margin-top: 40px;
+    border-radius: 999px;
+    background: rgba(148, 180, 255, .18);
+    overflow: hidden;
+    animation: rise-in .45s .18s ease-out both;
+  }
+  .loader span {
+    display: block;
+    width: 38%;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #5b8cff, var(--cyan));
+    box-shadow: 0 0 18px rgba(96, 165, 250, .7);
+    animation: loading 1.15s ease-in-out infinite;
+  }
+  .hint {
+    margin: 15px 0 0;
+    font-size: 13px;
+    letter-spacing: .04em;
+    color: #8499bb;
+    animation: rise-in .45s .24s ease-out both;
+  }
+  html.leaving body { opacity: 0; transition: opacity .18s ease; }
+  @keyframes logo-in {
+    from { opacity: 0; transform: translateY(12px) scale(.92); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @keyframes rise-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes loading {
+    0% { transform: translateX(-110%); }
+    55%, 100% { transform: translateX(290%); }
+  }
+  @keyframes drift {
+    from { transform: translate3d(0, 0, 0); }
+    to { transform: translate3d(64px, 64px, 0); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+  <main class="splash" role="status" aria-label="NovelHelper 正在加载">
+    <div class="halo"></div>
+    <img class="logo" src="{{ICON_DATA_URI}}" alt="NovelHelper">
+    <h1>NovelHelper</h1>
+    <p class="tagline">AI 小说工作站</p>
+    <div class="loader" role="progressbar" aria-label="正在加载"><span></span></div>
+    <p class="hint">正在准备你的创作空间</p>
+  </main>
+</body>
+</html>

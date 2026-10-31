@@ -22,7 +22,8 @@ NovelHelper 启动入口。
 
     python app/run.py
     python app/run.py --debug
-    python app/run.py --debug --port 8766
+    python app/run.py --debug --port 8790
+    python app/run.py --no-window
     python app/run.py --clean-debug
 """
 from __future__ import annotations

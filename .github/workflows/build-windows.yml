@@ -8,12 +8,17 @@ on:
   pull_request:
     paths:
       - "app/**"
+      - "scripts/**"
       - "NovelHelper.spec"
       - "requirements-build.txt"
       - ".github/workflows/build-windows.yml"
 
 permissions:
   contents: write
+
+concurrency:
+  group: windows-build-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -34,6 +39,32 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r app/requirements.txt -r requirements-build.txt
 
+      - name: Verify tag matches application version
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $version = python -c "import sys; sys.path.insert(0, 'app'); from novelhelper._version import APP_VERSION; print(APP_VERSION)"
+          if ($version.Trim() -ne "${{ github.ref_name }}") {
+            throw "Tag ${{ github.ref_name }} does not match APP_VERSION $($version.Trim())"
+          }
+
+      - name: Run desktop and port tests
+        run: python -X utf8 -B scripts/test_desktop.py
+
+      - name: Run storage migration tests
+        run: python -X utf8 -B scripts/test_layout_migration.py
+
+      - name: Run localization tests
+        run: |
+          python -X utf8 -B scripts/test_localization.py
+          python -X utf8 -B scripts/test_language_settings.py
+
+      - name: Run front-end tests
+        shell: pwsh
+        run: |
+          node --check app/novelhelper/web/core.js
+          node scripts/test_settings_ui.cjs
+
       - name: Run self-test
         run: python app/selftest.py
 
@@ -41,23 +72,36 @@ jobs:
         run: pyinstaller --clean --noconfirm NovelHelper.spec
 
       - name: Smoke-test EXE
+        run: python -X utf8 -B scripts/exe_smoke_test.py dist/NovelHelper.exe
+
+      - name: Create SHA-256 checksum
         shell: pwsh
         run: |
-          & ".\dist\NovelHelper.exe" --check
-          if ($LASTEXITCODE -ne 0) {
-            throw "NovelHelper.exe --check failed with exit code $LASTEXITCODE"
-          }
+          $hash = (Get-FileHash -LiteralPath "dist\NovelHelper.exe" -Algorithm SHA256).Hash.ToLower()
+          "$hash  NovelHelper.exe" | Set-Content -LiteralPath "dist\NovelHelper.exe.sha256" -Encoding ascii
+
+      - name: Generate release notes
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: python -X utf8 -B scripts/release_notes.py "${{ github.ref_name }}" --output release-notes.md
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: NovelHelper-windows-x64
-          path: dist/NovelHelper.exe
+          path: |
+            dist/NovelHelper.exe
+            dist/NovelHelper.exe.sha256
           if-no-files-found: error
 
       - name: Attach EXE to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/NovelHelper.exe
-          generate_release_notes: true
+          files: |
+            dist/NovelHelper.exe
+            dist/NovelHelper.exe.sha256
+          body_path: release-notes.md
+          generate_release_notes: false
+          draft: false
+          prerelease: false
+          make_latest: true

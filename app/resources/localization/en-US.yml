@@ -145,6 +145,7 @@ defaults.element.behavior: Behavior traits
 defaults.element.birthday: Birthday
 defaults.element.build: Build
 defaults.element.casual_wear: Casual wear
+defaults.element.category: Category
 defaults.element.character_anchor: Character anchor
 defaults.element.clothing: Clothing
 defaults.element.color_preference: Color preference
@@ -550,6 +551,7 @@ errors.no_api_url: No API URL configured. Enter one in Model Settings, or choose
 errors.no_choices: 'Response has no choices: {detail}'
 errors.no_model: No model selected. Fetch the model list in Model Settings first, or enter a model name manually.
 errors.no_text_summary: No text content to summarize
+errors.port_invalid: 'Invalid port configuration: {reason}'
 errors.not_json: 'Response is not valid JSON: {detail}'
 errors.not_process_mode: '"{label}" is not a manuscript mode and cannot be used on the Manuscript page.'
 errors.not_utf8: '{file} is not UTF-8 encoded'
@@ -1045,10 +1047,19 @@ settings.no_model_option: (Enter models first)
 settings.openai_compat_note: Currently using an OpenAI-compatible API.
 settings.page_desc: Supports many OpenAI-compatible providers and any custom URL. The API key is stored only in
   the local data/config.json.
-settings.port_desc: Default 8765. The new port takes effect on the next start; the --port command-line flag overrides
-  it temporarily.
+settings.port_desc: Auto lets the system choose a free port; Fixed uses the port you enter. Changes take effect on the
+  next start; --port overrides them temporarily.
+settings.port_effective_hint: Changing the port does not affect the running service; restart the app to apply it.
+settings.port_fixed_label: Fixed port (1–65535)
+settings.port_global_current: 'Current global port setting: {mode}'
+settings.port_global_note: The port is a global setting. Change it in Global Settings on the home page; novels do not
+  store port overrides.
 settings.port_hint: Restart required after changing the port
-settings.port_label: Port (1–65535)
+settings.port_invalid: Enter an integer from 1 to 65535; invalid values are not saved.
+settings.port_mode: Port allocation
+settings.port_mode_auto: Choose a free port automatically
+settings.port_mode_fixed: Fixed port
+settings.port_mode_fixed_value: Fixed port {port}
 settings.preset_hint: Uses the "{label}" preset API prompt.
 settings.provider_label: Provider preset
 settings.provider_label_dashscope: Alibaba Cloud / DashScope

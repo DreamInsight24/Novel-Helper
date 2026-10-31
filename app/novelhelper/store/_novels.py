@@ -24,7 +24,7 @@ _CONFIG_FILE = "config.json"
 _META_FILE = "novel.json"
 _GLOBAL_ONLY_KEYS = {
     "active_novel_id", "initialized", "layout_version", "version", "onboarding",
-    "language", "initial_language",
+    "language", "initial_language", "server",
 }
 
 
