@@ -508,6 +508,12 @@ errors.fetch_no_endpoint: 获取模型失败：该接口没有 /models 端点，
 errors.fetch_no_ids: 接口返回了模型列表，但没有识别到模型 id；请手动填写。
 errors.file_missing: '找不到文件: {detail}'
 errors.generation_locked: AI 正在生成中，工作站已锁定。请等待本次生成完成。
+errors.setting_gen_empty: 请先粘贴或选择要生成的设定文本。
+errors.setting_gen_too_long: 文本过长（超过 {max} 字符），请分次处理。
+errors.setting_gen_parse: AI 返回的内容无法解析为设定条目，请重试。
+errors.setting_gen_nothing: 没有可写入的设定条目，请检查文本内容。
+errors.setting_gen_undo_missing: 没有可撤销的生成记录。
+errors.setting_gen_undo_failed: 撤销失败：{detail}
 errors.invalid_path: 非法路径
 errors.invalid_session_id: 非法的会话 id
 errors.is_process_mode: 「{label}」是稿件处理模式，不能在 AI 工作站使用。
@@ -524,7 +530,7 @@ errors.map_table_format: 地图表格格式错误：没有找到含「方位」�
 errors.md_import_target: Markdown（.md）现在只支持导入到「其他设定」；导入后可用「搬运到…」转为自定义设定的条目。
 errors.memory_missing_fields: 第 {index} 条记忆缺少 title 或 content
 errors.mode_missing: '模式不存在: {id}'
-errors.no_api_key: 未配置 API Key。请到「模型设置」填写，或设置环境变量 {env}。
+errors.no_api_key: 未配置 API Key。请到「模型设置」填写。
 errors.no_api_url: 未配置接口 URL。请在「模型设置」中填写，或选择一个提供商预设。
 errors.no_choices: '返回中没有 choices: {detail}'
 errors.no_model: 未选择模型。请先在「模型设置」获取模型列表，或手动填写模型名。
@@ -961,7 +967,7 @@ settings.force_thinking: 强制发送 thinking 参数
 settings.generic_prompt: 通用提示词
 settings.generic_prompt_hint: 通用接口提示词：不假定具体模型名称、厂商或特殊能力。
 settings.key_optional_hint: 当前是自定义或本地接口，API Key 可以留空；如果接口要求鉴权，再手动填写即可。
-settings.key_placeholder: '{env}（可手动填写）'
+settings.key_placeholder: 粘贴 API Key
 settings.language: 语言
 settings.language_hint: 切换后立即生效
 settings.license_body: 本程序是自由软件：你可以依据自由软件基金会发布的《GNU 通用公共许可证》（GPL）第 3 版或任何后续版本重新分发和/或修改它。
@@ -977,7 +983,7 @@ settings.models_hint: 模型列表可以从接口获取，也可以手动填写
 settings.models_label: 可选模型（每行一个）
 settings.models_section: 模型与默认参数
 settings.models_updated: 模型列表已更新
-settings.no_key_hint: 还没有填写 API Key。可以手动填写，或设置环境变量 {env}。
+settings.no_key_hint: 还没有填写 API Key，请在下方填写。
 settings.no_model_option: （请先填写模型）
 settings.openai_compat_note: 当前使用 OpenAI 兼容接口。
 settings.page_desc: 支持多种 OpenAI 兼容提供商，也可以填写任意自定义 URL。API Key 只保存在本机 data/config.json。
@@ -1015,13 +1021,43 @@ settings.writing_section: 默认写作偏好
 welcome.custom_url_note: 当前使用自定义 URL：将使用通用接口提示词。
 welcome.desc: 先选择接口并填写 API Key。可以跳过；不配置也能浏览和编辑设定，但开始生成前需要模型可用。
 welcome.key_note: API Key 只保存在本机 app/data/config.json，不会上传到 NovelHelper 自己的服务。
-welcome.key_placeholder: '{env}（可稍后填写）'
+welcome.key_placeholder: API Key（可稍后填写）
 welcome.preset_note: 当前使用「{name}」预设接口提示词。
 welcome.saved: 配置已保存，可以开始使用。
 welcome.skip: 跳过，稍后设置
 welcome.skipped: 已跳过引导，可随时在「模型设置」中配置。
 welcome.start: 保存并开始
 welcome.title: 欢迎使用 NovelHelper {version}
+setting_gen.added: 新增 {added} 条，跳过 {skipped} 条同名记录。
+setting_gen.added_section: 已添加
+setting_gen.busy: 正在生成……
+setting_gen.button: AI 生成设定
+setting_gen.cancel_wait: 取消等待
+setting_gen.dropped_section: 未添加
+setting_gen.failed_reason: 生成失败：{reason}
+setting_gen.field_drops: 忽略 {n} 个无效字段
+setting_gen.file_label: 从导入目录读取
+setting_gen.file_read: 读取
+setting_gen.load_failed_reason: 读取失败：{reason}
+setting_gen.loaded: 已读取 {path}
+setting_gen.no_text_files: '{path} 中没有 .txt/.md 文件。'
+setting_gen.notice: AI 可能出错，生成后请检查。
+setting_gen.placeholder: 粘贴一段与设定相关的非结构化文本，例如人物介绍、世界观描述……
+setting_gen.reason_disabled: 栏目未启用
+setting_gen.reason_duplicate: 同名已存在
+setting_gen.reason_empty: 无内容可写入
+setting_gen.reason_invalid: 名称无效
+setting_gen.reason_overflow: 超出单次数量上限
+setting_gen.reason_unknown: 未知栏目
+setting_gen.result_title: 生成结果
+setting_gen.source_label: 设定素材文本
+setting_gen.start: 开始生成
+setting_gen.title: AI 生成设定
+setting_gen.undo: 撤销本次生成
+setting_gen.undo_done: 已撤销 {removed} 条；{kept} 条已修改的记录被保留。
+setting_gen.undo_failed_reason: 撤销失败：{reason}
+setting_gen.unnamed_item: （未命名）
+
 workstation.append_prompt: 追加到用户提示词
 workstation.appended: 已追加到用户提示词（未覆盖原内容）。
 workstation.attach_hint: 把参考资料放进 workspace/import/，刷新后即可勾选。

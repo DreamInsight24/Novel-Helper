@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from ..localization import t
 
-from .. import ai, context, history, logger, project, prompts as prompts_mod, providers, store, tool_prompts
+from .. import ai, context, history, logger, project, prompts as prompts_mod, providers, setting_gen, store, tool_prompts
 from ._helpers import _compact_selection, _surface_error
 from ._state import _RUN_LOCK, _RUN_STATE
 
@@ -246,4 +246,99 @@ class _GenerationMixin:
             raise
         finally:
             _RUN_STATE.update(busy=False, started="", mode="", surface="", transport="")
+            _RUN_LOCK.release()
+
+    def _ai_setting_gen(self):
+        """AI 设定生成：只读取 text 字段，忽略一切试图覆盖行为参数的字段。"""
+        body = self._body()
+        text = str(body.get("text") or "").strip()
+        if not text:
+            self._error(t('errors.setting_gen_empty'))
+            return
+        if len(text) > setting_gen.MAX_TASK_CHARS:
+            self._error(t('errors.setting_gen_too_long', max=setting_gen.MAX_TASK_CHARS))
+            return
+        if not _RUN_LOCK.acquire(blocking=False):
+            self._error(t('errors.generation_locked'), status=409)
+            return
+        _RUN_STATE.update(busy=True, started=store.now_str(), mode="setting_gen",
+                          surface="setting_gen", transport="")
+        try:
+            config = store.current_config()
+            db = store.load_all()
+            records, metrics, overflow_records = setting_gen.extract_records(
+                ai.chat_settings, config, db, text)
+            total_tokens = sum(int((m.get("usage") or {}).get("total_tokens") or 0)
+                               for m in metrics)
+            # 日志只记指标：字符数、条数、耗时、token 用量；不记用户文本与密钥。
+            logger.log_event(
+                "AI", "setting_gen_request", chunks=len(metrics),
+                input_chars=len(text), records_raw=len(records),
+                total_tokens=total_tokens,
+                elapsed=round(sum(m.get("elapsed") or 0 for m in metrics), 2),
+                model=(metrics[-1].get("model") if metrics else ""),
+            )
+            by_target, report = setting_gen.validate_batch(records, db)
+            if report["accepted"] == 0:
+                self._error(t('errors.setting_gen_nothing'))
+                return
+            written = setting_gen.write_batch(by_target)
+            batch = setting_gen.begin_undo(by_target)
+            dropped_items = list(report["dropped_items"])
+            dropped_items.extend(
+                setting_gen.raw_item(raw, "overflow") for raw in overflow_records)
+            # 日志只记计数指标：条目明细含用户文本中的名称，不写入日志。
+            log_report = {key: value for key, value in report.items()
+                          if not key.endswith("_items")}
+            logger.log_event("AI", "setting_gen_written",
+                             batch=batch["id"], total_tokens=total_tokens,
+                             overflow=len(overflow_records), **log_report)
+            self._json({
+                "ok": True,
+                "batch_id": batch["id"],
+                "summary": {
+                    "added": report["accepted"],
+                    "skipped": report["skipped_duplicate"],
+                    "written": written,
+                    "dropped": {key: value for key, value in report.items()
+                                if key.startswith("dropped")},
+                    "overflow": len(overflow_records),
+                    "added_items": report["added_items"],
+                    "dropped_items": dropped_items,
+                },
+                "collections": store.load_all(),
+            })
+        except setting_gen.ParseError:
+            logger.log_exception("AI", "setting_gen parse failed", None,
+                                 input_chars=len(text))
+            self._error(t('errors.setting_gen_parse'))
+        except ai.AIError as exc:
+            logger.log_exception("AI", "setting_gen request failed", exc,
+                                 input_chars=len(text))
+            self._error(str(exc), status=502)
+        except Exception as exc:
+            logger.log_exception("AI", "setting_gen failed", exc, input_chars=len(text))
+            raise
+        finally:
+            _RUN_STATE.update(busy=False, started="", mode="", surface="", transport="")
+            _RUN_LOCK.release()
+
+    def _ai_setting_gen_undo(self):
+        body = self._body()  # noqa: F841 - 请求体无必填字段，仅保证请求格式合法
+        if not _RUN_LOCK.acquire(blocking=False):
+            self._error(t('errors.generation_locked'), status=409)
+            return
+        try:
+            result = setting_gen.undo_last_batch()
+            if result is None:
+                self._error(t('errors.setting_gen_undo_missing'))
+                return
+            removed, kept = result
+            logger.log_event("AI", "setting_gen_undo", removed=removed, kept=kept)
+            self._json({"ok": True, "removed": removed, "kept": kept,
+                        "collections": store.load_all()})
+        except Exception as exc:
+            logger.log_exception("AI", "setting_gen undo failed", exc)
+            raise
+        finally:
             _RUN_LOCK.release()

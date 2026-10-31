@@ -57,6 +57,7 @@ app/novelhelper/
   prompts.py           # 默认模式与提示词，保持独立模块
   providers.py         # 提供商目录，保持独立模块
   tool_prompts.py      # 内置工具提示词与调用参数（记忆压缩等），保持独立模块
+  setting_gen.py       # AI 设定生成：目标目录、隐藏提示词、分块抽取、校验映射、事务写入与撤销，保持独立模块
   app.py               # 应用入口，保持原位置
   web/                 # 前端资源（HTML/CSS/JS），任务 1 不改
 ```
@@ -95,6 +96,7 @@ app/novelhelper/
 | `project` | 工作区文件、导入/导出与文本处理 | `store`、`elements`、`context`；包内按私有模块分层 | P2 已实施；接口见 `docs/api/project.md` |
 | `server` | HTTP 服务、静态资源和 API 编排 | `ai`、`context`、`history`、`logger`、`project`、`store` 等 | P3 已实施；接口见 `docs/api/server.md` |
 | `ai`、`context`、`elements`、`history`、`logger`、`prompts`、`providers`、`tool_prompts` | 保留职责相对单一的模块，作为根包公开模块 | 依具体模块而定；依赖方向以迁移计划为准 | 已保留；符号基线见 `docs/restructure/public-api-baseline.md` |
+| `setting_gen` | AI 设定生成：目标目录构建、隐藏系统提示词、按段落分块与修复重试、结果校验与确定性映射、事务写入与指纹撤销 | `store`、`logger`、`localization`；`server/_generation` 通过 `extract_records` / `validate_batch` / `write_batch` / `undo_last_batch` 调用 | v2610.3 任务 3 新增；接口见 `docs/api/server.md` 的 AI 设定生成接口 |
 
 `store`、`project` 与 `server` 均有接口说明。P1-P3 包内依赖如下；私有实现不反向导入所属包的 `__init__`：
 
@@ -133,7 +135,7 @@ app/novelhelper/
 | `_base` | `_helpers`、`_state`、`ai`、`logger`、`store` |
 | `_api` | `_helpers`、`_state`、`ai`、`context`、`history`、`logger`、`project`、`prompts`、`providers`、`store` |
 | `_records` | `elements`、`logger`、`project`、`store` |
-| `_generation` | `_helpers`、`_state`、`ai`、`context`、`history`、`logger`、`project`、`prompts`、`providers`、`store`、`tool_prompts` |
+| `_generation` | `_helpers`、`_state`、`ai`、`context`、`history`、`logger`、`project`、`prompts`、`providers`、`setting_gen`、`store`、`tool_prompts` |
 | `_handler` | `_api`、`_base`、`_generation`、`_records`、`store` |
 | `__init__` | `_handler`、`_state`；保留 `ai` 模块属性兼容 |
 
