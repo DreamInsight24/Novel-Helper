@@ -21,24 +21,32 @@ EXE 是单文件便携版，不需要安装。首次启动会在 EXE 旁边创�
 
 如果 EXE 所在目录不可写，可以设置环境变量 `NOVELHELPER_HOME` 指向可写目录：
 
-```bat
-set NOVELHELPER_HOME=D:\NovelHelperData
-NovelHelper.exe
+```powershell
+$env:NOVELHELPER_HOME = "D:\NovelHelperData"
+.\NovelHelper.exe
 ```
 
 可以随时检查安装是否完整、数据目录是否可写：
 
-```bat
-NovelHelper.exe --check
+```powershell
+.\NovelHelper.exe --check
 ```
 
 ## 从源码运行
 
 ### Windows
 
-1. 安装 Python 3.10 或更高版本，并执行 `python -m pip install -r app\requirements.txt`。
-2. 双击 `NovelHelper.bat`，会打开桌面窗口。
+1. 安装 Python 3.10 或更高版本。
+2. 在仓库根目录安装依赖并启动：
+
+   ```powershell
+   python -m pip install -r app\requirements.txt
+   python app\run.py
+   ```
+
 3. 按首次引导选择接口、填写 API Key 并选择模型。可以跳过，稍后在「模型设置」中配置。
+
+仓库不提供 `.bat` 启动脚本；源码运行统一使用 `python app\run.py`，需要固定端口或只启动服务时在命令后加参数。
 
 ### 命令行启动
 
@@ -183,19 +191,41 @@ python app/selftest.py
 
 ## 打包 Windows EXE
 
-仓库内置 [PyInstaller](https://pyinstaller.org/) 配置 `NovelHelper.spec`，会把 Python、`openai`、`pywebview`/pythonnet 依赖和网页资源一起打进单个 `NovelHelper.exe`。
+本项目只保留一种 EXE 打包方式：[PyInstaller](https://pyinstaller.org/) 单文件构建，配置为 `NovelHelper.spec`。它会把 Python、`openai`、`pywebview`/pythonnet 依赖和网页资源一起打进单个 `NovelHelper.exe`。仓库不提供 `.bat` 启动脚本，也不维护其他打包器配置。
 
-本地构建：
+### 本地打包
 
-```bat
+要求 Windows 10/11 x64 和 Python 3.10 或更高版本，并在仓库根目录执行。Windows EXE 必须在 Windows 上构建，不能用 Linux/macOS 交叉打包。
+
+建议使用干净的虚拟环境，避免构建机上的无关包触发 PyInstaller hook：
+
+```powershell
+# 1. 创建虚拟环境并安装运行、构建依赖
 python -m venv .venv
+.venv\Scripts\python.exe -m pip install --upgrade pip
 .venv\Scripts\python.exe -m pip install -r app\requirements.txt -r requirements-build.txt
-.venv\Scripts\pyinstaller.exe --clean --noconfirm NovelHelper.spec
-dist\NovelHelper.exe --check
-dist\NovelHelper.exe --no-window
+
+# 2. 构建单文件 EXE
+.venv\Scripts\python.exe -m PyInstaller --clean --noconfirm NovelHelper.spec
+
+# 3. 验证构建结果
+.\dist\NovelHelper.exe --check
+.venv\Scripts\python.exe scripts\exe_smoke_test.py .\dist\NovelHelper.exe
 ```
 
-构建结果位于 `dist\NovelHelper.exe`。`build/` 和 `dist/` 已加入 `.gitignore`。EXE 冒烟还需在本机实际打开一次窗口，确认首页加载、关闭窗口后进程退出；WebView2 缺失时会提示安装运行时，不会退回浏览器。
+构建结果位于 `dist\NovelHelper.exe`，可直接复制到其他 Windows 电脑运行。`build/`、`dist/` 已加入 `.gitignore`，不会提交到仓库。
+
+建议再手动启动一次窗口，确认首页加载、WebView2 正常、关闭窗口后进程退出：
+
+```powershell
+.\dist\NovelHelper.exe
+```
+
+`--check` 和 `exe_smoke_test.py` 会检查打包资源、版本、服务模式以及配置和历史的持久化；冒烟测试使用临时目录，不会修改真实数据。WebView2 缺失时程序会提示安装运行时，不会退回浏览器。
+
+如果构建时出现无关第三方包的 hook 报错，删除 `.venv` 后按上面的步骤重建干净环境；如果 `dist` 中的 EXE 正在运行，先关闭再重新构建。
+
+如果运行时报 `Could not create temporary directory!`，说明 EXE 所在目录的 ACL 不允许 PyInstaller 创建临时解包目录；把 EXE 复制到普通可写目录（如 `D:\Temp`）后重试即可，构建本身没有问题。
 
 ### GitHub Actions 自动构建
 

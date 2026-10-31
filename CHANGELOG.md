@@ -39,6 +39,8 @@
 ### Removed
 
 - 移除侧栏与设定管理中的独立「服饰与装备」栏目；原有数据保留并归入「物品」。
+- 移除 `NovelHelper.bat` 启动脚本；源码运行统一使用 `python app/run.py`。
+- EXE 分发只保留 PyInstaller 单文件构建（`NovelHelper.spec`），不再维护其他打包脚本或打包器配置。
 
 ### Security
 
