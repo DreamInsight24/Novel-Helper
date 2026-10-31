@@ -1,6 +1,20 @@
-# NovelHelper v2610.3
+# NovelHelper
 
-本地优先的 AI 小说创作工具。设定、记忆、模式和对话历史都保存在本机；服务只监听 `127.0.0.1`。
+本地优先的 AI 小说创作工具。设定、记忆、模式和对话历史全部保存在本机；服务只监听 `127.0.0.1`，API Key 不会离开这台电脑。
+
+## 主要功能
+
+- **多作品隔离**：人物、势力、物品、地图、记忆与稿件按小说分库保存，互不干扰。
+- **AI 工作站**：按「写稿模式」连续对话，生成时自动携带最近轮次与所选设定，产出可直接转存稿件或记忆。
+- **稿件处理**：把已有稿件放进素材区，AI 处理结果可覆盖正文或转存记忆，不写入对话历史。
+- **模式可定制**：写稿与稿件处理各自一套模式，每个模式独立设置系统提示词、模型、推理强度与采样参数。
+- **接口自由**：支持 DeepSeek、OpenAI、OpenRouter、SiliconFlow、Moonshot/Kimi、阿里云百炼、智谱 GLM，以及任意 OpenAI 兼容接口。
+- **开箱即用**：提供免安装的 Windows 单文件 EXE，不需要 Python 环境。
+
+## 快速开始
+
+- 不想装 Python：从 [最新版本](https://github.com/DreamInsight24/Novel-Helper/releases/latest) 下载 `NovelHelper.exe`，放进可写目录后双击运行，详见[下载即用版](#下载即用版windows-exe)。
+- 想改代码：安装 Python 3.10 或更高版本，执行 `python -m pip install -r app\requirements.txt`，再执行 `python app\run.py`，详见[从源码运行](#从源码运行)。
 
 ## 使用声明
 
