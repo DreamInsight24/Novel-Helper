@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import hashlib
 
-RECORDS = ('characters', 'factions', 'items', 'equipment', 'other', 'memories')
+RECORDS = ('characters', 'factions', 'items', 'other', 'memories')
 
 
 def catalog(db: dict) -> dict:

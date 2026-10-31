@@ -130,6 +130,8 @@ def open_novel(novel_id: str) -> dict:
     config = load("config")
     config["active_novel_id"] = value
     save("config", config)
+    from ._layout import migrate_active_layout
+    migrate_active_layout()
     return meta
 
 

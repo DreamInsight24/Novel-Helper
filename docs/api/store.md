@@ -28,6 +28,7 @@ print(config["server"]["port"])
 | `COLLECTIONS` | 内置 JSON 集合名称。 |
 | `RECORD_COLLECTIONS` | 值采用 `items` 列表结构的集合。 |
 | `SECTION_PREFIX` | 自定义栏目集合文件使用的前缀（`section_`）。 |
+| `LAYOUT_VERSION` | 当前设定布局版本（2：内置栏目全显、equipment 并入 items）。 |
 
 这些路径常量会在导入包时解析。请在导入 `novelhelper` 前设置运行模式相关的环境变量。
 
@@ -39,7 +40,7 @@ print(config["server"]["port"])
 | `stamp() -> str` | 返回当前本地时间，格式为 `YYYYMMDD_HHMMSS`，用于生成名称。 |
 | `new_id(prefix: str) -> str` | 返回 `<prefix>_<8 位十六进制字符>`。 |
 | `data_dir() -> Path` | 返回配置的 `DATA_DIR`。 |
-| `ensure_dirs() -> None` | 初始化全局配置、作品库和工作区目录；活动小说存在时补齐其集合默认值，首次启动不会生成根级旧布局集合。 |
+| `ensure_dirs() -> None` | 初始化全局配置、作品库和工作区目录；活动小说存在时补齐其集合默认值并执行 v2 布局迁移。 |
 | `active_novel_id() -> str` | 返回全局配置中的已校验活动小说 ID；没有活动小说时返回空字符串。 |
 | `validate_novel_id(novel_id: str) -> str` | 校验可作为目录段使用的小说 ID，非法值抛出 `ValueError`。 |
 | `novel_data_dir(novel_id: str) -> Path` | 返回已校验小说的数据目录。 |
@@ -57,7 +58,7 @@ print(config["server"]["port"])
 | `default_schema() -> dict` | 返回一份新的内置记录与自定义栏目元素模板。 |
 | `default_character() -> dict` | 返回一条新角色记录，包含生成的 ID 和时间戳。 |
 | `default_faction() -> dict` | 返回一条新势力记录，包含生成的 ID 和时间戳。 |
-| `default_item() -> dict` | 返回一条新道具记录，包含生成的 ID 和时间戳。 |
+| `default_item() -> dict` | 返回一条新物品记录，包含生成的 ID 和时间戳。 |
 | `default_equipment() -> dict` | 返回一条新装备记录，包含生成的 ID 和时间戳。 |
 | `default_other() -> dict` | 返回一条新的其他设定记录，包含生成的 ID 和时间戳。 |
 | `default_memory() -> dict` | 返回一条新记忆记录，包含生成的 ID 和时间戳。 |
@@ -71,6 +72,7 @@ print(config["server"]["port"])
 | `default_memory_categories() -> list` | 返回一份新的内置记忆分类标签列表。 |
 | `default_history() -> dict` | 返回空的历史索引和当前会话指针。 |
 | `default_for(name: str) -> Any` | 返回内置集合或有效自定义栏目的新默认值。名称未知时抛出 `KeyError`。始终返回原始内置数据，不随界面语言变化。 |
+| `migrate_active_layout() -> dict` | 迁移当前活动小说：补齐内置栏目并默认显示，将 equipment 记录按 ID 合并进 items，同步人物装备指针与关系引用；迁移前写快照，幂等，返回 `migrated`、`moved_equipment`、`rewired_relations`、`backup` 等字段。 |
 | `localized_default_for(name: str, lang_id: str) -> Any` | 返回与 `default_for` 相同结构、但用户可见文案已按 `lang_id` 翻译的副本。 |
 | `seed_localized_defaults(lang_id: str) -> None` | 首次语言保存时调用：仅当集合仍是未改动的内置默认值时，用 `lang_id` 生成并落盘；用户数据不会被覆盖。 |
 | `load(name: str) -> Any` | 加载集合。文件不存在或仅含空白时返回深拷贝后的默认值。名称未知时抛出 `KeyError`；UTF-8 或 JSON 无效时抛出 `RuntimeError`。 |

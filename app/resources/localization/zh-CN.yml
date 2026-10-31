@@ -32,14 +32,14 @@ collections.characters.tag_label: 身份备注（括号内容）
 collections.equipment.desc: 基于道具的穿戴物；不单独发送，只在人物背包里被引用时作为那条的解释发送。
 collections.factions.desc: 组织 / 家族 / 阵营；成员直接指针到人物档案。
 collections.factions.tag_label: 类型备注
-collections.items.desc: 能放进背包的东西；不单独发送，只在人物背包里被引用时作为那条的解释发送。
+collections.items.desc: 道具、服饰、装备统一在这里管理；用类别区分，用标签筛选。人物背包引用时作为那条的解释发送。
 collections.notes: 补充说明
 collections.other.desc: 世界观、物种、规则都放这里；没有专门栏目的设定也放这里，随时可以搬到别的类别。
 collections.singular_character: 人物
 collections.singular_entry: 条目
 collections.singular_equipment: 服饰/装备
 collections.singular_faction: 势力
-collections.singular_item: 道具
+collections.singular_item: 物品
 common.appended_to_workspace: 已追加到稿件处理工作区。
 common.assembling: 组装中…
 common.autosave: 自动保存
@@ -309,15 +309,15 @@ defaults.mode.polish_prompt: |-
 defaults.record.new_character: 新角色
 defaults.record.new_equipment: 新服饰/装备
 defaults.record.new_faction: 新势力
-defaults.record.new_item: 新道具
+defaults.record.new_item: 新物品
 defaults.record.new_other: 新条目
 defaults.record.unnamed: 未命名
 defaults.record.unnamed_import: 未命名导入
 defaults.region.unnamed: 未命名区域
 defaults.schema.characters: 人物档案
-defaults.schema.equipment: 服饰与装备
+defaults.schema.equipment: 服饰与装备（已并入物品）
 defaults.schema.factions: 势力设定
-defaults.schema.items: 道具设定
+defaults.schema.items: 物品
 defaults.schema.memories: 记忆
 defaults.schema.other: 其他设定
 defaults.section.ability_tendency: 能力倾向
@@ -617,8 +617,8 @@ history.view: 查看此对话
 history.view_all: 查看全部历史
 history.viewing: 正在查看历史对话：{title}。左侧输入仍是当前草稿，不会覆盖历史。
 history.viewing_short: 历史对话：{title}
-inventory.add_equipment: 从服饰/装备中添加
-inventory.add_item: 从道具中添加
+inventory.add_equipment: 从物品中添加服饰/装备
+inventory.add_item: 从物品中添加
 inventory.assembly_title: '{name} · 完整外貌拼装'
 inventory.carried_hint: 带上身（随身 / 穿戴）；取消＝放进「已拥有」
 inventory.carried_label: 携带
@@ -629,7 +629,7 @@ inventory.no_characters: 人物背包只编辑已有人物的随身物品与穿�
 inventory.note_label: 备注（就是这一条发给模型的解释）
 inventory.owned_status: 存在、但没带在身上
 inventory.owned_title: 已拥有（未携带）
-inventory.page_desc: 背包只在这里编辑（人物档案页不再重复）。选人物 → 入包 / 穿戴，指针直接指向「道具设定」与「服饰与装备」；钱袋是背包的特殊字段，可以填数量或富裕 / 一般 / 紧张，留空＝不体现。
+inventory.page_desc: 背包只在这里编辑（人物档案页不再重复）。选人物 → 入包 / 穿戴，所有指针都指向统一的「物品」栏目；钱袋可以填数量或富裕 / 一般 / 紧张，留空＝不体现。
 inventory.purse_label: 钱袋
 inventory.purse_line: 钱袋：
 inventory.purse_placeholder: 留空＝不体现；也可以填 富裕 / 一般 / 紧张
@@ -832,7 +832,7 @@ modes.thinking_option: 发送 thinking 参数（仅部分接口支持）
 nav.chapters: 章节与导出
 nav.characters: 人物档案
 nav.elements: 元素模板
-nav.equipment: 服饰与装备
+nav.equipment: 服饰与装备（已并入物品）
 nav.factions: 势力设定
 nav.group_core: 基础设定
 nav.group_custom: 自定义设定
@@ -840,7 +840,7 @@ nav.group_memory: 记忆
 nav.group_system: 系统
 nav.group_writing: 写作
 nav.inventory: 人物背包
-nav.items: 道具设定
+nav.items: 物品
 nav.memories: 记忆库
 nav.modes: 模式管理
 nav.other: 其他设定
@@ -902,7 +902,7 @@ records.slot_label: 穿戴部位
 records.target_empty: 目标集合还是空的。
 records.template_added: 补充了 {count} 个元素
 records.template_exists: 模板元素都已存在
-records.tidy_hint: 勾选后一键搬到人物 / 势力 / 道具 / 装备 / 记忆，或转为任意自定义栏目的条目
+records.tidy_hint: 勾选后一键搬到人物 / 势力 / 物品 / 记忆，或转为任意自定义栏目的条目
 records.tidy_title: 整理导入的内容
 records.total: 共 {count} 条
 sections.add: ＋ 新增栏目
@@ -1216,7 +1216,7 @@ sections.show_named: "在侧栏显示{name}"
 sections.show_in_nav: "在侧栏显示"
 sections.builtin: "内置栏目"
 sections.record_section: "设定栏目"
-sections.manage_help: "默认展示人物、世界、地图和势力。隐藏栏目保留内容；旧版空预设栏目及背包、道具、装备可按需启用。世界设定内部可通过分类整理经济、历史等条目。"
+sections.manage_help: "所有内置设定默认展示。人物背包跟随人物档案，地图与势力跟随世界设定；物品统一管理道具、服饰与装备。隐藏栏目只影响侧栏，不删除内容。"
 records.manage_categories: "管理分类"
 records.filter_category: "按分类筛选"
 records.all_categories: "全部分类"
@@ -1239,7 +1239,7 @@ sections.no_description: "暂无描述"
 sections.edit_action: 编辑
 
 # Agent-style workstation
-workstation.details: "详细输入"
+workstation.details: "设定与要求"
 workstation.more: "更多"
 workstation.welcome: "开始这一次创作"
 workstation.welcome_hint: "在下方输入写作要求，选择模式与设定，开始生成。"
@@ -1310,7 +1310,7 @@ records.import_source: "来源文件"
 records.pick_import_file: "选择本地文件"
 sections.import_settings: "导入设定"
 sections.import_target: "导入到"
-sections.guidance: "点击卡片进入栏目；拖动卡片调整顺序，或聚焦后按 Alt + 左右方向键。\n勾选“显示在导航”可控制侧栏。隐藏栏目不会删除条目。\n“导入设定”统一接收人物、势力、世界设定、地图、自定义栏目和记忆的 JSON 文件。\n一键归类暂未实现。"
+sections.guidance: "所有内置设定默认展示；人物背包跟随人物档案，地图与势力跟随世界设定，道具/服饰/装备统一在「物品」中。\n拖动卡片调整顺序，或聚焦后按 Alt + 左右方向键。隐藏栏目只影响侧栏，不删除条目。\n新增栏目默认放在「其他设定」之前。"
 sections.import_guidance: "先选择目标栏目，再选择来源文件或本地文件。\nJSON 支持数组、{ \"items\": [...] } 和按名称组织的对象。已有同名记录会合并更新，请先导出备份；导入不会按名称推断人物与势力的关联。\n地图 JSON 需包含 rows、cols、cells、regions。Markdown 仅可导入“其他设定”。"
 
 records.members_plain: "成员"
@@ -1321,10 +1321,10 @@ sections.metadata_title: "条目元信息"
 sections.metadata_help: "在这里管理该栏目条目的字段模板：可添加分组或字段、编辑名称、调整层级与顺序，以及启用或停用字段。字段名称末尾加 / 可创建分组。\n条目内容页通过“添加信息分组”选用这些模板。修改模板不会自动改写已有条目；“应用到全部”仅补充缺失字段，不覆盖已填内容。\n可以导出当前栏目模板 JSON。栏目名称与说明、字段修改均自动保存。"
 
 workstation.more_settings: "更多设定"
-workstation.pick_setting_records: "选择具体条目"
+workstation.pick_setting_records: "选择要带入的设定条目"
 workstation.map_whole: "将带入整张地图及其区域设定。"
-workstation.supplement: "补充说明与要求"
-workstation.supplement_placeholder: "填写本次创作需要遵循的补充信息、风格或限制……"
+workstation.supplement: "补充要求（可直接修改）"
+workstation.supplement_placeholder: "在这里填写额外的写作要求、风格或限制；上面的勾选决定带入哪些设定。"
 workstation.no_settings_selected: "未选择设定"
 
 manuscript.to_chapter: "导入至章节"
@@ -1402,3 +1402,23 @@ relations.reset: "重置视图"
 relations.hint: "点击节点查看，＋展开间接关联；拖动调整位置，滚轮缩放。"
 
 relations.large_view: "放大查看"
+
+# ── v2610.3 统一物品与设置导航 ──
+defaults.category.equipment: 装备
+defaults.element.wear: 穿戴
+defaults.sections.places_desc: 地理、城市、地点与交通
+defaults.schema.equipment_merged: 服饰与装备（已并入物品）
+records.all_tags: 全部标签
+records.filter_tag: 按标签筛选
+records.tags_label: 标签
+records.tags_placeholder: 例如：武器、稀有、任务奖励
+records.tags_hint: 多个标签用逗号分隔；列表可以按标签筛选。
+records.slot_none: 不指定穿戴部位
+settings.pending_badge: 待完成
+settings.dirs_pending: 目录设置将在后续设置界面重构时重新实现。当前版本不再提供目录编辑，避免误改数据位置。
+settings.pending_action: 待完成
+sections.breadcrumb: 设定管理 / {name}
+sections.child_of: 属于「{name}」
+workstation.supplement_hint: 这里只影响本次生成，不会改动设定库。
+workstation.extra_saved_hint: 已填写补充要求；点此查看或修改。
+workstation.prompt_help: 主输入写创作要求；要改带入的设定或补充要求，点“设定与要求”。

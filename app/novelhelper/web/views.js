@@ -138,17 +138,17 @@ function viewInventory(main) {
       rec.inventory.filter(e => e.item_id && on(e)).map(e => ({ entry: e, listKey: 'inventory', coll: 'items', idKey: 'item_id', qty: true })),
       [{ label: i18n.t('inventory.add_item'), listKey: 'inventory', coll: 'items', idKey: 'item_id', qty: true, carried: true }]));
     card.appendChild(block(i18n.t('inventory.worn_title'), i18n.t('inventory.worn_status'),
-      rec.equipment.filter(e => e.equip_id && on(e)).map(e => ({ entry: e, listKey: 'equipment', coll: 'equipment', idKey: 'equip_id', qty: false })),
-      [{ label: i18n.t('inventory.add_equipment'), listKey: 'equipment', coll: 'equipment', idKey: 'equip_id', qty: false, carried: true }]));
+      rec.equipment.filter(e => e.equip_id && on(e)).map(e => ({ entry: e, listKey: 'equipment', coll: 'items', idKey: 'equip_id', qty: false })),
+      [{ label: i18n.t('inventory.add_equipment'), listKey: 'equipment', coll: 'items', idKey: 'equip_id', qty: false, carried: true }]));
     card.appendChild(block(i18n.t('inventory.owned_title'), i18n.t('inventory.owned_status'),
       rec.inventory.filter(e => e.item_id && !on(e)).map(e => ({ entry: e, listKey: 'inventory', coll: 'items', idKey: 'item_id', qty: true }))
-        .concat(rec.equipment.filter(e => e.equip_id && !on(e)).map(e => ({ entry: e, listKey: 'equipment', coll: 'equipment', idKey: 'equip_id', qty: false }))),
+        .concat(rec.equipment.filter(e => e.equip_id && !on(e)).map(e => ({ entry: e, listKey: 'equipment', coll: 'items', idKey: 'equip_id', qty: false }))),
       [{ label: i18n.t('collections.singular_item'), listKey: 'inventory', coll: 'items', idKey: 'item_id', qty: true, carried: false },
-       { label: i18n.t('collections.singular_equipment'), listKey: 'equipment', coll: 'equipment', idKey: 'equip_id', qty: false, carried: false }]));
+       { label: i18n.t('collections.singular_equipment'), listKey: 'equipment', coll: 'items', idKey: 'equip_id', qty: false, carried: false }]));
 
     card.appendChild(h('div', { class: 'sep' }));
     const lines = ['### ' + i18n.t('inventory.assembly_title', { name: recordName(rec) })].concat(renderElementsMd(rec.elements, 0));
-    const worn = (rec.equipment || []).map(e => findById('equipment', e.equip_id)).filter(Boolean);
+    const worn = (rec.equipment || []).map(e => findById('items', e.equip_id)).filter(Boolean);
     if (worn.length) {
       lines.push('- ' + i18n.t('inventory.worn_line') + ' ' + worn.map(w => {
         const look = flatValues(elementToNested(w.elements || [])).slice(0, 2).join('，');
@@ -169,7 +169,7 @@ function viewInventory(main) {
 // 世界地图
 // ═══════════════════════════════════════════
 // 一棵确定的树：根表格（第 1 层）→ 区域的子表格（第 2 层）→ …，最多 WORLD_MAX_DEPTH 层。
-const WORLD_MAX_DEPTH = 4;
+// WORLD_MAX_DEPTH 定义在 core.js，导航设置目录也复用它。
 
 /** 区域在第几层：根表格里的区域＝1 层。 */
 function worldDepth(world, id) {

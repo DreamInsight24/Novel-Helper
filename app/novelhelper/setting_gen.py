@@ -21,7 +21,7 @@
 novelhelper/setting_gen.py
 AI 设定生成 —— 目标栏目目录与隐藏系统提示词。
 
-* 支持目标：人物、势力、道具、装备、其他设定，以及所有已启用的自定义栏目；
+* 支持目标：人物、势力、物品（道具/服饰/装备统一归入）、其他设定，以及所有已启用的自定义栏目；
 * 目录只包含 target 名、栏目名/用途和启用的叶子字段路径，不发送任何设定内容；
 * 系统提示词是固定常量，只存在于本模块：不进入翻译表、配置或前端，
   不通过任何 API 返回，用户请求也无法覆盖。
@@ -57,15 +57,14 @@ SYSTEM_PROMPT = """你是设定抽取助手。任务：从用户提供的素材�
 # ─────────────────────────────────────────────
 # 目标清单
 # ─────────────────────────────────────────────
-# 本版本支持的内置目标；记忆、世界地图不参与自动生成。
-BUILTIN_TARGETS = ("characters", "factions", "items", "equipment", "other")
+# 本版本支持的内置目标；道具、服饰、装备统一路由到 items 栏目。
+BUILTIN_TARGETS = ("characters", "factions", "items", "other")
 
 # schema 条目缺 label 时的兜底栏目名（与设定页保持一致）。
 BUILTIN_LABELS = {
     "characters": "人物档案",
     "factions": "势力设定",
-    "items": "道具设定",
-    "equipment": "服饰与装备",
+    "items": "物品",
     "other": "其他设定",
 }
 
@@ -73,8 +72,7 @@ BUILTIN_LABELS = {
 BUILTIN_HINTS = {
     "characters": "人物或角色个体",
     "factions": "势力、组织或团体",
-    "items": "道具、物品或消耗品",
-    "equipment": "服饰、武器或穿戴装备",
+    "items": "道具、武器、材料、消耗品、服饰、装备或其他物品；用 category 写具体类别",
     "other": "不属于以上栏目的零散设定",
 }
 
@@ -295,13 +293,11 @@ _RESERVED_KEYS = ("id", "created", "updated", "source")
 _RECORD_OPTIONALS = {
     "characters": ("tag", "notes", "tags"),
     "factions": ("tag", "notes", "tags"),
-    "items": ("tag", "notes", "tags", "category"),
-    "equipment": ("tag", "notes", "tags", "category", "slot"),
+    "items": ("tag", "notes", "tags", "category", "slot"),
     "other": ("tag", "notes", "tags", "category", "content"),
 }
 
-_ID_PREFIX = {"characters": "ch", "factions": "fa", "items": "it",
-              "equipment": "eq", "other": "ot"}
+_ID_PREFIX = {"characters": "ch", "factions": "fa", "items": "it", "other": "ot"}
 
 
 class ParseError(ValueError):

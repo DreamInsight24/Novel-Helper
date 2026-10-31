@@ -35,8 +35,7 @@ collections.equipment.desc: Wearables based on items; not sent on their own — 
   referenced in a character's inventory.
 collections.factions.desc: Organizations / families / camps; members point directly to Characters.
 collections.factions.tag_label: Type note
-collections.items.desc: Things that can go into the inventory; not sent on their own — only included as explanation
-  when referenced in a character's inventory.
+collections.items.desc: Props, apparel and equipment live here together; use categories and tags to organize them, and they are included as explanation when an inventory entry points to one.
 collections.notes: Additional notes
 collections.other.desc: Worldbuilding, species, and rules go here; anything without a dedicated section can live
   here and be moved elsewhere anytime.
@@ -320,7 +319,7 @@ defaults.record.unnamed: Untitled
 defaults.record.unnamed_import: Untitled import
 defaults.region.unnamed: Unnamed region
 defaults.schema.characters: Character profiles
-defaults.schema.equipment: Apparel & equipment
+defaults.schema.equipment: Apparel & equipment (merged into items)
 defaults.schema.factions: Factions
 defaults.schema.items: Items
 defaults.schema.memories: Memories
@@ -635,7 +634,7 @@ history.view_all: View all history
 history.viewing: 'Viewing history conversation: {title}. The input on the left is still your current draft; history
   is not overwritten.'
 history.viewing_short: 'History conversation: {title}'
-inventory.add_equipment: Add from Outfits/Equipment
+inventory.add_equipment: Add apparel/equipment from Items
 inventory.add_item: Add from Items
 inventory.assembly_title: '{name} · Full appearance assembly'
 inventory.carried_hint: Carry (on person / worn); uncheck = put into "Owned"
@@ -649,7 +648,7 @@ inventory.note_label: Note (the explanation sent to the model for this entry)
 inventory.owned_status: owned but not carried
 inventory.owned_title: Owned (not carried)
 inventory.page_desc: The inventory is edited only here (no longer on the Characters page). Select a character →
-  add to inventory / wear; pointers point directly to Items and Outfits & Equipment; the purse is a special inventory
+  add to inventory / wear; every pointer goes to the unified Items collection; the purse is a special inventory
   field — enter an amount or wealthy / average / tight, empty = not shown.
 inventory.purse_label: Purse
 inventory.purse_line: 'Purse:'
@@ -869,7 +868,7 @@ modes.thinking_option: Send thinking parameter (supported by some APIs only)
 nav.chapters: Chapters & Export
 nav.characters: Characters
 nav.elements: Element Templates
-nav.equipment: Outfits & Equipment
+nav.equipment: Outfits & Equipment (merged into items)
 nav.factions: Factions
 nav.group_core: Core Settings
 nav.group_custom: Custom Settings
@@ -1293,7 +1292,7 @@ sections.show_named: "Show {name} in the sidebar"
 sections.show_in_nav: "Show in sidebar"
 sections.builtin: "Built-in section"
 sections.record_section: "Setting section"
-sections.manage_help: "Characters, world, map, and factions are shown by default. Hidden sections retain their content. Enable older empty presets, inventory, items, or equipment as needed. Use categories within World settings for topics such as economy and history."
+sections.manage_help: "All built-in settings are shown by default. Inventory follows Characters; Map and Factions follow World Settings; Items unifies props, apparel and equipment. Hiding a section only affects the sidebar and never deletes content."
 records.manage_categories: "Manage categories"
 records.filter_category: "Filter by category"
 records.all_categories: "All categories"
@@ -1316,7 +1315,7 @@ sections.no_description: "No description yet"
 sections.edit_action: Edit
 
 # Agent-style workstation
-workstation.details: "Detailed input"
+workstation.details: "Settings & requirements"
 workstation.more: "More"
 workstation.welcome: "Start writing"
 workstation.welcome_hint: "Describe what to write below, choose a mode and references, then generate."
@@ -1387,7 +1386,7 @@ records.import_source: "Source file"
 records.pick_import_file: "Choose local file"
 sections.import_settings: "Import settings"
 sections.import_target: "Import into"
-sections.guidance: "Click a card to open it. Drag to reorder, or focus a card and press Alt + Left/Right.\nNavigation visibility does not delete entries.\nImport settings accepts JSON for characters, factions, world settings, maps, custom sections and memories.\nAutomatic classification is not available yet."
+sections.guidance: "All built-in settings are shown by default. Inventory follows Characters; Map and Factions follow World Settings; props, apparel and equipment live together in Items.\nDrag cards to reorder, or focus one and press Alt + Left/Right. Hiding a section only affects the sidebar.\nNew sections are inserted before Other Settings."
 sections.import_guidance: "Choose a destination and then a source or local file.\nJSON supports arrays, { \"items\": [...] }, and name-keyed objects. Same-name entries are merged; export a backup first. Relationships are not inferred from names.\nMap JSON requires rows, cols, cells and regions. Markdown can only be imported into Other settings."
 
 records.members_plain: "Members"
@@ -1398,10 +1397,10 @@ sections.metadata_title: "Entry metadata"
 sections.metadata_help: "Manage the field template for this section: add groups or fields, rename them, adjust hierarchy and order, and enable or disable fields. End a new field name with / to create a group.\nEntries use these templates through Add information group. Template changes do not rewrite existing entries. Apply to all only adds missing fields and preserves existing values.\nExport the current template as JSON. All edits save automatically."
 
 workstation.more_settings: "More settings"
-workstation.pick_setting_records: "Choose entries"
+workstation.pick_setting_records: "Choose setting entries to include"
 workstation.map_whole: "Include the full map and its regions."
-workstation.supplement: "Additional notes and requirements"
-workstation.supplement_placeholder: "Add context, style preferences, or constraints for this request…"
+workstation.supplement: "Additional requirements (editable)"
+workstation.supplement_placeholder: "Add extra writing requirements, style or constraints. The checkboxes above decide which settings are included."
 workstation.no_settings_selected: "No settings selected"
 
 manuscript.to_chapter: "Save to chapters"
@@ -1479,3 +1478,23 @@ relations.reset: "Reset view"
 relations.hint: "Click a node to inspect; + expands its relationships. Drag to reposition; scroll to zoom."
 
 relations.large_view: "Open larger view"
+
+# ── v2610.3 unified items and settings navigation ──
+defaults.category.equipment: Equipment
+defaults.element.wear: Wear
+defaults.sections.places_desc: Geography, cities, places and travel
+defaults.schema.equipment_merged: Apparel & equipment (merged into items)
+records.all_tags: All tags
+records.filter_tag: Filter by tag
+records.tags_label: Tags
+records.tags_placeholder: e.g. weapon, rare, quest reward
+records.tags_hint: Separate tags with commas; the list can be filtered by tag.
+records.slot_none: No worn slot
+settings.pending_badge: Pending
+settings.dirs_pending: Directory settings will return when the settings interface is redesigned. Editing paths is disabled for now to avoid accidental data moves.
+settings.pending_action: Pending
+sections.breadcrumb: Settings management / {name}
+sections.child_of: Part of "{name}"
+workstation.supplement_hint: This only affects the current generation and never changes the setting library.
+workstation.extra_saved_hint: Additional requirements are set; open this to view or edit them.
+workstation.prompt_help: Write the creative request here; use Settings & requirements to change included settings or extra requirements.

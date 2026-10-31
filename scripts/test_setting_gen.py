@@ -22,7 +22,10 @@ with tempfile.TemporaryDirectory(prefix='novelhelper_setting_gen_') as temp:
               {'key':'e'},{'key':'','children':[{'key':'f'}]},{'key':'e'}]
     assert setting_gen.leaf_paths(off_tree)==['a/b','e']
 
-    # 默认目录：五个内置目标 + 默认启用的 section_world，顺序稳定。
+    # 默认目录：四个内置目标 + 显式保留的 section_world，顺序稳定。
+    store.save('sections', {'items': [
+        {'key': 'world', 'label': '世界设定', 'desc': '', 'on': True},
+    ], 'layout_version': 2})
     catalog=setting_gen.target_catalog()
     targets=[entry['target'] for entry in catalog]
     assert targets==list(setting_gen.BUILTIN_TARGETS)+['section_world']
@@ -97,7 +100,7 @@ with tempfile.TemporaryDirectory(prefix='novelhelper_setting_gen_') as temp:
          'notes':'测试备注','tags':[' 主角 ','群像']},
         {'target':'items','name':'短剑','category':'武器',
          'fields':{'效果/主要效果':'削铁如泥'}},
-        {'target':'equipment','name':'斗篷','slot':'披风','content':'不应保留',
+        {'target':'items','name':'斗篷','slot':'披风','content':'不应保留',
          'fields':{'外观/配色':'深蓝'}},
         {'target':'other','name':'灰潮','content':'每二十年一次的魔力潮汐'},
         {'target':'section_world','name':'灰潮','fields':{'概述':'魔力潮汐'}},
@@ -119,8 +122,8 @@ with tempfile.TemporaryDirectory(prefix='novelhelper_setting_gen_') as temp:
     assert report['dropped_disabled']==1         # section_closed 已关闭
     assert report['dropped_invalid']==1          # name 非字符串
     assert report['dropped_empty']==1            # 只有名字没有内容
-    assert report['dropped_fields']==5           # 装备 content、坏字段 2 个、slot、保留字段 id
-    assert set(by_target)=={'characters','items','equipment','other','section_world'}
+    assert report['dropped_fields']==5           # 物品 content、坏字段 2 个、slot、保留字段 id
+    assert set(by_target)=={'characters','items','other','section_world'}
     assert all('target' not in rec for recs in by_target.values() for rec in recs)
     # 条目级明细：added_items 带名字与无效字段数；dropped_items 带名字与原因码。
     added={item['name']:item for item in report['added_items']}
@@ -143,7 +146,7 @@ with tempfile.TemporaryDirectory(prefix='novelhelper_setting_gen_') as temp:
     assert _re.fullmatch(r'ch_[0-9a-f]{8}',by_name['林默']['id'])
     assert by_name['林默']['created']==by_name['林默']['updated']
     assert by_name['短剑']['category']=='武器' and 'content' not in by_name['短剑']
-    assert 'content' not in by_name['斗篷']       # 装备不支持 content
+    assert 'content' not in by_name['斗篷']       # 物品不支持 content
     assert by_name['斗篷']['slot']=='披风'
     assert by_name['斗篷']['elements']==[{'key':'外观','children':[{'key':'配色','value':'深蓝'}]}]
     grey=[r for r in records if r['name']=='灰潮']  # 两个目标各一条灰潮

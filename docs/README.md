@@ -28,6 +28,7 @@ CHANGELOG.md                   # 仓库根目录，版本变更日志
 scripts/
   smoke_test.py                # 最小冒烟回归脚本
   check_dependencies.py        # 静态依赖与导入顺序检查
+  test_layout_migration.py     # v2 设定布局 / equipment → items 迁移回归
   exe_smoke_test.py            # PyInstaller EXE 隔离运行验收
 ```
 

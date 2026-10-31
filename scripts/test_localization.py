@@ -162,7 +162,7 @@ class LocalizationTests(unittest.TestCase):
                 continue
             source = path.read_text(encoding="utf-8")
             for key in re.findall(r'''(?:\bt\(\s*['"]|data-i18n=["'])([a-z][a-z0-9_.]+)['"]''', source):
-                if not key.endswith("_"):
+                if not key.endswith("_") and not key.endswith("."):
                     self.assertIn(key, catalog, f"{path}: {key}")
             if path.suffix == ".py":
                 for node in ast.walk(ast.parse(source)):

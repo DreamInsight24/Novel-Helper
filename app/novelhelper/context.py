@@ -81,6 +81,11 @@ def render_item(rec: dict) -> str:
     lines = [f"### {_title(rec)}"]
     if rec.get("category"):
         lines.append(f"- 类别：{rec['category']}")
+    if rec.get("slot"):
+        lines.append(f"- 穿戴部位：{rec['slot']}")
+    tags = [str(tag).strip() for tag in (rec.get("tags") or []) if str(tag).strip()]
+    if tags:
+        lines.append(f"- 标签：{'、'.join(tags)}")
     lines += render_elements(rec.get("elements"))
     lines += record_prose(rec)
     if (rec.get("notes") or "").strip():
@@ -179,7 +184,7 @@ def loadout(rec: dict, db: dict) -> dict:
     每条都带 detail＝道具/服饰自身的元素（就是给模型的解释），所以道具与服饰
     不需要单独作为一个区块发送。
     """
-    indexes = {"item_id": _index(db.get("items")), "equip_id": _index(db.get("equipment"))}
+    indexes = {"item_id": _index(db.get("items")), "equip_id": _index(db.get("items"))}
 
     def rows(entries, id_key, qty=False):
         out = []
@@ -411,7 +416,7 @@ def render_record_selection(db: dict, selection: dict) -> list[str]:
     mapping = selection.get("record_selections") or {}
     categories = selection.get("setting_categories")
     active = set(categories) if isinstance(categories, list) else set(mapping)
-    labels = {"characters": "人物档案", "memories": "故事记忆", "factions": "势力设定", "items": "道具设定", "equipment": "服饰与装备", "other": "其他设定"}
+    labels = {"characters": "人物档案", "memories": "故事记忆", "factions": "势力设定", "items": "物品", "other": "其他设定"}
     custom = {"section_" + sec["key"] for sec in (db.get("sections") or {}).get("items") or [] if sec.get("key")}
     parts = []
     for coll, ids in mapping.items():
@@ -424,8 +429,6 @@ def render_record_selection(db: dict, selection: dict) -> list[str]:
             body = "\n\n".join(render_faction(rec, db) for rec in records)
         elif coll == "items":
             body = "\n\n".join(render_item(rec) for rec in records)
-        elif coll == "equipment":
-            body = "\n\n".join(render_equipment(rec) for rec in records)
         elif coll == "memories":
             body = "\n\n".join(render_memory(rec) for rec in records)
         else:

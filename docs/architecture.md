@@ -28,6 +28,7 @@ app/novelhelper/
     _novels.py         # 作品库元数据、小说配置与生命周期
     _directories.py   # 从配置解析工作区/日志目录
     _bootstrap.py      # 初始化与既有配置迁移
+    _layout.py         # v2 设定布局迁移与 equipment → items 合并
     _collections.py    # 集合枚举/schema 查询
     _backup.py         # 数据备份
   project/             # 导入导出、文本处理、稿件与文件操作
@@ -59,7 +60,7 @@ app/novelhelper/
   tool_prompts.py      # 内置工具提示词与调用参数（记忆压缩等），保持独立模块
   setting_gen.py       # AI 设定生成：目标目录、隐藏提示词、分块抽取、校验映射、事务写入与撤销，保持独立模块
   app.py               # 应用入口，保持原位置
-  web/                 # 前端资源（HTML/CSS/JS），任务 1 不改
+  web/                 # 前端资源（HTML/CSS/JS）
 ```
 
 ### v2610.3 作品库存储
@@ -69,6 +70,7 @@ app/novelhelper/
 - 工作区位于 `PROJECT_ROOT/workspace/novels/<novel_id>/`。小说配置中的工作区路径是该小说工作区内的相对路径片段，解析后不得越界。
 - 每本小说的 `config.json` 在创建时复制当时的全局配置作为初值，并按顶层配置项记录 `use_global` 与 `values`。`use_global=true` 时有效值取全局配置；否则取小说覆盖值。创建默认所有可继承项跟随全局；日志、语言、首次引导和活动小说选择仍由全局配置管理。
 - 历史索引和会话文件位于小说数据目录；全局日志目录仍由全局配置管理。删除小说时数据目录及工作区通过 Windows Shell 移入系统回收站；失败时保留数据并返回可读错误。元数据正常时以标题确认，元数据损坏时以小说 ID 确认。
+- `store._layout` 在活动小说启动/打开时执行一次性 v2 布局迁移：补齐内置设定栏目并默认显示，将旧 `equipment` 记录按原 ID 合并进 `items`，同步人物装备指针与关系引用；迁移前在小说目录写入 `migration_backups/v2_<时间戳>/` 快照，迁移幂等。
 
 ### 现状与配置交接（P0）
 
@@ -110,6 +112,7 @@ app/novelhelper/
 | `_directories` | `_paths`、`_repository` |
 | `_collections` | `_names`、`_paths`、`_repository` |
 | `_bootstrap` | `_defaults`、`_directories`、`_paths`、`_repository`、`prompts`、`providers` |
+| `_layout` | `_defaults`、`_names`、`_paths`、`_repository` |
 | `_backup` | `_collections`、`_directories`、`_names`、`_repository` |
 | `__init__` | 汇总导出，不承载业务实现 |
 
