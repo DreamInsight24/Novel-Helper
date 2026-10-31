@@ -40,6 +40,7 @@
 | `web/*.js`、`style.css` 全部注释（style.css 23 行全为注释） | 代码注释 | 代码注释 |
 | 各数据默认写入值（`未命名`/`新角色`/`新道具`/`新记忆`/`短期记忆`/`长期记忆`/`重要伏笔`/`设定备忘`/`道具`/`服饰`/`上衣`/`北`/`中`/`南`/`西`/`东`/`来自{来源}`…） | 写入 `data/*.json` 的默认数据 | 数据默认值，随数据存储 |
 | `history.py:257` `未命名` | 历史指针解析的兜底名称 | 数据渲染兜底 |
+| `setting_gen.py` 的 `SYSTEM_PROMPT` / `REPAIR_PROMPT` / `BUILTIN_LABELS` / `BUILTIN_HINTS` | AI 设定生成的隐藏系统提示词与内置栏目名/用途 | 需求 6.5：AI 系统提示词不进入翻译表、不通过接口暴露；内置栏目名/用途只进入发往模型的目录，不出现在界面 |
 
 ## 3. 盘点明细
 
@@ -1063,3 +1064,33 @@ ASCII 技术标识（API Key、max_tokens、top_p、模型名、URL、编码名�
 - `settings.license_copyright` 为法律声明，中英保持一致，不随界面语言变化；
 - 新增 key 不含 `{placeholder}`，两种语言占位符集合一致；
 - `settings.license_body` / `settings.license_warranty` 的措辞须与 `LICENSE` 中的 GPL-3.0 全文一致；许可证变更时需同步更新本区块与设置页文案。
+
+## 10. AI 设定生成文案（2026-10-31 新增）
+
+v2610.3 任务 3 的新增界面文案，统一放在 `setting_gen.*` 与 `errors.setting_gen_*` 命名空间下，中英对齐以 `zh-CN.yml` / `en-US.yml` 为准。入口位于记录型设定页页头与空状态，对话框含免责说明、文本输入、导入目录文件读取；结果摘要含新增/跳过/写入栏目与撤销按钮。
+
+| 当前位置 | key | 中文 | 英文 | 状态 |
+|---|---|---|---|---|
+| `web/records.js`（AI 设定生成对话框/结果框） | `setting_gen.title` / `setting_gen.button` | AI 生成设定 | Generate Settings with AI / AI Generate | [x] |
+| 同上 | `setting_gen.notice` | AI 可能出错，生成后请检查。 | AI can make mistakes; please review the generated entries. | [x] |
+| 同上 | `setting_gen.source_label` / `setting_gen.placeholder` | 设定素材文本 / 粘贴一段与设定相关的非结构化文本…… | Source text / Paste unstructured text… | [x] |
+| 同上 | `setting_gen.file_label` / `setting_gen.file_read` / `setting_gen.no_text_files` / `setting_gen.loaded` / `setting_gen.load_failed_reason` | 从导入目录读取 / 读取 / {path} 中没有 .txt/.md 文件。 / 已读取 {path} / 读取失败：{reason} | Read from import folder / Read / No .txt/.md files in {path}. / Loaded: {path} / Read failed: {reason} | [x] |
+| 同上 | `setting_gen.start` / `setting_gen.busy` / `setting_gen.cancel_wait` / `setting_gen.failed_reason` | 开始生成 / 正在生成…… / 取消等待 / 生成失败：{reason} | Start / Generating… / Cancel wait / Generation failed: {reason} | [x] |
+| 同上 | `setting_gen.result_title` / `setting_gen.added` | 生成结果 / 新增 {added} 条，跳过 {skipped} 条同名记录。 | Generation result / Added {added}, skipped {skipped} duplicate(s). | [x] |
+| 同上（条目级明细） | `setting_gen.added_section` / `setting_gen.dropped_section` / `setting_gen.unnamed_item` / `setting_gen.field_drops` | 已添加 / 未添加 / （未命名） / 忽略 {n} 个无效字段 | Added / Not added / (unnamed) / {n} invalid field(s) ignored | [x] |
+| 同上（未添加原因） | `setting_gen.reason_duplicate` / `setting_gen.reason_unknown` / `setting_gen.reason_disabled` / `setting_gen.reason_invalid` / `setting_gen.reason_empty` / `setting_gen.reason_overflow` | 同名已存在 / 未知栏目 / 栏目未启用 / 名称无效 / 无内容可写入 / 超出单次数量上限 | duplicate name / unknown target / section disabled / invalid name / nothing to write / over the record cap | [x] |
+| 同上 | `setting_gen.undo` / `setting_gen.undo_done` / `setting_gen.undo_failed_reason` | 撤销本次生成 / 已撤销 {removed} 条；{kept} 条已修改的记录被保留。 / 撤销失败：{reason} | Undo this generation / Undid {removed} record(s); kept {kept} modified. / Undo failed: {reason} | [x] |
+| `server/_generation.py`（后端错误） | `errors.setting_gen_empty` / `errors.setting_gen_too_long` / `errors.setting_gen_parse` / `errors.setting_gen_nothing` / `errors.setting_gen_undo_missing` / `errors.setting_gen_undo_failed` | 请先粘贴或选择要生成的设定文本。 / 文本过长（超过 {max} 字符），请分次处理。 / AI 返回的内容无法解析为设定条目，请重试。 / 没有可写入的设定条目，请检查文本内容。 / 没有可撤销的生成记录。 / 撤销失败：{detail} | Paste or pick the text to generate settings from first. / The text is too long (over {max} characters). Please process it in smaller parts. / The AI response could not be parsed into setting entries. Please try again. / No setting entries could be written. Please check the source text. / There is no generation to undo. / Undo failed: {detail} | [x] |
+
+### 随本次修改的既有 key（移除环境变量提示）
+
+API Key 改为只读取应用配置、不再回退环境变量（见 CHANGELOG Security），以下文案同步去掉 `{env}` 占位符：
+
+| key | 中文 | 英文 | 状态 |
+|---|---|---|---|
+| `errors.no_api_key` | 未配置 API Key。请到「模型设置」填写。 | No API key configured. Enter one in Model Settings. | [x] |
+| `settings.key_placeholder` | 粘贴 API Key | Paste your API key | [x] |
+| `settings.no_key_hint` | 还没有填写 API Key，请在下方填写。 | No API key yet. Enter one below. | [x] |
+| `welcome.key_placeholder` | API Key（可稍后填写） | API key (can be entered later) | [x] |
+
+约束：隐藏系统提示词（`setting_gen.SYSTEM_PROMPT` / `setting_gen.REPAIR_PROMPT`）不进入翻译表、不出现在界面与日志；目录中的栏目名/用途随当前小说数据（schema/sections）取词，属用户数据不翻译。
