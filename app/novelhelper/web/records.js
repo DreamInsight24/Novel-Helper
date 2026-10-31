@@ -459,6 +459,7 @@ function viewRecords(main, key) {
     h('div', { class: 'inline' },
       guidanceButton(i18n.t('records.help_title'), i18n.t('records.edit_guidance')),
       exportButtons(def.coll),
+      aiSettingGenButton(def),
       h('button', {class:'primary', text:i18n.t('records.new', {singular:def.singular}),
         onclick:() => showRecordCreate(def, rec => {
           if (def.hasCategory && ui.category != null) rec.category = ui.category;
@@ -520,6 +521,11 @@ function viewRecords(main, key) {
     });
     if (!items.length) {
       listScroll.appendChild(h('div', { class: 'muted small', style: { padding: '10px' } }, i18n.t('records.no_match')));
+      // 空状态也要有 AI 生成入口（仅当栏目确实为空，搜索无结果时不出现）。
+      if (!bucket.items.length) {
+        listScroll.appendChild(h('div', { class: 'inline', style: { padding: '0 10px 10px' } },
+          aiSettingGenButton(def)));
+      }
     }
     updateCount();
     listScroll.scrollTop = keepTop;
@@ -884,4 +890,164 @@ function moveDialog(fromColl, ids, done) {
   }));
   foot.unshift(h('button', { text: i18n.t('common.cancel'), onclick: () => m.close() }));
   const m = modal(i18n.t('records.move'), body, foot);
+}
+
+// ═══════════════════════════════════════════
+// AI 设定生成
+// ═══════════════════════════════════════════
+// 最近一次生成结果（含 batch_id）：离开页面前提供"撤销本次生成"。
+let lastAiBatch = null;
+
+function aiTargetLabel(target) {
+  return settingLabel(target, (defFor(target) || {}).label || target);
+}
+
+function aiSettingGenButton(def) {
+  return h('button', {
+    text: i18n.t('setting_gen.button'),
+    title: i18n.t('setting_gen.notice'),
+    onclick: () => aiSettingGenDialog(def)
+  });
+}
+
+function showAiSettingGenResult(batch) {
+  const body = h('div', { class: 'setting-gen-result' });
+  const summary = batch.summary || {};
+  body.appendChild(h('p', { text: i18n.t('setting_gen.added', { added: summary.added || 0, skipped: summary.skipped || 0 }) }));
+  const itemRow = (item, note) => h('div', { class: 'gen-item' },
+    h('span', { class: 'gen-item-name',
+      text: (item.target ? aiTargetLabel(item.target) + ' · ' : '') + (item.name || i18n.t('setting_gen.unnamed_item')) }),
+    note ? h('span', { class: 'small muted', text: ' —— ' + note }) : null);
+  const reasonLabels = {
+    duplicate: () => i18n.t('setting_gen.reason_duplicate'),
+    unknown_target: () => i18n.t('setting_gen.reason_unknown'),
+    disabled: () => i18n.t('setting_gen.reason_disabled'),
+    invalid: () => i18n.t('setting_gen.reason_invalid'),
+    empty: () => i18n.t('setting_gen.reason_empty'),
+    overflow: () => i18n.t('setting_gen.reason_overflow')
+  };
+  const addedItems = summary.added_items || [];
+  if (addedItems.length) {
+    body.appendChild(h('p', { class: 'gen-section', text: i18n.t('setting_gen.added_section') }));
+    addedItems.forEach(item => body.appendChild(itemRow(item,
+      item.dropped_fields ? i18n.t('setting_gen.field_drops', { n: item.dropped_fields }) : '')));
+  }
+  const droppedItems = summary.dropped_items || [];
+  if (droppedItems.length) {
+    body.appendChild(h('p', { class: 'gen-section', text: i18n.t('setting_gen.dropped_section') }));
+    droppedItems.forEach(item => body.appendChild(itemRow(item,
+      (reasonLabels[item.reason] || reasonLabels.empty)())));
+  }
+  const undoLine = h('p', { class: 'small', style: { color: 'var(--ok, #2e7d32)' } });
+  body.appendChild(undoLine);
+  const undoBtn = h('button', {
+    text: i18n.t('setting_gen.undo'), dataset: { noclose: '1' },
+    onclick: async () => {
+      undoBtn.disabled = true;
+      try {
+        const res = await api('/api/ai/setting-gen/undo', { method: 'POST', body: {} });
+        setDb(res.collections);
+        renderNav(); renderMain();
+        lastAiBatch = null;
+        undoBtn.remove();
+        undoLine.textContent = i18n.t('setting_gen.undo_done', { removed: res.removed || 0, kept: res.kept || 0 });
+        i18n.apply(undoLine);
+      } catch (e) {
+        undoBtn.disabled = false;
+        toast(i18n.t('setting_gen.undo_failed_reason', { reason: e.message }), 'err');
+      }
+    }
+  });
+  const m = modal(i18n.t('setting_gen.result_title'), body, [
+    h('button', { text: i18n.t('common.close') }),
+    undoBtn
+  ]);
+  m.dlg.classList.add('setting-gen-result');
+}
+
+function aiSettingGenDialog(def) {
+  const textarea = h('textarea', {
+    id: 'setting-gen-source', rows: 10,
+    'aria-label': i18n.t('setting_gen.source_label'),
+    placeholder: i18n.t('setting_gen.placeholder'),
+    oninput: e => autoGrow(e.target)
+  });
+  const fileSel = h('select');
+  const loadedLine = h('div', { class: 'small muted', style: { marginTop: '6px' }, hidden: true });
+  const drawSources = () => {
+    const files = (state.sources || []).filter(s => /\.(txt|md)$/i.test(String(s.path || '')));
+    clear(fileSel);
+    if (!files.length) {
+      fileSel.appendChild(h('option', { value: '', text: i18n.t('setting_gen.no_text_files', { path: state.paths.import || 'workspace/import' }) }));
+    } else {
+      files.forEach(s => fileSel.appendChild(h('option', { value: s.path, text: s.path })));
+    }
+  };
+  drawSources();
+  const readBtn = h('button', { text: i18n.t('setting_gen.file_read') });
+  readBtn.onclick = async () => {
+    if (!fileSel.value) { toast(i18n.t('records.choose_file_first'), 'err'); return; }
+    readBtn.disabled = true;
+    try {
+      const res = await api('/api/file?' + new URLSearchParams({ path: fileSel.value }));
+      textarea.value = res.content || '';
+      autoGrow(textarea);
+      loadedLine.hidden = false;
+      loadedLine.textContent = i18n.t('setting_gen.loaded', { path: res.path || fileSel.value });
+    } catch (e) {
+      toast(i18n.t('setting_gen.load_failed_reason', { reason: e.message }), 'err');
+    } finally { readBtn.disabled = false; }
+  };
+
+  let token = 0;   // 取消后忽略迟到的结果
+  let controller = null;
+  const dialog = modal(i18n.t('setting_gen.title'), h('div', { class: 'setting-gen-form' },
+    h('p', { class: 'small muted', text: i18n.t('setting_gen.notice') }),
+    h('div', { class: 'field' }, h('label', { for: 'setting-gen-source', text: i18n.t('setting_gen.source_label') }), textarea),
+    h('div', { class: 'inline', style: { marginTop: '8px' } },
+      h('label', { class: 'small muted', text: i18n.t('setting_gen.file_label') }), fileSel, readBtn),
+    loadedLine), [
+    h('button', {
+      text: i18n.t('common.cancel'),
+      onclick: () => { token += 1; if (controller) controller.abort(); dialog.close(); }
+    }),
+    h('button', { class: 'primary', text: i18n.t('setting_gen.start'), dataset: { noclose: '1' },
+      onclick: () => startGen() })
+  ]);
+  dialog.dlg.classList.add('setting-gen-form');
+  textarea.focus();
+  const buttons = dialog.dlg.querySelectorAll('.dlg-foot button');
+  const cancelBtn = buttons[0], startBtn = buttons[1];
+
+  async function startGen() {
+    const text = textarea.value.trim();
+    if (!text) { toast(i18n.t('errors.setting_gen_empty'), 'err'); textarea.focus(); return; }
+    const myToken = ++token;
+    startBtn.disabled = true;
+    cancelBtn.textContent = i18n.t('setting_gen.cancel_wait');
+    status(i18n.t('setting_gen.busy'), 'busy');
+    controller = new AbortController();
+    try {
+      // 先落盘防抖中的编辑，避免旧集合覆盖服务端刚写入的生成结果。
+      await flushPendingSaves();
+      const res = await api('/api/ai/setting-gen', { method: 'POST', body: { text }, signal: controller.signal });
+      if (token !== myToken) return;
+      dialog.close();
+      setDb(res.collections);
+      renderNav(); renderMain();
+      lastAiBatch = res;
+      showAiSettingGenResult(res);
+    } catch (e) {
+      if (token !== myToken || (e && e.name === 'AbortError')) return;
+      status(i18n.t('common.save_failed'), 'err');
+      toast(i18n.t('setting_gen.failed_reason', { reason: e.message }), 'err');
+    } finally {
+      if (token === myToken) {
+        startBtn.disabled = false;
+        cancelBtn.textContent = i18n.t('common.cancel');
+        status('', '');
+        controller = null;
+      }
+    }
+  }
 }
