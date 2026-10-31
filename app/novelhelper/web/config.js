@@ -637,7 +637,7 @@ function viewAI(main) {
   const cfg = state.db.config = state.db.config || {};
   ensureApiProfiles(cfg);
   const api = cfg.api;
-  const preset = providerById(api.provider) || { label: i18n.t('settings.custom_preset'), base_url: '', models: [], key_env: 'CUSTOM_API_KEY' };
+  const preset = providerById(api.provider) || { label: i18n.t('settings.custom_preset'), base_url: '', models: [] };
   const customUrl = !preset || preset.id === 'custom' ||
     (api.base_url && preset.base_url && !sameProviderUrl(api.base_url, preset.base_url));
   const host = (() => {
@@ -690,7 +690,7 @@ function viewAI(main) {
     })))));
   if (!(api.api_key || '').trim() && !keyOptional) {
     apiCard.appendChild(h('div', { class: 'notice warn',
-      text: i18n.t('settings.no_key_hint', { env: preset.key_env || 'OPENAI_API_KEY' }) }));
+      text: i18n.t('settings.no_key_hint') }));
   } else if (!(api.api_key || '').trim() && keyOptional) {
     apiCard.appendChild(h('div', { class: 'notice',
       text: i18n.t('settings.key_optional_hint') }));
@@ -705,7 +705,7 @@ function viewAI(main) {
     h('label', { text: 'API Key' }),
     h('input', {
       type: 'password', value: api.api_key || '',
-      placeholder: i18n.t('settings.key_placeholder', { env: preset.key_env || 'CUSTOM_API_KEY' }),
+      placeholder: i18n.t('settings.key_placeholder'),
       oninput: e => { api.api_key = e.target.value; touch('config'); }
     })));
   apiCard.appendChild(h('div', { class: 'field' },
@@ -1068,7 +1068,7 @@ function showOnboarding(force) {
   const drawApiStep = () => {
     const api = cfg.api;
     const preset = providerById(api.provider) ||
-      { label: i18n.t('settings.custom_preset'), base_url: '', models: [], key_env: 'CUSTOM_API_KEY' };
+      { label: i18n.t('settings.custom_preset'), base_url: '', models: [] };
     const models = currentModels();
     if (models.length && !models.includes(api.default_model)) {
       api.default_model = models[0];
@@ -1102,7 +1102,7 @@ function showOnboarding(force) {
       h('label', { text: 'API Key' }),
       h('input', {
         type: 'password', value: api.api_key || '',
-        placeholder: i18n.t('welcome.key_placeholder', {env: preset.key_env || 'CUSTOM_API_KEY'}),
+        placeholder: i18n.t('welcome.key_placeholder'),
         oninput: e => { api.api_key = e.target.value; touch('config'); }
       })));
     body.appendChild(h('div', { class: 'inline', style: { marginBottom: '8px' } },

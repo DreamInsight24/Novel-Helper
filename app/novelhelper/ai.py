@@ -22,7 +22,7 @@ novelhelper/ai.py
 OpenAI Chat Completions 兼容接口封装。
 
 * 支持多个常见提供商预设，也支持任意自定义 URL；
-* API Key 优先读取配置，其次读取提供商对应的环境变量；
+* API Key 只读取配置，不读取环境变量：未显式配置时不发起请求；
 * 模型与推理强度由每个工作模式独立配置，并与当前 URL 的模型列表统一；
 * 优先使用 openai SDK，未安装时自动退回标准库 urllib。
 """
@@ -31,7 +31,6 @@ from __future__ import annotations
 from .localization import t
 
 import json
-import os
 import time
 import urllib.error
 import urllib.parse
@@ -53,26 +52,15 @@ class AIError(RuntimeError):
     pass
 
 
-def _env_api_key(provider: dict) -> str:
-    names = []
-    if provider.get("key_env"):
-        names.append(provider["key_env"])
-    else:
-        names.append("OPENAI_API_KEY")
-    for name in names:
-        value = os.environ.get(name)
-        if value:
-            return value
-    return ""
-
-
 def _api_settings(config: dict) -> dict:
     api = (config or {}).get("api") or {}
     provider = providers.provider_for_config(config)
     base_url = providers.normalize_base_url(api.get("base_url") or provider.get("base_url") or "")
     if not base_url:
         raise AIError(t('errors.no_api_url'))
-    api_key = (api.get("api_key") or "").strip() or _env_api_key(provider)
+    # API Key 只读取配置：不读取环境变量，避免在用户未显式配置时
+    # 静默使用其机器上的其他 key 产生计费。
+    api_key = (api.get("api_key") or "").strip()
     timeout = api.get("timeout") or 899
     return {
         "base_url": base_url,
@@ -97,10 +85,7 @@ def _ensure_key(api: dict) -> None:
     local = host in ("127.0.0.1", "localhost", "::1")
     if api["api_key"] or api["provider"].get("generic") or api["provider_id"] == "custom" or local:
         return
-    provider = api["provider"]
-    raise AIError(
-        t('errors.no_api_key', env=provider.get('key_env') or 'OPENAI_API_KEY')
-    )
+    raise AIError(t('errors.no_api_key'))
 
 
 def mode_settings(config: dict, mode: dict | None) -> dict:
