@@ -192,7 +192,10 @@ def main() -> int:
           all(key in store.load("schema") for key in
               ("section_world", "section_species", "section_magic", "section_places", "section_religion")))
     section_labels = [s.get("label") for s in store.load("sections")["items"]]
-    check("默认仅初始化世界设定栏目", section_labels == ["世界设定"],
+    section_keys = [s.get("key") for s in store.load("sections")["items"]]
+    check("默认初始化全部基础设定栏目",
+          section_keys == ["world", "species", "magic", "places", "history",
+                           "economy", "rules", "religion"],
           "、".join(section_labels))
     modes = store.load("modes")["items"]
     check("默认五种工作模式",

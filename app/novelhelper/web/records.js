@@ -384,8 +384,14 @@ function renameRecordCategory(bucket, from, to) {
   return true;
 }
 
-function matchesRecordFilter(rec, query, category) {
+function recordTags(rec) {
+  const values = Array.isArray(rec?.tags) ? rec.tags : [];
+  return [...new Set(values.map(value => String(value || '').trim()).filter(Boolean))];
+}
+
+function matchesRecordFilter(rec, query, category, tag) {
   return (category == null || (rec.category || '') === category)
+    && (!tag || recordTags(rec).includes(tag))
     && (!query || JSON.stringify(rec).toLowerCase().includes(query.toLowerCase()));
 }
 
@@ -433,13 +439,14 @@ function newRecord(def) {
   const rec = { id: newId(def.idPrefix), name: i18n.t('defaults.record.unnamed'), elements: [], tags: [], created: stamp, updated: stamp };
   if (def.tagLabel) rec.tag = '';
   if (def.notesLabel) rec.notes = '';
-  if (def.hasCategory) rec.category = '';
-  if (def.hasSlot) rec.slot = ((state.db.equipment.slots || [])[0]) || i18n.t('defaults.category.other');
+  if (def.hasCategory) rec.category = def.coll === 'items'
+    ? (recordCategoryNames(state.db.items)[0] || '') : '';
   if (def.hasContent) rec.content = '';
   if (def.hasInventory) { rec.inventory = []; rec.equipment = []; }
   if (def.hasMembers) rec.members = [];
   rec.content = '';
   rec.summary = '';
+  rec.tags = [];
   return rec;
 }
 
@@ -452,6 +459,7 @@ function viewRecords(main, key) {
   state.ui[key] = state.ui[key] || { sel: null, q: '' };
   const ui = state.ui[key];
   ui.q = ui.q || '';
+  ui.tag = ui.tag || '';
   if (!bucket.items.some(r => r.id === ui.sel)) ui.sel = bucket.items.length ? bucket.items[0].id : null;
   state.sel[key] = state.sel[key] || new Set();
 
@@ -482,9 +490,9 @@ function viewRecords(main, key) {
   const updateCount = () => {
     countLine.textContent = key === 'other' && state.sel[key] && state.sel[key].size
       ? i18n.t('records.count_selected', {total: bucket.items.length, selected: state.sel[key].size})
-      : ui.q || ui.category != null
+      : ui.q || ui.category != null || ui.tag
         ? i18n.t('records.count_filtered', {
-          shown: bucket.items.filter(rec => matchesRecordFilter(rec, ui.q, ui.category)).length,
+          shown: bucket.items.filter(rec => matchesRecordFilter(rec, ui.q, ui.category, ui.tag)).length,
           total: bucket.items.length
         })
         : i18n.t('records.total', {count: bucket.items.length});
@@ -495,7 +503,7 @@ function viewRecords(main, key) {
     const keepTop = listScroll.scrollTop;
     rowEls.clear();
     const q = ui.q.toLowerCase();
-    const items = bucket.items.filter(r => matchesRecordFilter(r, q, ui.category));
+    const items = bucket.items.filter(r => matchesRecordFilter(r, q, ui.category, ui.tag));
     clear(listScroll);
     items.forEach(rec => {
       const rowEl = h('div', {
@@ -514,7 +522,8 @@ function viewRecords(main, key) {
       }
       rowEl.appendChild(h('div', { class: 'name', text: recordName(rec) }));
       const filled = countFilled(rec.elements);
-      const meta = [rec.category, filled ? i18n.t('records.filled_suffix', { count: filled }) : ''].filter(Boolean).join(' · ');
+      const tags = recordTags(rec);
+      const meta = [rec.category, tags.length ? tags.join(' / ') : '', filled ? i18n.t('records.filled_suffix', { count: filled }) : ''].filter(Boolean).join(' · ');
       rowEl.appendChild(h('div', { class: 'meta', text: meta }));
       rowEls.set(rec.id, rowEl);
       listScroll.appendChild(rowEl);
@@ -539,7 +548,7 @@ function viewRecords(main, key) {
   };
 
   const chooseVisible = () => {
-    const visible = bucket.items.filter(rec => matchesRecordFilter(rec, ui.q, ui.category));
+    const visible = bucket.items.filter(rec => matchesRecordFilter(rec, ui.q, ui.category, ui.tag));
     if (!visible.some(rec => rec.id === ui.sel)) ui.sel = visible[0]?.id || null;
     drawList(); drawEditor();
   };
@@ -561,6 +570,17 @@ function viewRecords(main, key) {
         }))),
       h('button', { class: 'mini', text: i18n.t('records.manage_categories'),
         onclick: () => manageRecordCategories(def.coll, () => renderMain()) })));
+  }
+  if (def.hasTags) {
+    const tags = [...new Set(bucket.items.flatMap(recordTags))].sort((a, b) => a.localeCompare(b));
+    if (ui.tag && !tags.includes(ui.tag)) ui.tag = '';
+    listCard.appendChild(h('div', { class: 'field' },
+      h('label', { text: i18n.t('records.filter_tag') }),
+      h('select', {
+        'aria-label': i18n.t('records.filter_tag'),
+        onchange: e => { ui.tag = e.target.value; chooseVisible(); }
+      }, [['', i18n.t('records.all_tags')], ...tags.map(tag => [tag, tag])].map(([value, label]) =>
+        h('option', { value, text: label, selected: value === ui.tag })))));
   }
   listCard.append(countLine, listScroll);
   listBox.appendChild(listCard);
@@ -640,9 +660,25 @@ function recordEditor(def, rec, onListChange, onEditorChange) {
             state.db[coll].categories=Array.from(new Set([...categories,name]));rec.category=name;touch(coll);onListChange();onEditorChange();
           })}))));
     }
-    if (def.hasSlot) body.appendChild(h('div', {class:'field'}, h('label', {text:i18n.t('records.slot_label')}),
-      h('select', {'aria-label':i18n.t('records.slot_label'), onchange:e=>{rec.slot=e.target.value;touch(coll);}},
-        (state.db.equipment.slots || []).map(value=>h('option',{value,selected:rec.slot===value,text:value})))));
+    if (def.hasTags) {
+      const tagsInput = h('input', {
+        type: 'text', value: recordTags(rec).join('、'),
+        placeholder: i18n.t('records.tags_placeholder'),
+        'aria-label': i18n.t('records.tags_label'),
+        oninput: e => {
+          rec.tags = Array.from(new Set(e.target.value.split(/[,，、]/).map(value => value.trim()).filter(Boolean)));
+          touch(coll); onListChange();
+        }
+      });
+      body.appendChild(h('div', {class:'field'}, h('label', {text:i18n.t('records.tags_label')}), tagsInput,
+        h('div', {class:'small muted', text:i18n.t('records.tags_hint')})));
+    }
+    if (def.coll === 'items') {
+      const slots = (state.db.items && state.db.items.slots) || [];
+      body.appendChild(h('div', {class:'field'}, h('label', {text:i18n.t('records.slot_label')}),
+        h('select', {'aria-label':i18n.t('records.slot_label'), onchange:e=>{rec.slot=e.target.value;touch(coll);}},
+          [''].concat(slots).map(value=>h('option',{value,selected:(rec.slot || '')===value,text:value || i18n.t('records.slot_none')})))));
+    }
     body.appendChild(field(def.notesLabel || i18n.t('collections.notes'),'notes',4));
     if (rec.source) body.appendChild(h('div', {class:'small muted',text:i18n.t('common.source_prefix',{source:rec.source})}));
     body.appendChild(h('div', {class:'record-more-actions'},
@@ -867,7 +903,7 @@ function moveBar(coll, key) {
 function moveDialog(fromColl, ids, done) {
   const builtins = [
     ['characters', i18n.t('nav.characters')], ['factions', i18n.t('nav.factions')], ['items', i18n.t('nav.items')],
-    ['equipment', i18n.t('nav.equipment')], ['memories', i18n.t('nav.memories')], ['other', i18n.t('nav.other')]
+    ['memories', i18n.t('nav.memories')], ['other', i18n.t('nav.other')]
   ].filter(t => t[0] !== fromColl);
   const custom = sectionDefs().map(sec => ['section_' + sec.key, i18n.t('records.custom_prefix', { label: sec.label || sec.key })]);
   const targets = builtins.concat(custom);

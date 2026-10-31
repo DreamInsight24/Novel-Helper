@@ -273,7 +273,14 @@ function viewWorkstation(main) {
     h('button', { text: i18n.t('workstation.details'), disabled: busy, onclick: openWorkstationDetails }),
     h('button', { class: 'primary agent-send', text: i18n.t(busy ? 'common.generating' : 'workstation.start'),
       title: 'Ctrl+Enter', disabled: busy || !mode, onclick: runWorkstation })));
+  if ((ws.extra || '').trim()) {
+    composer.appendChild(h('div', { class: 'agent-extra-hint small muted' },
+      h('span', { text: i18n.t('workstation.extra_saved_hint') }),
+      h('button', { class: 'ghost mini', text: i18n.t('workstation.details'),
+        onclick: openWorkstationDetails })));
+  }
   composer.appendChild(h('div', { class: 'agent-summary small muted', text: wsSummary() }));
+  composer.appendChild(h('div', { class: 'small muted agent-prompt-help', text: i18n.t('workstation.prompt_help') }));
   if (!modes.length) composer.appendChild(h('button', { text: i18n.t('workstation.go_modes'), onclick: () => go('modes') }));
   shell.appendChild(h('div', { class: 'agent-compose-wrap' }, composer,
     h('div', { class: 'agent-footnote', text: i18n.t('workstation.context_hint') })));
@@ -327,6 +334,7 @@ function openWorkstationDetails() {
   else files.appendChild(h('div',{class:'small muted',text:i18n.t('workstation.attach_hint')}));
   body.appendChild(files);
   body.appendChild(h('div',{class:'field ws-supplement'},h('label',{for:'ws-supplement',text:i18n.t('workstation.supplement')}),
+    h('div',{class:'small muted ws-supplement-hint',text:i18n.t('workstation.supplement_hint')}),
     h('textarea',{id:'ws-supplement',rows:5,value:ws.extra,placeholder:i18n.t('workstation.supplement_placeholder'),
       oninput:e=>{ws.extra=e.target.value;touch('state',true);}})));
   const dialog=modal(i18n.t('workstation.details'),body,[

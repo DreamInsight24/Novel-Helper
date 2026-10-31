@@ -40,6 +40,7 @@ from ._defaults import (
     default_sections, default_state, default_worldmap, default_workstation,
 )
 from ._repository import load, save
+from ._layout import LAYOUT_VERSION, migrate_active_layout
 from ._localized import localized_default_for, seed_localized_defaults
 from ._directories import (
     io_in,
@@ -77,6 +78,7 @@ __all__ = [
     'default_other', 'default_memory', 'default_worldmap', 'default_meta', 'default_sections',
     'section_store_name', 'section_key', 'is_section', 'section_names',
     'default_memory_categories', 'default_history', 'default_for', 'load', 'save',
+    'LAYOUT_VERSION', 'migrate_active_layout',
     'localized_default_for', 'seed_localized_defaults',
     'load_all', 'load_all_names', 'schema_for', 'known_collection', 'backup_all',
     'create_novel', 'current_config', 'delete_novel', 'effective_config', 'list_novels', 'load_novel_config',

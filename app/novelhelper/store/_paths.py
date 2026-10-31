@@ -74,7 +74,7 @@ COLLECTIONS = (
     "relations",
 )
 
-RECORD_COLLECTIONS = ("characters", "factions", "items", "equipment", "other", "memories")
+RECORD_COLLECTIONS = ("characters", "factions", "items", "other", "memories")
 
 SECTION_PREFIX = "section_"
 

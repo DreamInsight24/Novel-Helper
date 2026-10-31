@@ -145,22 +145,26 @@ def default_schema() -> dict:
                 {"key": "历史与现状", "children": [{"key": "历史"}, {"key": "现状"}]},
             ],
         },
+        # 道具、服饰、装备共用一个「物品」栏目；类别由记录字段区分。
         "items": {
-            "label": "道具设定",
+            "label": "物品",
             "elements": [
                 {"key": "基本", "children": [{"key": "类型"}, {"key": "品级"}, {"key": "价格"}]},
-                {"key": "外观", "children": [{"key": "外形"}, {"key": "材质"}, {"key": "大小"}]},
-                {"key": "效果", "children": [{"key": "主要效果"}, {"key": "消耗"}, {"key": "限制"}]},
+                {"key": "穿戴", "children": [{"key": "穿戴部位"}, {"key": "材质"}]},
+                {"key": "外观", "children": [
+                    {"key": "外形"}, {"key": "配色"}, {"key": "特殊纹样"}, {"key": "大小"},
+                ]},
+                {"key": "效果", "children": [
+                    {"key": "主要效果"}, {"key": "消耗"}, {"key": "限制"},
+                    {"key": "穿戴效果"}, {"key": "耐久"},
+                ]},
                 {"key": "来历", "children": [{"key": "获得方式"}, {"key": "持有者"}]},
             ],
         },
+        # 兼容旧数据读取；界面与 AI 目录不再单列服饰/装备栏目。
         "equipment": {
-            "label": "服饰与装备",
-            "elements": [
-                {"key": "基本", "children": [{"key": "穿戴部位"}, {"key": "类型"}, {"key": "材质"}]},
-                {"key": "外观", "children": [{"key": "外观描述"}, {"key": "配色"}, {"key": "特殊纹样"}]},
-                {"key": "效果", "children": [{"key": "穿戴效果"}, {"key": "耐久"}, {"key": "限制"}]},
-            ],
+            "label": "服饰与装备（已并入物品）",
+            "elements": [],
         },
         "other": {
             "label": "其他设定",
@@ -210,7 +214,7 @@ def default_faction() -> dict:
 
 def default_item() -> dict:
     return {
-        "id": new_id("it"), "name": "新道具", "category": "道具", "tag": "", "elements": [],
+        "id": new_id("it"), "name": "新物品", "category": "道具", "tag": "", "elements": [],
         "notes": "", "tags": [], "created": now_str(), "updated": now_str(),
     }
 
@@ -248,11 +252,29 @@ def default_meta() -> dict:
     return {"version": 3, "created": now_str(), "last_import": {}, "notes": ""}
 
 def default_sections() -> dict:
-    """Default record section; other setting pages keep their existing collections."""
+    """内置设定栏目；默认全部显示，顺序由前端导航统一编排。
+
+    道具、服饰、装备已合并为「物品」，因此这里不再声明 equipment。
+    """
     return {
         "items": [
-            {"key": "world", "label": "世界设定", "desc": "世界背景、大陆概况、总体设定", "on": True},
-        ]
+            {"key": "world", "label": "世界设定", "desc": "世界背景、大陆概况、总体设定", "on": True,
+             "auto_from": ["世界背景", "设定", "关于世界"]},
+            {"key": "species", "label": "物种", "desc": "种族、生理特征、社会地位与亚种", "on": True,
+             "auto_from": ["物种"]},
+            {"key": "magic", "label": "魔法与技能", "desc": "属性、来源、技能类型、学习方式", "on": True,
+             "auto_from": ["魔法"]},
+            {"key": "places", "label": "地点与城市", "desc": "地理、城市、地点与交通", "on": True},
+            {"key": "history", "label": "历史与时间线", "desc": "重大事件、战争、条约、预言", "on": True,
+             "auto_from": ["时间线以及重大事件", "历史事件"]},
+            {"key": "economy", "label": "经济与物价", "desc": "货币、物价参考、贸易", "on": True,
+             "auto_from": ["货币"]},
+            {"key": "rules", "label": "规则与疾病", "desc": "世界规则、特殊疾病、习俗", "on": True,
+             "auto_from": ["特殊疾病"]},
+            {"key": "religion", "label": "宗教与信仰", "desc": "教会、神系、信仰", "on": True,
+             "auto_from": ["宗教"]},
+        ],
+        "layout_version": 2,
     }
 
 def default_memory_categories() -> list:
@@ -279,7 +301,11 @@ def default_for(name: str) -> Any:
     if name == "factions":
         return {"items": [], "categories": []}
     if name == "items":
-        return {"items": [], "categories": ["道具", "武器", "材料", "消耗品", "魔物", "服饰", "其他"]}
+        return {
+            "items": [],
+            "categories": ["道具", "武器", "材料", "消耗品", "魔物", "服饰", "装备", "其他"],
+            "slots": ["头部", "上衣", "下装", "鞋靴", "披风", "饰品", "武器", "护甲", "其他"],
+        }
     if name == "equipment":
         return {"items": [], "slots": ["头部", "上衣", "下装", "鞋靴", "披风", "饰品", "武器", "护甲", "其他"]}
     if name == "other":

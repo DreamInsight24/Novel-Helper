@@ -182,8 +182,8 @@ class _RecordMixin:
                     "source": rec.get("source") or t("defaults.source.from", source=src_coll), "tags": [],
                     "created": store.now_str(), "updated": store.now_str(),
                 }
-            elif dst_coll in ("characters", "factions", "items", "equipment"):
-                prefix = {"characters": "ch", "factions": "fa", "items": "it", "equipment": "eq"}[dst_coll]
+            elif dst_coll in ("characters", "factions", "items"):
+                prefix = {"characters": "ch", "factions": "fa", "items": "it"}[dst_coll]
                 new_rec = {
                     "id": store.new_id(prefix), "name": name, "tag": rec.get("tag") or "",
                     "elements": el.from_preset(store.schema_for(dst_coll)),
@@ -191,12 +191,8 @@ class _RecordMixin:
                     "source": rec.get("source") or t("defaults.source.from", source=src_coll),
                     "created": store.now_str(), "updated": store.now_str(),
                 }
-                if dst_coll in ("items", "equipment"):
-                    new_rec["category"] = rec.get("category") or (
-                        t("defaults.category.apparel") if dst_coll == "equipment"
-                        else t("defaults.category.item"))
-                if dst_coll == "equipment":
-                    new_rec["slot"] = t("defaults.slot.top")
+                if dst_coll == "items":
+                    new_rec["category"] = rec.get("category") or t("defaults.category.item")
                 if dst_coll == "characters":
                     new_rec["inventory"] = []
                     new_rec["equipment"] = []

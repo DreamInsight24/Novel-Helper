@@ -50,6 +50,9 @@ def ensure_dirs() -> None:
         for name in COLLECTIONS:
             if name != "config" and not _path(name).exists():
                 save(name, default_for(name))
+        # Restore the complete settings layout and fold equipment into items.
+        from ._layout import migrate_active_layout
+        migrate_active_layout()
 
 def _migrate_config() -> None:
     """把旧版 config.json 补齐到当前结构，并迁移旧目录。"""

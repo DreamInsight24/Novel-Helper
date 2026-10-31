@@ -39,10 +39,13 @@ function settingMetadataEditor(main, entry, settings) {
   const schema = state.db.schema = state.db.schema || {};
   const template = hasTemplate ? (schema[entry.coll] = schema[entry.coll] || {label:entry.label,elements:[]}) : null;
   if (template) template.elements = template.elements || [];
-  const back = () => {state.ui.settingEditor=null; renderNav(); renderMain();};
-  main.appendChild(pageHead(i18n.t('sections.edit_named',{name:entry.label}), '', h('div',{class:'inline'},
-    h('button',{text:i18n.t('sections.back_management'),onclick:back}),
-    guidanceButton(i18n.t('sections.metadata_title'),i18n.t('sections.metadata_help')))));
+  const back = () => {state.ui.settingEditor=null; go('sections');};
+  main.appendChild(h('div',{class:'settings-breadcrumb'},
+    h('button',{class:'ghost mini settings-back',text:i18n.t('sections.back_management'),
+      onclick:back}),
+    h('span',{class:'small muted',text:i18n.t('sections.breadcrumb',{name:entry.label})})));
+  main.appendChild(pageHead(i18n.t('sections.edit_named',{name:entry.label}), '',
+    h('div',{class:'inline'},guidanceButton(i18n.t('sections.metadata_title'),i18n.t('sections.metadata_help')))));
   const name = h('input',{type:'text',value:entry.label,id:'setting-edit-name',
     oninput:e=>{
       const label=e.target.value.trim(); if(!label)return;
@@ -103,7 +106,7 @@ function reorderSettingIds(ids, source, target, after) {
 function viewSections(main) {
   const settings = state.db.sections = state.db.sections || { items: [] };
   settings.items = settings.items || [];
-  const entries = settingEntries(true).sort((a, b) => Number(b.on) - Number(a.on));
+  const entries = settingEntries(true);
   const editing=entries.find(entry=>entry.id===state.ui.settingEditor);
   if(editing){settingMetadataEditor(main,editing,settings);return;}
 
@@ -140,6 +143,13 @@ function viewSections(main) {
           do { key = 'sec_' + Math.random().toString(36).slice(2, 10); }
           while (settings.items.some(sec => sec.key === key));
           settings.items.push({ key, label, desc: '', on: true });
+          // Explicit order makes the new section land immediately before
+          // "Other settings" instead of at the end of an unrelated block.
+          const order = settingEntries(true).map(entry => entry.id)
+            .filter(id => id !== 'section_' + key);
+          const otherIndex = order.indexOf('other');
+          order.splice(otherIndex < 0 ? order.length : otherIndex, 0, 'section_' + key);
+          settings.order = order;
           refresh();
         });
       }}),
@@ -213,6 +223,8 @@ function viewSections(main) {
     card.appendChild(h('div', { class: 'setting-card-top' },
       h('span', { class: 'setting-card-drag', text: '⠿', title: i18n.t('sections.drag_hint'), 'aria-hidden': 'true' }),
       count === null ? null : h('span', { class: 'small muted', text: i18n.t('records.total', { count }) })));
+    if (entry.parent) card.appendChild(h('div', { class: 'setting-card-parent',
+      text: i18n.t('sections.child_of', { name: settingLabel(entry.parent, entry.parent) }) }));
     card.appendChild(h('h2', { class: 'setting-card-name', text: entry.label }));
     card.appendChild(h('p', { class: 'setting-card-description' + (entry.desc ? '' : ' muted'),
       text: entry.desc || i18n.t('sections.no_description') }));
@@ -891,17 +903,11 @@ function viewAI(main) {
       text: i18n.t('settings.language_hint') })));
   main.appendChild(sCard);
 
-  const pCard = h('div', { class: 'card' });
+  const pCard = h('div', { class: 'card settings-pending', id: 'settings-directories' });
   pCard.appendChild(h('h2', null, i18n.t('settings.dirs_section'),
-    h('span', { class: 'hint', text: i18n.t('settings.dirs_hint', { root: state.paths.root || '' }) })));
-  [['import_dir', i18n.t('settings.dir_import')], ['export_dir', i18n.t('settings.dir_export')],
-   ['output_dir', i18n.t('settings.dir_output')], ['text_dir', i18n.t('settings.dir_text')],
-   ['log_dir', i18n.t('settings.dir_log')]].forEach(([key, label]) => {
-    pCard.appendChild(h('div', { class: 'field' }, h('label', { text: label + '（' + key + '）' }),
-      h('input', { type: 'text', value: cfg.paths[key] || '', oninput: e => { cfg.paths[key] = e.target.value; touch('config'); } })));
-  });
-  pCard.appendChild(h('div', { class: 'small muted' },
-    i18n.t('settings.data_dir_hint')));
+    h('span', { class: 'hint', text: i18n.t('settings.pending_badge') })));
+  pCard.appendChild(h('p', { class: 'small muted', text: i18n.t('settings.dirs_pending') }));
+  pCard.appendChild(h('button', { class: 'mini', disabled: true, text: i18n.t('settings.pending_action') }));
   main.appendChild(pCard);
 
   const about = h('div', { class: 'card about-card' });

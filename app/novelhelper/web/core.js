@@ -302,40 +302,89 @@ function sectionDefs(includeHidden) {
 }
 
 /** Navigation preferences use the existing sections collection; record formats stay intact. */
+const WORLD_MAX_DEPTH = 4;
+const SETTING_BASE_KEYS = ['species', 'magic', 'places', 'history', 'economy', 'rules', 'religion'];
+
 function settingEntries(includeHidden) {
   const prefs = ((state.db || {}).sections || {}).builtins || {};
-  const builtin = (id, coll, label, defaultOn) => {
+  const builtin = (id, coll, label, desc) => {
     const saved = prefs[id] || {};
-    return { id, coll, label: saved.label || label, desc: saved.desc || '', builtin: true,
-      on: saved.on === undefined ? defaultOn : saved.on !== false };
+    return { id, coll, label: saved.label || label, desc: saved.desc || desc || '', builtin: true,
+      on: saved.on === undefined ? true : saved.on !== false };
   };
   const sections = sectionDefs(true).map(sec => ({
     id: 'section_' + sec.key, coll: 'section_' + sec.key, section: sec,
     label: sec.key === 'world' && ['世界观', 'Worldview'].includes(sec.label)
       ? i18n.t('nav.world_setting') : (sec.label || sec.key),
     desc: sec.desc || '',
-    // Empty legacy presets remain available in management.
-    on: sec.on === undefined
-      ? sec.key === 'world' || !['species', 'magic', 'history', 'economy', 'rules', 'religion'].includes(sec.key)
-        || collItems('section_' + sec.key).length > 0
-      : sec.on !== false
+    // All built-in sections are visible from the start; hiding is an explicit
+    // user choice on the management cards.
+    on: sec.on !== false
   }));
   const world = sections.find(entry => entry.id === 'section_world');
-  const entries = [
-    builtin('characters', 'characters', i18n.t('nav.characters'), true),
-    ...(world ? [world] : []),
-    builtin('world', 'worldmap', i18n.t('nav.worldmap'), true),
-    builtin('factions', 'factions', i18n.t('nav.factions'), true),
-    ...sections.filter(entry => entry !== world),
-    builtin('inventory', null, i18n.t('nav.inventory'), false),
-    builtin('items', 'items', i18n.t('nav.items'), false),
-    builtin('equipment', 'equipment', i18n.t('nav.equipment'), false),
-    builtin('other', 'other', i18n.t('nav.other'), false)
-  ];
-  const order = ((state.db || {}).sections || {}).order || [];
-  const rank = id => order.includes(id) ? order.indexOf(id) : order.length;
-  entries.sort((a, b) => rank(a.id) - rank(b.id));
-  return includeHidden ? entries : entries.filter(entry => entry.on);
+  const baseSections = sections
+    .filter(entry => entry !== world && SETTING_BASE_KEYS.includes(entry.section.key))
+    .sort((a, b) => SETTING_BASE_KEYS.indexOf(a.section.key) - SETTING_BASE_KEYS.indexOf(b.section.key));
+  const customSections = sections.filter(entry => entry !== world && !SETTING_BASE_KEYS.includes(entry.section.key));
+
+  const entries = [];
+  const add = (entry, parent = null) => {
+    if (!entry) return;
+    entry.parent = parent;
+    entry.depth = parent ? 1 : 0;
+    entries.push(entry);
+  };
+  add(builtin('characters', 'characters', i18n.t('nav.characters'), i18n.t('collections.characters.desc')));
+  add(builtin('inventory', null, i18n.t('nav.inventory'), i18n.t('inventory.page_desc')), 'characters');
+  if (world) add(world);
+  add(builtin('world', 'worldmap', i18n.t('nav.worldmap'), i18n.t('worldmap.page_desc', { max: WORLD_MAX_DEPTH })),
+    world ? 'section_world' : null);
+  add(builtin('factions', 'factions', i18n.t('nav.factions'), i18n.t('collections.factions.desc')),
+    world ? 'section_world' : null);
+  add(builtin('items', 'items', i18n.t('nav.items'), i18n.t('collections.items.desc')));
+  baseSections.forEach(entry => add(entry));
+  customSections.forEach(entry => add(entry));
+  add(builtin('other', 'other', i18n.t('nav.other'), i18n.t('collections.other.desc')));
+
+  const order = (((state.db || {}).sections || {}).order || []).filter(id => id !== 'equipment');
+  if (order.length) {
+    const rank = id => order.includes(id) ? order.indexOf(id) : order.length - 0.5;
+    entries.sort((a, b) => rank(a.id) - rank(b.id));
+  }
+  // Other settings is always the last entry; new sections are inserted before it.
+  const other = entries.find(entry => entry.id === 'other');
+  if (other) {
+    entries.splice(entries.indexOf(other), 1);
+    entries.push(other);
+  }
+
+  const visible = new Map(entries.map(entry => [entry.id, entry.on]));
+  return includeHidden ? entries : entries.filter(entry =>
+    entry.on && (!entry.parent || visible.get(entry.parent) !== false));
+}
+
+/** Sliders icon reads as “settings” much more clearly than the old sun-like gear. */
+function settingsIcon() {
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('focusable', 'false');
+  const line = (x1, y1, x2, y2) => {
+    const node = document.createElementNS(ns, 'line');
+    node.setAttribute('x1', x1); node.setAttribute('y1', y1);
+    node.setAttribute('x2', x2); node.setAttribute('y2', y2);
+    return node;
+  };
+  const knob = (cx, cy) => {
+    const node = document.createElementNS(ns, 'circle');
+    node.setAttribute('cx', cx); node.setAttribute('cy', cy);
+    node.setAttribute('r', '2.2');
+    return node;
+  };
+  svg.append(line(4, 6, 20, 6), knob(9, 6), line(4, 12, 20, 12), knob(15, 12),
+    line(4, 18, 20, 18), knob(8, 18));
+  return svg;
 }
 
 function settingLabel(id, fallback) {
@@ -518,6 +567,8 @@ const NOVEL_NAV = [
 function renderNav() {
   if (state.ui.wsMenuClose) state.ui.wsMenuClose();
   const nav = document.getElementById('nav');
+  // 重建导航时保留侧栏的滚动位置；否则点击设定项后 #nav 会被清空并跳回顶部。
+  const keepTop = nav.scrollTop;
   clear(nav);
   state.ui.navCollapsed = state.ui.navCollapsed || {};
   const items = state.level === 'home' ? HOME_NAV : NOVEL_NAV;
@@ -526,7 +577,7 @@ function renderNav() {
     const title = active?.title || i18n.t('common.unnamed');
     nav.appendChild(h('div', { class: 'nav-novel' },
       h('span', { class: 'nav-novel-title', text: title, title }),
-      h('button', { class: 'nav-novel-back', text: '↩', title: i18n.t('novels.back_home'),
+      h('button', { class: 'nav-novel-back', text: '←', title: i18n.t('novels.back_home'),
         'aria-label': i18n.t('novels.back_home'), onclick: () => go('home') })));
 
   }
@@ -534,7 +585,7 @@ function renderNav() {
   for (const entry of items) {
     if (entry.history) { renderWorkstationHistory(nav); continue; }
     if (entry.settings) {
-      const collapsed = state.ui.navCollapsed.settings !== false;
+      const collapsed = state.ui.navCollapsed.settings === true;
       nav.appendChild(h('div', { class: 'nav-group nav-settings-head' },
         h('button', { class: 'nav-settings-toggle',
           'aria-expanded': String(!collapsed), 'aria-controls': 'setting-nav-items',
@@ -542,16 +593,21 @@ function renderNav() {
         }, h('span', { text: collapsed ? '▸' : '▾', 'aria-hidden': 'true' }),
           h('span', { text: i18n.t('nav.group_settings') })),
         h('button', { class: 'nav-settings-manage' + (state.view === 'sections' ? ' active' : ''),
-          text: '⚙', title: i18n.t('nav.sections'), 'aria-label': i18n.t('nav.sections'),
-          onclick: () => go('sections') })));
+          title: i18n.t('nav.sections'), 'aria-label': i18n.t('nav.sections'),
+          onclick: () => go('sections') }, settingsIcon())));
       const settingNav = h('div', { id: 'setting-nav-items', hidden: collapsed });
       if (!collapsed) settingEntries().forEach(item => {
+        const count = item.coll && item.coll !== 'worldmap' ? collItems(item.coll).length : null;
         settingNav.appendChild(h('button', {
-          class: 'nav-item nav-setting-item' + (state.view === item.id ? ' active' : ''),
+          class: 'nav-item nav-setting-item' + (item.parent ? ' nav-setting-child' : '') +
+            (state.view === item.id ? ' active' : ''),
           'aria-current': state.view === item.id ? 'page' : null,
+          title: item.desc || item.label,
           onclick: () => go(item.id)
-        }, h('span', { text: item.label }), item.coll && item.coll !== 'worldmap'
-          ? h('span', { class: 'count', text: String(collItems(item.coll).length) }) : null));
+        }, h('span', { class: 'nav-setting-label' },
+             item.parent ? h('span', { class: 'nav-setting-elbow', text: '└', 'aria-hidden': 'true' }) : null,
+             h('span', { text: item.label })),
+          count === null ? null : h('span', { class: 'count', text: String(count) })));
       });
       nav.appendChild(settingNav);
       continue;
@@ -592,6 +648,7 @@ function renderNav() {
       h('span', { text: entry.label }),
       count !== '' ? h('span', { class: 'count', text: String(count) }) : null));
   }
+  nav.scrollTop = keepTop;
 }
 
 async function loadNovelList() {
@@ -752,8 +809,10 @@ async function switchNovel(id) {
 }
 
 function go(view) {
-  if (view === 'sections') state.ui.settingEditor = null;
-  else if (view === 'elements') {
+  if (view === 'sections') {
+    state.ui.settingEditor = null;
+    state.ui.navCollapsed.settings = false;
+  } else if (view === 'elements') {
     state.ui.settingEditor = settingEntries(true).find(entry => entry.coll === state.ui.elements?.key)?.id
       || settingEntries(true).find(entry => entry.coll && entry.coll !== 'worldmap')?.id || null;
     state.ui.elemMode = 'tree'; view = 'sections';
@@ -843,12 +902,8 @@ const COLLECTIONS = {
   items: {
     coll: 'items', singular: i18n.t('collections.singular_item'), label: i18n.t('nav.items'), idPrefix: 'it',
     desc: i18n.t('collections.items.desc'),
-    tagLabel: i18n.t('collections.alias'), notesLabel: i18n.t('collections.notes'), hasCategory: true
-  },
-  equipment: {
-    coll: 'equipment', singular: i18n.t('collections.singular_equipment'), label: i18n.t('nav.equipment'), idPrefix: 'eq',
-    desc: i18n.t('collections.equipment.desc'),
-    tagLabel: i18n.t('collections.alias'), notesLabel: i18n.t('collections.notes'), hasSlot: true, hasCategory: true
+    tagLabel: i18n.t('collections.alias'), notesLabel: i18n.t('collections.notes'),
+    hasCategory: true, hasTags: true
   },
   other: {
     coll: 'other', singular: i18n.t('collections.singular_entry'), label: i18n.t('nav.other'), idPrefix: 'ot',

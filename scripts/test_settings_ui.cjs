@@ -29,10 +29,13 @@ for (const name of ['core', 'records', 'config']) {
 const run = code => vm.runInContext(code, context);
 const plain = value => JSON.parse(JSON.stringify(value));
 run(`state.db = {sections: {items: [{key: 'world', label: 'World settings', on: true}]}, section_world: {items: []}}`);
-assert.deepEqual(plain(run('settingEntries().map(entry => entry.id)')), ['characters', 'section_world', 'world', 'factions']);
+assert.deepEqual(plain(run('settingEntries().map(entry => entry.id)')), ['characters', 'inventory', 'section_world', 'world', 'factions', 'items', 'other']);
+assert.equal(run(`settingEntries().find(entry => entry.id === 'inventory').parent`), 'characters');
+assert.equal(run(`settingEntries().find(entry => entry.id === 'world').parent`), 'section_world');
+assert.equal(run(`settingEntries().find(entry => entry.id === 'factions').parent`), 'section_world');
 run(`state.db.sections.items.push({key: 'history', label: 'History'}, {key: 'custom', label: 'Custom', on: true});
      state.db.section_history = {items: []}`);
-assert.equal(run(`settingEntries().some(entry => entry.id === 'section_history')`), false);
+assert.equal(run(`settingEntries().some(entry => entry.id === 'section_history')`), true);
 assert.equal(run(`settingEntries().some(entry => entry.id === 'section_custom')`), true);
 run(`state.db.section_history.items.push({id: 'kept', name: 'Existing event'})`);
 assert.equal(run(`settingEntries().some(entry => entry.id === 'section_history')`), true);
@@ -58,7 +61,10 @@ assert.equal(run(`state.db.section_world.items[0].id`), 'a');
 assert.equal(run(`state.db.section_world.items[0].content`), 'Keep this text');
 assert.equal(run(`state.db.section_world.items[0].elements[0].value`), '100');
 assert.equal(run(`matchesRecordFilter(state.db.section_world.items[0], '', '')`), true);
-assert.deepEqual(plain(run('recordCategoryNames(state.db.section_world)')), ['History']);
+assert.equal(run(`matchesRecordFilter({category: 'Weapon', tags: ['rare', 'rare']}, '', null, 'rare')`), true);
+assert.equal(run(`matchesRecordFilter({category: 'Weapon', tags: ['common']}, '', null, 'rare')`), false);
+assert.deepEqual(plain(run(`recordTags({tags: ['rare', ' rare ', '', 'common']})`)), ['rare', 'common']);
+assert.deepEqual(plain(run(`recordCategoryNames(state.db.section_world)`)), ['History']);
 
 // Moving to the front, end, or either side preserves unrelated cards and hidden entries.
 const order = ['characters', 'section_world', 'world', 'factions', 'items'];
@@ -94,8 +100,8 @@ assert.ok(!nodes.some(node => ['sections.open', 'sections.builtin', 'sections.re
 let stopped = false;
 nodes.find(node => node.props.class === 'setting-card-controls').props.onclick({stopPropagation() {stopped = true;}});
 assert.equal(stopped, true);
-console.log('PASS: default navigation, legacy data visibility, preferences, categories, filtering, card controls, reordering, and classification placeholder');
+console.log('PASS: default navigation, full settings visibility, preferences, categories, filtering, card controls, reordering, and classification placeholder');
 
-const expectedManagementIds = plain(run('settingEntries(true).filter(entry => entry.on).concat(settingEntries(true).filter(entry => !entry.on)).map(entry => "setting-card-" + entry.id)'));
-assert.deepEqual(cards.map(card => card.props.id), expectedManagementIds, 'Visible sections must precede hidden sections while preserving the order within both groups');
-console.log('PASS: management always lists sidebar-visible sections first, preserving group order');
+const expectedManagementIds = plain(run('settingEntries(true).map(entry => "setting-card-" + entry.id)'));
+assert.deepEqual(cards.map(card => card.props.id), expectedManagementIds, 'Management keeps the canonical hierarchy and hidden entries in place');
+console.log('PASS: management lists every built-in section in canonical hierarchy order');
