@@ -11,7 +11,7 @@
 | `novelhelper.server` | 本地 HTTP 服务、请求处理器与服务生命周期 | [server API](server.md) |
 | `novelhelper.localization` | 配置驱动的翻译表、取词、语言上下文与校验 | [localization API](i18n.md) |
 | `novelhelper.ports` | 端口配置迁移、校验、优先级解析与错误消息 | [server API · 桌面启动与端口](server.md#桌面启动与端口) |
-| `novelhelper.desktop` | pywebview 懒加载、窗口参数、HTTP 服务线程与清理 | [server API · 桌面启动与端口](server.md#桌面启动与端口) |
+| `novelhelper.desktop` | pywebview 懒加载、窗口居中/尺寸、开屏、图标、HTTP 服务线程与清理 | [server API · 桌面启动与端口](server.md#桌面启动与端口) |
 
 以上包在 `__init__.py` 中显式声明 `__all__`。`server.ai` 仍作为兼容属性指向 `novelhelper.ai`，但不属于 `server.__all__`。
 

@@ -42,6 +42,21 @@ else:  # pragma: no cover
     from ._version import APP_VERSION
 
 
+class _NullStream:
+    """Discard output in windowed builds that have no console or pipe."""
+
+    encoding = "utf-8"
+
+    def write(self, text: str) -> int:
+        return len(text)
+
+    def flush(self) -> None:
+        pass
+
+    def isatty(self) -> bool:
+        return False
+
+
 def _prepare_console() -> None:
     try:
         if sys.platform.startswith("win"):
@@ -51,6 +66,9 @@ def _prepare_console() -> None:
             ctypes.windll.kernel32.SetConsoleCP(65001)  # type: ignore[attr-defined]
     except Exception:
         pass
+    for name in ("stdout", "stderr"):
+        if getattr(sys, name) is None:
+            setattr(sys, name, _NullStream())
     for stream in (sys.stdout, sys.stderr):
         try:
             stream.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]

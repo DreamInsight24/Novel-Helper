@@ -25,6 +25,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import urllib.request
 from pathlib import Path
@@ -127,34 +128,115 @@ def test_fixed_port_conflict_stops() -> None:
         blocker.close()
 
 
+def test_window_bounds_and_splash_assets() -> None:
+    bounds = desktop.window_bounds((0, 0, 1440, 912))
+    assert (bounds.width, bounds.height) == (1280, 800), bounds
+    assert (bounds.x, bounds.y) == (80, 56), bounds
+    assert bounds.min_size == (1024, 720), bounds
+
+    bounds = desktop.window_bounds((0, 0, 1920, 1040))
+    assert (bounds.width, bounds.height) == (1280, 800), bounds
+    assert (bounds.x, bounds.y) == (320, 120), bounds
+
+    bounds = desktop.window_bounds((0, 0, 1366, 728))
+    assert (bounds.width, bounds.height) == (1280, 664), bounds
+    assert (bounds.x, bounds.y) == (43, 32), bounds
+    assert bounds.min_size == (1024, 664), bounds
+
+    for area in ((0, 0, 800, 600), (120, 40, 1366, 728), (0, 0, 1440, 912)):
+        left, top, width, height = area
+        bounds = desktop.window_bounds(area)
+        assert bounds.x >= left and bounds.y >= top, bounds
+        assert bounds.x + bounds.width <= left + width, bounds
+        assert bounds.y + bounds.height <= top + height, bounds
+        assert bounds.min_width <= bounds.width, bounds
+        assert bounds.min_height <= bounds.height, bounds
+
+    assert desktop.SPLASH_MIN_SECONDS >= 1.0
+    assert desktop.ICON_PATH.is_file(), desktop.ICON_PATH
+    assert desktop.ICON_PNG_PATH.is_file(), desktop.ICON_PNG_PATH
+    assert desktop.SPLASH_PATH.is_file(), desktop.SPLASH_PATH
+    splash = desktop.splash_html()
+    assert "NovelHelper" in splash and "data:image/png;base64," in splash
+    assert "正在准备你的创作空间" in splash
+
+
 def test_window_contract_without_gui() -> None:
+    class FakeLoaded:
+        def __init__(self):
+            self.handlers = []
+
+        def __iadd__(self, handler):
+            self.handlers.append(handler)
+            return self
+
+        def set(self):
+            for handler in self.handlers:
+                handler()
+
+    class FakeWindow:
+        def __init__(self):
+            self.events = type("Events", (), {})()
+            self.events.loaded = FakeLoaded()
+            self.loaded_url = ""
+            self.js: list[str] = []
+
+        def evaluate_js(self, script):
+            self.js.append(script)
+
+        def load_url(self, url):
+            self.loaded_url = url
+
     class FakeWebview:
         def __init__(self):
             self.window = None
+            self.created = None
             self.started = False
+            self.icon = None
 
-        def create_window(self, title, url, **kwargs):
-            self.window = {"title": title, "url": url, "kwargs": kwargs}
-            return object()
+        def create_window(self, title, url=None, **kwargs):
+            self.created = {"title": title, "url": url, "kwargs": kwargs}
+            self.window = FakeWindow()
+            return self.window
 
-        def start(self):
+        def start(self, icon=None):
             self.started = True
+            self.icon = icon
+            self.window.events.loaded.set()
 
-    fake = FakeWebview()
-    desktop.open_window("http://127.0.0.1:43210/", webview_module=fake)
-    assert fake.started is True
-    assert fake.window["title"] == desktop.WINDOW_TITLE
-    assert fake.window["url"] == "http://127.0.0.1:43210/"
-    assert fake.window["kwargs"]["width"] == 1440
-    assert fake.window["kwargs"]["height"] == 900
-    assert fake.window["kwargs"]["min_size"] == (1024, 720)
-    assert fake.window["kwargs"]["resizable"] is True
+    original_work_area = desktop.primary_work_area
+    desktop.primary_work_area = lambda: (0, 0, 1440, 912)
+    try:
+        fake = FakeWebview()
+        desktop.open_window(
+            "http://127.0.0.1:43210/",
+            webview_module=fake,
+            splash_seconds=0,
+        )
+        deadline = time.time() + 2
+        while not fake.window.loaded_url and time.time() < deadline:
+            time.sleep(0.01)
+        assert fake.started is True
+        assert fake.created["title"] == desktop.WINDOW_TITLE
+        assert fake.created["url"] is None
+        assert "NovelHelper" in fake.created["kwargs"]["html"]
+        assert fake.created["kwargs"]["width"] == 1280
+        assert fake.created["kwargs"]["height"] == 800
+        assert fake.created["kwargs"]["x"] == 80
+        assert fake.created["kwargs"]["y"] == 56
+        assert fake.created["kwargs"]["min_size"] == (1024, 720)
+        assert fake.created["kwargs"]["resizable"] is True
+        assert fake.created["kwargs"]["maximized"] is False
+        assert fake.window.loaded_url == "http://127.0.0.1:43210/"
+        assert fake.icon and fake.icon.endswith("NovelHelper.ico")
+    finally:
+        desktop.primary_work_area = original_work_area
 
     class BrokenWebview:
         def create_window(self, *args, **kwargs):
             raise RuntimeError("WebView2 is missing")
 
-        def start(self):
+        def start(self, icon=None):
             raise AssertionError("start should not run")
 
     try:
@@ -280,6 +362,7 @@ def main() -> int:
     test_cli_precedence_and_validation()
     test_dynamic_bind_and_clean_shutdown()
     test_fixed_port_conflict_stops()
+    test_window_bounds_and_splash_assets()
     test_window_contract_without_gui()
     test_store_config_migration_and_global_scope()
     test_cli_failures()
