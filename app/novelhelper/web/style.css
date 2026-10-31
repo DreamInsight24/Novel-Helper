@@ -877,6 +877,15 @@ textarea.agent-prompt { width: 100%; min-height: 72px; max-height: 180px; resize
 .dialog.record-create-dialog { width:min(600px,95vw); }
 .record-create-form textarea { min-height:160px; }
 .settings-import-fields { margin-top:16px; }
+/* AI 设定生成对话框：宽度与文本区 */
+.dialog.setting-gen-form, .dialog.setting-gen-result { width:min(680px,95vw); }
+.setting-gen-form textarea { width:100%; min-height:200px; box-sizing:border-box; }
+.setting-gen-form .inline { gap:8px; align-items:center; }
+.setting-gen-form .inline select { flex:1; min-width:0; }
+.setting-gen-result .gen-section { font-weight:600; margin:10px 0 2px; }
+.setting-gen-result .gen-item { margin:2px 0 2px 12px; line-height:1.6; }
+.setting-gen-result .gen-item-name { font-weight:500; }
+.setting-gen-result .gen-item .small { white-space:nowrap; }
 @media(max-width:900px) {
   .record-detail-head { padding:14px; flex-wrap:wrap; }
   .record-tab-body { padding:16px; }

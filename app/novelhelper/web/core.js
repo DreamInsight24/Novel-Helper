@@ -74,6 +74,7 @@ async function api(path, opts) {
   opts = opts || {};
   const init = { method: opts.method || 'GET', headers: { 'Content-Type': 'application/json', 'X-NovelHelper-Language': document.documentElement.lang } };
   if (opts.body !== undefined) init.body = JSON.stringify(opts.body);
+  if (opts.signal) init.signal = opts.signal;
   const res = await fetch(path, init);
   const raw = await res.text();
   let data;
