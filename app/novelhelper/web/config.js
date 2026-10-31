@@ -595,11 +595,24 @@ function addModeDialog(kind) {
 // ═══════════════════════════════════════════
 // 模型设置
 // ═══════════════════════════════════════════
+function validPortNumber(value) {
+  const text = String(value ?? '').trim();
+  if (!/^\d+$/.test(text)) return null;
+  const number = Number(text);
+  return number >= 1 && number <= 65535 ? number : null;
+}
+
 function ensureApiProfiles(cfg) {
   cfg.api = cfg.api || {};
   cfg.server = cfg.server || {};
   cfg.server.host = cfg.server.host || '127.0.0.1';
-  cfg.server.port = Number(cfg.server.port) || 8765;
+  cfg.server.port_mode = cfg.server.port_mode === 'fixed' ? 'fixed' : 'auto';
+  if (cfg.server.port_mode === 'auto') {
+    delete cfg.server.port;
+  } else {
+    const port = validPortNumber(cfg.server.port);
+    if (port !== null) cfg.server.port = port;
+  }
   cfg.onboarding = cfg.onboarding || { done: false, version: 1 };
   cfg.api.profiles = cfg.api.profiles || {};
   cfg.api.provider = cfg.api.provider || 'deepseek';
@@ -862,22 +875,72 @@ function viewAI(main) {
   const sCard = h('div', { class: 'card' });
   sCard.appendChild(h('h2', null, i18n.t('settings.app_section'),
     h('span', { class: 'hint', text: i18n.t('settings.port_hint') })));
-  sCard.appendChild(h('div', { class: 'inline' },
-    h('div', { class: 'field' },
-      h('label', { text: i18n.t('settings.port_label') }),
-      h('input', {
-        type: 'number', min: 1, max: 65535,
-        value: cfg.server.port || 8765,
-        oninput: e => {
-          const value = Number(e.target.value);
-          if (Number.isInteger(value) && value >= 1 && value <= 65535) {
-            cfg.server.port = value;
-            touch('config');
-          }
+  // 端口是进程级设置，只写入全局配置；小说设置页只读展示，避免产生无效覆盖。
+  if (state.level === 'home') {
+    const fixed = cfg.server.port_mode === 'fixed';
+    const fixedWrap = h('div', { class: 'field' },
+      h('label', { text: i18n.t('settings.port_fixed_label') }));
+    const portInput = h('input', {
+      type: 'number', min: 1, max: 65535, value: cfg.server.port || 8765,
+      oninput: e => {
+        const value = validPortNumber(e.target.value);
+        if (value === null) {
+          e.target.setAttribute('aria-invalid', 'true');
+          portError.hidden = false;
+          return;
         }
-      })),
-    h('span', { class: 'small muted',
-      text: i18n.t('settings.port_desc') })));
+        e.target.removeAttribute('aria-invalid');
+        portError.hidden = true;
+        cfg.server.port = value;
+        touch('config');
+      },
+      onblur: e => {
+        if (validPortNumber(e.target.value) !== null) return;
+        e.target.value = String(cfg.server.port || 8765);
+        e.target.removeAttribute('aria-invalid');
+        portError.hidden = true;
+      }
+    });
+    const portError = h('span', { class: 'small settings-error', hidden: true,
+      text: i18n.t('settings.port_invalid') });
+    fixedWrap.append(portInput, portError);
+    fixedWrap.hidden = !fixed;
+    const modeSelect = h('select', {
+      value: cfg.server.port_mode || 'auto',
+      'aria-label': i18n.t('settings.port_mode'),
+      onchange: e => {
+        const mode = e.target.value === 'fixed' ? 'fixed' : 'auto';
+        cfg.server.port_mode = mode;
+        if (mode === 'auto') {
+          delete cfg.server.port;
+        } else if (validPortNumber(cfg.server.port) === null) {
+          cfg.server.port = 8765;
+        }
+        touch('config');
+        renderMain();
+      }
+    },
+      h('option', { value: 'auto', text: i18n.t('settings.port_mode_auto'),
+        selected: !fixed }),
+      h('option', { value: 'fixed', text: i18n.t('settings.port_mode_fixed'),
+        selected: fixed }));
+    sCard.appendChild(h('div', { class: 'inline' },
+      h('div', { class: 'field' },
+        h('label', { text: i18n.t('settings.port_mode') }),
+        modeSelect),
+      h('span', { class: 'small muted', text: i18n.t('settings.port_desc') })));
+    sCard.appendChild(fixedWrap);
+  } else {
+    const mode = cfg.server.port_mode === 'fixed'
+      ? i18n.t('settings.port_mode_fixed_value', { port: cfg.server.port || '' })
+      : i18n.t('settings.port_mode_auto');
+    sCard.appendChild(h('div', { class: 'small muted',
+      text: i18n.t('settings.port_global_current', { mode }) }));
+    sCard.appendChild(h('div', { class: 'small muted',
+      text: i18n.t('settings.port_global_note') }));
+  }
+  sCard.appendChild(h('div', { class: 'small muted',
+    text: i18n.t('settings.port_effective_hint') }));
   // 语言切换（任务 3.2）：选项来自后端语言清单，不硬编码；切换后刷新页面立即生效。
   sCard.appendChild(h('div', { class: 'inline' },
     h('div', { class: 'field' },

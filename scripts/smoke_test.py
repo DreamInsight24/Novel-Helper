@@ -208,7 +208,8 @@ def run() -> None:
                 _check(
                     "baseline config defaults",
                     config.get("version") == 4
-                    and config.get("server", {}).get("port") == 8765
+                    and config.get("server", {}).get("port_mode") == "auto"
+                    and "port" not in config.get("server", {})
                     and config.get("writing", {}).get("target_chars") == 8000,
                 )
 

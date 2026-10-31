@@ -19,7 +19,7 @@
 """PyInstaller 构建配置：生成单文件 Windows 可执行程序。"""
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_data_files, copy_metadata
+from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, copy_metadata
 
 ROOT = Path(SPECPATH)
 
@@ -27,6 +27,21 @@ datas = [
     (str(ROOT / "app" / "novelhelper" / "web"), "novelhelper/web"),
     (str(ROOT / "app" / "resources" / "localization"), "resources/localization"),
 ]
+binaries = []
+hiddenimports = [
+    "webview",
+    "webview.platforms.winforms",
+    "webview.platforms.edgechromium",
+]
+
+# pywebview ships PyInstaller hooks via entry points; collect its JS/backend
+# assets and pythonnet payloads explicitly so one-file builds keep working.
+try:
+    datas += copy_metadata("pywebview")
+    datas += collect_data_files("webview")
+    binaries += collect_dynamic_libs("webview")
+except Exception:
+    pass
 
 # openai 是可选依赖；构建机上安装后，把它的元数据一并打包，
 # 避免运行时的版本检查失败。未安装时仍会退回 urllib，不影响构建。
@@ -39,9 +54,9 @@ except Exception:
 a = Analysis(
     [str(ROOT / "app" / "run.py")],
     pathex=[str(ROOT / "app")],
-    binaries=[],
+    binaries=binaries,
     datas=datas,
-    hiddenimports=[],
+    hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

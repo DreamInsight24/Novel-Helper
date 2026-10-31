@@ -35,6 +35,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "app"))
+from novelhelper._version import APP_VERSION  # noqa: E402
+
 
 def free_port() -> int:
     with socket.socket() as sock:
@@ -149,6 +153,18 @@ def run(exe: Path) -> None:
         )
         check("packaged resources and writable data directory", check_result.returncode == 0,
               check_result.stdout.strip() or check_result.stderr.strip())
+        version_result = subprocess.run(
+            [str(isolated_exe), "--version"],
+            cwd=runtime,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+        )
+        check("packaged version matches source", version_result.returncode == 0
+              and version_result.stdout.strip() == APP_VERSION,
+              version_result.stdout.strip() or version_result.stderr.strip())
 
         mock_server = ThreadingHTTPServer(("127.0.0.1", free_port()), FakeModelHandler)
         mock_thread = threading.Thread(target=mock_server.serve_forever, daemon=True)
@@ -167,7 +183,7 @@ def run(exe: Path) -> None:
             for launch in (1, 2):
                 log_stream = (runtime / f"server-{launch}.log").open("wb")
                 process = subprocess.Popen(
-                    [str(isolated_exe), "--no-browser", "--host", "127.0.0.1", "--port", str(app_port)],
+                    [str(isolated_exe), "--no-window", "--host", "127.0.0.1", "--port", str(app_port)],
                     cwd=runtime,
                     env=env,
                     stdin=subprocess.DEVNULL,

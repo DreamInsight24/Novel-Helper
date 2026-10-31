@@ -84,10 +84,10 @@ register 的作用是将 key → 译文字典合并进前端内存。正常页�
 ## 5. 启动、语言选择与临时预览
 
 ```powershell
-python app/run.py --no-browser
+python app/run.py --no-window --port 8765
 ```
 
-服务端口取决于配置或 --port；下列链接按默认端口 8765 举例：
+服务端口取决于全局配置或 `--port`；下列链接按显式固定端口 8765 举例：
 
 - [中文预览](http://127.0.0.1:8765/?lang=zh-CN)
 - [英文预览](http://127.0.0.1:8765/?lang=en-US)
