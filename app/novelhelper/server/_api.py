@@ -369,6 +369,14 @@ class _ApiMixin:
             self._json({"ok": True, "result": ai.ping(config, body.get("model") or "")})
             return
 
+        if path == "/api/ai/setting-gen" and method == "POST":
+            self._ai_setting_gen()
+            return
+
+        if path == "/api/ai/setting-gen/undo" and method == "POST":
+            self._ai_setting_gen_undo()
+            return
+
         if path == "/api/ai/run" and method == "POST":
             self._ai_run()
             return
