@@ -1,4 +1,4 @@
-# NovelHelper v2610.1
+# NovelHelper v2610.3
 
 本地优先的 AI 小说创作工具。设定、记忆、模式和对话历史都保存在本机；服务只监听 `127.0.0.1`。
 
@@ -12,7 +12,8 @@
 
 1. 打开 [最新版本](https://github.com/DreamInsight24/Novel-Helper/releases/latest)，下载 `NovelHelper.exe`。
 2. 把 EXE 放进一个有写入权限的文件夹，例如 `D:\NovelHelper\`，再双击运行。
-3. 浏览器会自动打开 `http://127.0.0.1:8765/`；关闭控制台窗口即停止服务。
+3. 应用会直接打开 NovelHelper 窗口，不再自动打开浏览器；端口由系统自动分配。关闭窗口即停止服务。
+4. Windows 10/11 需要 [Microsoft Edge WebView2 Runtime](https://go.microsoft.com/fwlink/p/?LinkId=2124703)。Windows 11 和较新的 Windows 10 通常已内置；缺失时程序会给出安装提示，不会静默改用浏览器。
 
 EXE 是单文件便携版，不需要安装。首次启动会在 EXE 旁边创建 `data/`、`workspace/` 和 `log/`，升级时只需替换 EXE。请保留这三个目录，否则设定、对话历史和导出文件不会保留。
 
@@ -35,20 +36,19 @@ NovelHelper.exe --check
 
 ### Windows
 
-1. 安装 Python 3.10 或更高版本。
-2. 双击 `NovelHelper.bat`。
-3. 浏览器打开 `http://127.0.0.1:8765/`。
-4. 按首次引导选择接口、填写 API Key 并选择模型。可以跳过，稍后在「模型设置」中配置。
+1. 安装 Python 3.10 或更高版本，并执行 `python -m pip install -r app\requirements.txt`。
+2. 双击 `NovelHelper.bat`，会打开桌面窗口。
+3. 按首次引导选择接口、填写 API Key 并选择模型。可以跳过，稍后在「模型设置」中配置。
 
 ### 命令行启动
 
 ```bash
-python app/run.py
-python app/run.py --port 9000
-python app/run.py --no-browser
+python app/run.py                  # 打开桌面窗口
+python app/run.py --port 9000      # 本次使用固定端口
+python app/run.py --no-window      # 只启动本地服务，在控制台查看访问地址
 ```
 
-不使用 `--port` 时，会读取 `app/data/config.json` 里的端口配置。
+不使用 `--port` 时，程序会读取全局配置 `app/data/config.json` 的端口设置。默认使用 `port_mode=auto`，由系统分配空闲端口；固定端口冲突会直接报错退出，不会自动换端口，也不会打开浏览器。`--no-browser` 仍可用，但已弃用，等同 `--no-window`。
 
 ## 首次引导
 
@@ -68,7 +68,7 @@ python app/run.py --no-browser
 - 「从接口获取可用模型」会读取当前 URL 的 `/models`；也可以手动维护模型列表。
 - DeepSeek 预设当前提供 `deepseek-flash` 与 `deepseek-v4-pro`。
 - 设置默认模型、默认推理强度和超时。
-- **端口号**：在「模型设置 → 应用」修改，保存后下一次启动自动使用新端口；命令行 `--port` 可临时覆盖。
+- **端口**：在首页「全局设置 → 应用」选择自动分配或固定端口，保存后下次启动生效；小说设置页只读展示。命令行 `--port` 可临时覆盖。
 - 「测试连接」只发送一条很短的测试请求，不会写入对话历史。
 
 ### 模式管理
@@ -92,14 +92,14 @@ python app/run.py --no-browser
 
 - 左侧「返回作品库」下方的「对话」可展开或收起历史，右侧「+」新建对话；当前对话为空时复用它。点击历史直接继续写作，每条历史的「⋯」打开就近的小菜单，可重命名或删除，删除需再次确认。
 - 中央按轮次展示用户要求与 AI 正文，每条结果分别支持复制、另存为 TXT/MD、转到稿件处理、追加到提示词和查看原文；长正文可以收起。
-- 底部输入本次写作要求，直接选择写稿模式与目标字数；「详细输入」打开右侧抽屉，默认显示侧栏设定，可从「更多设定」添加其他栏目，再在下方选择具体条目；补充说明与要求统一填写，旧内容自动合并。
+- 底部输入本次写作要求，直接选择写稿模式与目标字数；「设定与要求」打开右侧抽屉，默认显示侧栏设定，可从「更多设定」添加其他栏目，再在下方选择具体条目；「补充要求」统一填写，旧内容自动合并。
 - 每段对话保留未发送草稿；生成成功后清空本次提示词，失败保留输入并可重试。支持 Ctrl+Enter 发送。
 - 续写按时间顺序携带最近最多 8 个完整轮次，历史合计不超过 60,000 字符，超出预算时从最旧轮次起舍弃；本次设定按当前选择重新拼装。「预览将发送的内容」可查看历史消息及当前提示词。
 - 生成期间显示进度状态，可阅读前文；当前接口仍在完整响应后展示正文。
 
 ### 设定与导入
 
-- 新建人物、势力、道具或自定义条目时，只需填写名称，可补充一句话概述与正文；确认创建后才保存，取消不会留下空记录。
+- 新建人物、势力、物品或自定义条目时，只需填写名称，可补充一句话概述与正文；确认创建后才保存，取消不会留下空记录。
 - 编辑页分为「内容 / 关联 / 更多」：内容页按需添加模板信息分组；分类、备注、来源、字段结构和删除等位于更多页。
 - 人物所属势力和势力成员使用同一份关联，支持搜索选择、就地新建、身份说明和双向跳转。旧的文字关系保留，不按名称自动转换；其他条目关系仍可通过正文或原字段描述。
 - 元信息（原元素模板）迁至「设定管理 → 对应栏目 → 编辑」，与栏目名称、说明一起维护。支持字段分组、增删、层级、排序、启停、导出模板 JSON，以及确认后向已有条目补充缺失字段；不覆盖已填值。
@@ -165,7 +165,7 @@ python app/run.py --debug
 python app/run.py --debug --port 8790
 ```
 
-调试模式默认端口为 `8766`，可用 `--port` 临时指定。清理调试模式产生的全部文件：
+调试模式同样默认自动分配端口，可用 `--port` 临时指定固定端口。清理调试模式产生的全部文件：
 
 ```bash
 python app/run.py --clean-debug
@@ -183,7 +183,7 @@ python app/selftest.py
 
 ## 打包 Windows EXE
 
-仓库内置 [PyInstaller](https://pyinstaller.org/) 配置 `NovelHelper.spec`，会把 Python、`openai` 依赖和网页资源一起打进单个 `NovelHelper.exe`。
+仓库内置 [PyInstaller](https://pyinstaller.org/) 配置 `NovelHelper.spec`，会把 Python、`openai`、`pywebview`/pythonnet 依赖和网页资源一起打进单个 `NovelHelper.exe`。
 
 本地构建：
 
@@ -192,26 +192,31 @@ python -m venv .venv
 .venv\Scripts\python.exe -m pip install -r app\requirements.txt -r requirements-build.txt
 .venv\Scripts\pyinstaller.exe --clean --noconfirm NovelHelper.spec
 dist\NovelHelper.exe --check
+dist\NovelHelper.exe --no-window
 ```
 
-构建结果位于 `dist\NovelHelper.exe`。`build/` 和 `dist/` 已加入 `.gitignore`。
+构建结果位于 `dist\NovelHelper.exe`。`build/` 和 `dist/` 已加入 `.gitignore`。EXE 冒烟还需在本机实际打开一次窗口，确认首页加载、关闭窗口后进程退出；WebView2 缺失时会提示安装运行时，不会退回浏览器。
 
 ### GitHub Actions 自动构建
 
 `.github/workflows/build-windows.yml` 会在以下时机自动构建：
 
 - 手动触发 `workflow_dispatch`；
-- 修改 `app/`、spec 或工作流文件的 Pull Request（仅生成构建产物）；
-- 推送形如 `v*` 的标签时，自动创建 GitHub Release 并附上 EXE。
+- 修改 `app/`、`scripts/`、spec 或工作流文件的 Pull Request（仅生成构建产物）；
+- 推送形如 `v*` 的标签时，自动创建 GitHub Release 并附上 EXE 与 SHA-256 校验文件。
+
+本地可用 `python scripts/exe_smoke_test.py dist\NovelHelper.exe` 执行 EXE 隔离冒烟（`--check`、版本、服务模式、配置持久化与重启）。
 
 发布新版本：
 
 ```bash
-git tag v2610.2
-git push origin v2610.2
+git tag -a v2610.3 -m "v2610.3"
+git push origin v2610.3
 ```
 
-构建完成后可在 Actions 的 `Artifacts` 下载 `NovelHelper-windows-x64`，或在 Releases 中直接下载 `NovelHelper.exe`。工作流会先运行 `app/selftest.py`，再执行 `NovelHelper.exe --check`，两项都通过才会上传产物。
+工作流会先检查 tag 与应用版本 `novelhelper._version.APP_VERSION` 是否一致（不一致直接失败），再运行桌面/端口测试、自检和 EXE `--check`/`--no-window` 冒烟；通过后才上传产物并创建 Release。
+
+构建完成后可在 Actions 的 `Artifacts` 下载 `NovelHelper-windows-x64`，或在 Releases 中直接下载 `NovelHelper.exe`。
 
 ## 隐私
 

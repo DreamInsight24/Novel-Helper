@@ -21,6 +21,7 @@ from __future__ import annotations
 import json
 
 from .. import prompts as prompts_mod, providers
+from ..ports import normalize_server_config
 from ._defaults import default_for
 from ._directories import io_in, io_out, log_dir, out_dir, plan_dir, text_dir, txt_dir
 from ._paths import (
@@ -97,13 +98,10 @@ def _migrate_config() -> None:
     if "efforts" not in cfg:
         cfg["efforts"] = list(providers.EFFORTS)
         changed = True
-    server = cfg.setdefault("server", {})
-    if "host" not in server:
-        server["host"] = "127.0.0.1"
-        changed = True
-    if "port" not in server:
-        server["port"] = 8766 if DEBUG_MODE else 8765
-        changed = True
+    server, server_changed = normalize_server_config(
+        cfg.setdefault("server", {}), debug_mode=DEBUG_MODE)
+    cfg["server"] = server
+    changed = changed or server_changed
     if "onboarding" not in cfg:
         cfg["onboarding"] = {"done": False, "version": 1}
         changed = True

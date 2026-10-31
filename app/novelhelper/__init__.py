@@ -23,6 +23,6 @@ from ._version import APP_VERSION, __version__
 
 __all__ = [
     "APP_VERSION",
-    "ai", "app", "context", "elements", "history", "logger", "project", "providers",
-    "prompts", "server", "store", "tool_prompts",
+    "ai", "app", "context", "desktop", "elements", "history", "logger", "ports",
+    "project", "providers", "prompts", "server", "store", "tool_prompts",
 ]

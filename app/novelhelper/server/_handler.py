@@ -17,8 +17,10 @@
 
 from __future__ import annotations
 
+import os
 from http.server import ThreadingHTTPServer
 
+from .. import APP_VERSION
 from .. import ai as ai
 from .. import store
 from ..localization import get_languages
@@ -30,14 +32,22 @@ from ._records import _RecordMixin
 
 
 class Handler(_ApiMixin, _RecordMixin, _GenerationMixin, _BaseHandler):
-    server_version = "NovelHelper/2610.1"
+    server_version = f"NovelHelper/{APP_VERSION.lstrip('v')}"
     protocol_version = "HTTP/1.1"
 
 
-def serve(host: str = "127.0.0.1", port: int = 8765) -> ThreadingHTTPServer:
+class _Server(ThreadingHTTPServer):
+    # On Windows SO_REUSEADDR allows a second bind to the same port, which
+    # would silently defeat the explicit-port conflict check. Disabling it
+    # makes socketserver use SO_EXCLUSIVEADDRUSE on Windows.
+    allow_reuse_address = os.name != "nt"
+    allow_reuse_port = False
+
+
+def serve(host: str = "127.0.0.1", port: int = 0) -> ThreadingHTTPServer:
     get_languages()  # Validate resources before accepting requests.
     store.ensure_dirs()
     apply_persisted_language()  # Damaged config falls back to first-run defaults (K2).
-    httpd = ThreadingHTTPServer((host, port), Handler)
+    httpd = _Server((host, port), Handler)
     httpd.daemon_threads = True
     return httpd

@@ -98,8 +98,9 @@ def main() -> int:
     check("默认配置不包含 API Key", cfg["api"]["api_key"] == "")
     check("默认目标字数为 8000", cfg["writing"]["target_chars"] == 8000)
     check("默认超时为 899 秒", cfg["api"]["timeout"] == 899)
-    check("默认端口为 8765 且首次引导未完成",
-          cfg["server"]["port"] == 8765 and cfg["onboarding"]["done"] is False)
+    check("默认端口为自动分配且不写死 8765",
+          cfg["server"].get("port_mode") == "auto" and "port" not in cfg["server"]
+          and cfg["onboarding"]["done"] is False)
     debug_home = TEMP_WORK / "debug"
     debug_env = os.environ.copy()
     debug_env.update({
@@ -112,15 +113,15 @@ def main() -> int:
          "import sys; sys.path.insert(0, 'app'); "
          "from novelhelper import store; store.ensure_dirs(); "
          "print(store.DEBUG_MODE, store.PROJECT_ROOT, store.DATA_DIR, "
-         "store.load('config')['server']['port'], store.log_dir())"],
+         "store.load('config')['server']['port_mode'], store.log_dir())"],
         cwd=str(APP_DIR.parent), env=debug_env, capture_output=True,
         text=True, timeout=20,
     )
     debug_text = debug_probe.stdout.strip()
-    check("调试模式使用独立目录与默认端口",
+    check("调试模式使用独立目录与自动端口",
           debug_probe.returncode == 0
           and str(debug_home) in debug_text
-          and " 8766 " in debug_text
+          and " auto " in debug_text
           and str(debug_home / "log") in debug_text,
           debug_text or debug_probe.stderr[-300:])
     # ── 0.1 多小说隔离与删除 ──────────────────
