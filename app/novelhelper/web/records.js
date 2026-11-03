@@ -230,7 +230,7 @@ function elementTree(nodes, coll, opts) {
           touch(coll);
           draw();
           if (opts.onChange) opts.onChange();
-          });
+          },{confirmLabel:i18n.t('common.delete_named',{name:item.key || ''}),danger:true});
         }
       }));
       box.appendChild(row);
@@ -314,7 +314,7 @@ function elementTree(nodes, coll, opts) {
           const container = containerOf(nodes, p);
           if (container) container.splice(p[p.length - 1], 1);
           touch(coll); draw(); if (opts.onChange) opts.onChange();
-          });
+          },{confirmLabel:i18n.t('common.delete_named',{name:item.key || ''}),danger:true});
         }
       }));
       line.appendChild(tools);
@@ -389,6 +389,56 @@ function recordTags(rec) {
   return [...new Set(values.map(value => String(value || '').trim()).filter(Boolean))];
 }
 
+/** Rename or remove a tag across this collection, merging duplicates. */
+function renameRecordTag(bucket, from, to) {
+  (bucket.items || []).forEach(rec => {
+    rec.tags = [...new Set(recordTags(rec).map(tag => tag === from ? to.trim() : tag).filter(Boolean))];
+  });
+}
+
+function manageRecordTags(coll, onChange) {
+  const bucket=state.db[coll], body=h('div');
+  const draw=() => {
+    clear(body);
+    const tags=[...new Set(bucket.items.flatMap(recordTags))].sort((a,b)=>a.localeCompare(b));
+    if(!tags.length) body.appendChild(h('p',{class:'muted',text:i18n.t('common.empty_paren')}));
+    tags.forEach(tag => {
+      const input=h('input',{type:'text',value:tag,'aria-label':i18n.t('records.tags_label')});
+      body.appendChild(h('div',{class:'inline category-manage-row'},input,
+        h('button',{text:i18n.t('common.save'),onclick:()=>{
+          if(!input.value.trim())return;
+          renameRecordTag(bucket,tag,input.value); touch(coll);onChange();draw();
+        }}),h('button',{class:'danger',text:i18n.t('common.delete'),onclick:()=>confirmDialog(
+          i18n.t('common.delete'),i18n.t('records.tag_delete_confirm',{name:tag}),()=>{
+            renameRecordTag(bucket,tag,'');touch(coll);onChange();manageRecordTags(coll,onChange);
+          },{confirmLabel:i18n.t('common.delete_named',{name:tag}),danger:true})})));
+    });
+    i18n.apply(body);
+  };
+  draw();modal(i18n.t('records.manage_tags'),body,[h('button',{text:i18n.t('common.close')})]);
+}
+
+function recordTagEditor(rec, coll, onChange) {
+  const box=h('div',{class:'field record-tag-editor'}), chips=h('div',{class:'inline'});
+  const input=h('input',{type:'text',placeholder:i18n.t('records.tags_placeholder'),'aria-label':i18n.t('records.tags_label')});
+  const draw=()=>{
+    clear(chips);
+    recordTags(rec).forEach(tag=>chips.appendChild(h('span',{class:'tag'},tag,
+      h('button',{class:'ghost mini',text:'×','aria-label':i18n.t('records.remove_tag',{name:tag}),onclick:()=>{
+        rec.tags=recordTags(rec).filter(value=>value!==tag);touch(coll);onChange();draw();
+      }}))));
+    i18n.apply(chips);
+  };
+  const add=()=>{
+    rec.tags=[...new Set([...recordTags(rec),...input.value.split(/[,，、]/).map(value=>value.trim()).filter(Boolean)])];
+    input.value='';touch(coll);onChange();draw();input.focus();
+  };
+  input.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();add();}});
+  box.append(h('label',{text:i18n.t('records.tags_label')}),chips,h('div',{class:'inline'},input,
+    h('button',{text:i18n.t('records.add_tag'),onclick:add})));
+  draw();return box;
+}
+
 function matchesRecordFilter(rec, query, category, tag) {
   return (category == null || (rec.category || '') === category)
     && (!tag || recordTags(rec).includes(tag))
@@ -414,7 +464,7 @@ function manageRecordCategories(coll, onChange) {
           confirmDialog(i18n.t('common.delete'), i18n.t('records.category_delete_confirm', { name }), () => {
             renameRecordCategory(bucket, name, ''); touch(coll); onChange();
             manageRecordCategories(coll, onChange);
-          });
+          }, { confirmLabel: i18n.t('common.delete_named', { name }), danger: true });
         }})));
     });
     const input = h('input', { type: 'text', placeholder: i18n.t('records.new_category_prompt'),
@@ -437,10 +487,11 @@ function manageRecordCategories(coll, onChange) {
 function newRecord(def) {
   const stamp = nowStr();
   const rec = { id: newId(def.idPrefix), name: i18n.t('defaults.record.unnamed'), elements: [], tags: [], created: stamp, updated: stamp };
+  applyPreset(rec.elements, presetsOf(def.coll));
   if (def.tagLabel) rec.tag = '';
   if (def.notesLabel) rec.notes = '';
-  if (def.hasCategory) rec.category = def.coll === 'items'
-    ? (recordCategoryNames(state.db.items)[0] || '') : '';
+  if (def.hasCategory) rec.category = def.defaultCategoryKey
+    ? (recordCategoryNames(state.db[def.coll] || {}).find(name => name === i18n.t(def.defaultCategoryKey)) || recordCategoryNames(state.db[def.coll] || {})[0] || i18n.t(def.defaultCategoryKey)) : '';
   if (def.hasContent) rec.content = '';
   if (def.hasInventory) { rec.inventory = []; rec.equipment = []; }
   if (def.hasMembers) rec.members = [];
@@ -448,6 +499,148 @@ function newRecord(def) {
   rec.summary = '';
   rec.tags = [];
   return rec;
+}
+
+/** Temporary undo is scoped to the current novel and settings page, never serialized. */
+function recordEditSession() {
+  const view=state.view, novel=state.activeNovelId || '';
+  let session=state.ui.recordEditSession;
+  if(!session || session.view!==view || session.novel!==novel)
+    session=state.ui.recordEditSession={view,novel,trash:[],openGroups:new WeakMap()};
+  return session;
+}
+function removedRecordGroups(coll, rec) {
+  return recordEditSession().trash.filter(entry=>entry.coll===coll && entry.recordId===rec.id);
+}
+function removeRecordGroup(coll, rec, node, open=false) {
+  const index=rec.elements.indexOf(node);if(index<0)return false;
+  recordEditSession().trash.push({coll,recordId:rec.id,index,node:JSON.parse(JSON.stringify(node)),open});
+  rec.elements.splice(index,1);touch(coll);return true;
+}
+function restoreRecordGroup(coll, rec) {
+  const session=recordEditSession();
+  let index=session.trash.length-1;
+  while(index>=0 && (session.trash[index].coll!==coll || session.trash[index].recordId!==rec.id))index--;
+  if(index<0)return false;
+  const entry=session.trash[index];
+  if(rec.elements.some(node=>String(node.key || '').trim()===String(entry.node.key || '').trim()))return false;
+  rec.elements.splice(Math.min(entry.index,rec.elements.length),0,entry.node);
+  session.openGroups.set(entry.node,entry.open);session.trash.splice(index,1);touch(coll);return true;
+}
+function moveRecordGroup(rec, node, target, after=false) {
+  if(node===target)return false;
+  const from=rec.elements.indexOf(node),to=rec.elements.indexOf(target);
+  if(from<0 || to<0)return false;
+  rec.elements.splice(from,1);
+  rec.elements.splice(rec.elements.indexOf(target)+(after?1:0),0,node);return true;
+}
+function recordGroupsEditor(coll, rec, onListChange, onEditorChange) {
+  const session=recordEditSession(),box=h('div',{class:'record-groups-editor'});
+  const changed=()=>{onListChange();onEditorChange();};
+  const removed=removedRecordGroups(coll,rec);
+  if(removed.length){
+    const restore=all=>{
+      do{
+        if(!restoreRecordGroup(coll,rec)){toast(i18n.t('records.restore_group_conflict'),'err');break;}
+      }while(all && removedRecordGroups(coll,rec).length);
+      changed();
+    };
+    box.appendChild(h('div',{class:'record-group-recovery',role:'status'},
+      h('span',{text:i18n.t('records.removed_groups',{count:removed.length})}),
+      h('div',{class:'inline'},h('button',{class:'mini',text:i18n.t('records.restore_group'),onclick:()=>restore(false)}),
+        h('button',{class:'mini',text:i18n.t('records.restore_groups'),onclick:()=>restore(true)}))));
+  }
+  let dragging=null;
+  const clearMarks=()=>box.querySelectorAll('.group-drop-before,.group-drop-after,.group-dragging').forEach(el=>el.classList.remove('group-drop-before','group-drop-after','group-dragging'));
+  const renderFields=(nodes,parent='')=>h('div',{class:'record-fields'},nodes.filter(node=>node.on!==false).map(node=>{
+    const label=parent?parent+' · '+node.key:node.key;
+    if(node.children)return renderFields(node.children,label);
+    return h('div',{class:'field'},h('label',{text:label}),h('textarea',{rows:Math.min(5,valueRows(node.value)),value:node.value || '',
+      'aria-label':label,oninput:event=>{node.value=event.target.value;touch(coll);autoGrow(event.target);}}));
+  }));
+  rec.elements.filter(node=>node.on!==false).forEach(node=>{
+    const defaultOpen=!node.children || state.ui.recordNewRecord===coll+':'+rec.id || countFilled(node.children)>0 || state.ui.recordNewGroup===coll+':'+rec.id+':'+node.key;
+    const group=h('details',{class:'record-field-group record-element-group',
+      open:session.openGroups.has(node)?session.openGroups.get(node):defaultOpen,
+      'data-group-key':node.key,ontoggle:event=>session.openGroups.set(node,event.currentTarget.open),
+      ondragover:event=>{
+        if(!dragging || dragging===node)return;
+        event.preventDefault();clearMarks();
+        const header=group.querySelector('summary').getBoundingClientRect();
+        group.classList.add(event.clientY>header.top+header.height/2?'group-drop-after':'group-drop-before');
+      },
+      ondrop:event=>{
+        if(!dragging)return;
+        event.preventDefault();event.stopPropagation();
+        const header=group.querySelector('summary').getBoundingClientRect();
+        if(moveRecordGroup(rec,dragging,node,event.clientY>header.top+header.height/2)){touch(coll);dragging=null;changed();}
+        clearMarks();
+      }});
+    const drag=h('button',{type:'button',class:'record-group-drag',draggable:'true',text:'⠿',
+      title:i18n.t('records.reorder_group_hint'),'aria-label':i18n.t('records.reorder_group',{name:node.key}),
+      onclick:event=>{event.preventDefault();event.stopPropagation();},
+      ondragstart:event=>{
+        dragging=node;event.stopPropagation();group.classList.add('group-dragging');
+        event.dataTransfer.effectAllowed='move';event.dataTransfer.setData('application/x-novelhelper-setting-group',node.key);
+      },ondragend:()=>{dragging=null;clearMarks();},
+      onkeydown:event=>{
+        if(!event.altKey || !['ArrowUp','ArrowDown'].includes(event.key))return;
+        event.preventDefault();event.stopPropagation();
+        const visible=rec.elements.filter(item=>item.on!==false),index=visible.indexOf(node),target=visible[index+(event.key==='ArrowUp'?-1:1)];
+        if(target && moveRecordGroup(rec,node,target,event.key==='ArrowDown')){
+          touch(coll);changed();
+          const editor=document.querySelector('.record-groups-editor');
+          Array.from(editor?.querySelectorAll('.record-element-group') || []).find(el=>el.dataset.groupKey===node.key)?.querySelector('.record-group-drag')?.focus({preventScroll:true});
+        }
+      }});
+    group.appendChild(h('summary',{class:'record-group-header'},drag,h('span',{class:'record-group-title',text:node.key}),
+      h('button',{type:'button',class:'ghost mini danger record-group-delete',text:i18n.t('common.delete'),
+        'aria-label':i18n.t('records.delete_group',{name:node.key}),onclick:event=>{
+          event.preventDefault();event.stopPropagation();
+          if(removeRecordGroup(coll,rec,node,group.open))changed();
+        }})));
+    if(node.children)group.appendChild(renderFields(node.children));
+    else group.appendChild(h('div',{class:'field'},h('textarea',{rows:Math.min(5,valueRows(node.value)),value:node.value || '',
+      'aria-label':node.key,oninput:event=>{node.value=event.target.value;touch(coll);autoGrow(event.target);}})));
+    box.appendChild(group);
+  });
+  i18n.apply(box);return box;
+}
+function recordStripButton(rec, selected, choose) {
+  return h('button',{type:'button',class:'record-strip-option'+(selected?' active':''),'aria-pressed':String(selected),'data-record-id':rec.id,
+    onclick:()=>choose(rec),onkeydown:event=>{
+      if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
+      event.preventDefault();
+      const workspace=event.currentTarget.closest('.record-workspace');
+      const buttons=Array.from(event.currentTarget.closest('.record-strip').querySelectorAll('.record-strip-option'));
+      const index=buttons.indexOf(event.currentTarget),next=event.key==='Home'?0:event.key==='End'?buttons.length-1:index+(event.key==='ArrowLeft'?-1:1);
+      if(buttons[next]){
+        const id=buttons[next].dataset.recordId;buttons[next].click();
+        const target=Array.from(workspace?.querySelectorAll('.record-strip-option') || []).find(el=>el.dataset.recordId===id);
+        target?.focus({preventScroll:true});target?.scrollIntoView({block:'nearest',inline:'nearest'});
+      }
+    }},h('span',{class:'name',text:recordName(rec)}));
+}
+function revealRecordStripSelection(strip, id) {
+  const button=Array.from(strip.querySelectorAll('.record-strip-option')).find(el=>el.dataset.recordId===id);
+  if(!button)return;
+  const viewport=strip.getBoundingClientRect(),bounds=button.getBoundingClientRect();
+  if(bounds.left<viewport.left)strip.scrollLeft+=bounds.left-viewport.left;
+  else if(bounds.right>viewport.right)strip.scrollLeft+=bounds.right-viewport.right;
+}
+function recordStrip(props={}) {
+  const strip=h('div',{class:'record-strip','aria-label':i18n.t('records.entry_strip'),...props});
+  strip.addEventListener('wheel',event=>{
+    if(event.ctrlKey || Math.abs(event.deltaX)>=Math.abs(event.deltaY) || strip.scrollWidth<=strip.clientWidth)return;
+    const previous=strip.scrollLeft;strip.scrollLeft+=event.deltaY;
+    if(strip.scrollLeft!==previous)event.preventDefault();
+  },{passive:false});
+  return strip;
+}
+
+// 一次性的窗口尺寸监听：横栏箭头显隐跟着可见宽度走，避免每次渲染重复绑定。
+if (typeof window !== 'undefined' && window && typeof window.addEventListener === 'function') {
+  window.addEventListener('resize', () => { if (typeof state !== 'undefined') state.ui?.stripChrome?.(); });
 }
 
 function viewRecords(main, key) {
@@ -463,29 +656,74 @@ function viewRecords(main, key) {
   if (!bucket.items.some(r => r.id === ui.sel)) ui.sel = bucket.items.length ? bucket.items[0].id : null;
   state.sel[key] = state.sel[key] || new Set();
 
+  // 新建流程抽成一个函数：页头、筛选空态复用同一套逻辑。
+  const createRecord = () => {
+    const rec = newRecord(def);
+    if (def.hasCategory && ui.category != null) rec.category = ui.category;
+    bucket.items.unshift(rec); ui.sel=rec.id; ui.q=''; ui.tag=''; ui.stripScroll=0;
+    state.ui.recordTabs = state.ui.recordTabs || {}; state.ui.recordTabs[def.coll+':'+rec.id]='content';
+    state.ui.recordNewRecord=def.coll+':'+rec.id;
+    touch(def.coll); renderNav(); renderMain();
+    requestAnimationFrame(() => { const input=main.querySelector('.record-name-input'); input?.focus(); input?.select(); });
+  };
   main.appendChild(pageHead(settingLabel(key, def.label), '',
     h('div', { class: 'inline' },
       guidanceButton(i18n.t('records.help_title'), i18n.t('records.edit_guidance')),
       exportButtons(def.coll),
       aiSettingGenButton(def),
-      h('button', {class:'primary', text:i18n.t('records.new', {singular:def.singular}),
-        onclick:() => showRecordCreate(def, rec => {
-          if (def.hasCategory && ui.category != null) rec.category = ui.category;
-          bucket.items.unshift(rec); ui.sel=rec.id; ui.q=''; touch(def.coll); renderNav(); renderMain();
-        })}))));
+      def.hasCategory ? h('button', {text:i18n.t('records.manage_categories'), onclick:() => manageRecordCategories(def.coll, renderMain)}) : null,
+      def.hasTags ? h('button', {text:i18n.t('records.manage_tags'), onclick:() => manageRecordTags(def.coll, renderMain)}) : null,
+      h('button', {class:'primary', text:i18n.t('records.new', {singular:def.singular}), onclick: createRecord}))));
   if (key === 'other') main.appendChild(moveBar(def.coll, key));
 
-  const row = h('div', { class: 'row' });
-  const listBox = h('div', { class: 'col record-list-column' });
-  const editBox = h('div', { class: 'col record-editor-column' });
+  const row = h('div', { class: 'card record-workspace' });
+  const listBox = h('div', { class: 'record-picker-host' });
+  const editBox = h('div', { class: 'record-editor-column' });
   row.appendChild(listBox); row.appendChild(editBox);
   main.appendChild(row);
 
   // 列表容器只建一次：重绘时复用同一个滚动容器，选中时只切高亮不重建，
   // 这样点条目不会再跳回顶部。
-  const listScroll = h('div', { class: 'list scroll' });
+  const listScroll = recordStrip({onscroll:event=>{ui.stripScroll=event.target.scrollLeft;updateStripChrome();}});
   const rowEls = new Map();
   const countLine = h('div', { class: 'small muted', style: { marginBottom: '6px' } });
+  // 横栏一屏放不下时给出左右按钮 + 两端渐隐，否则用户不知道后面还有条目。
+  const stripWrap = h('div', { class: 'record-strip-wrap' });
+  const stripArrow = dir => h('button', {
+    class: 'record-strip-arrow ' + (dir < 0 ? 'prev' : 'next'),
+    text: dir < 0 ? '‹' : '›', tabindex: '-1',
+    'aria-label': i18n.t(dir < 0 ? 'records.strip_prev' : 'records.strip_next'),
+    onclick: () => listScroll.scrollBy({
+      left: dir * Math.max(180, Math.round(listScroll.clientWidth * 0.8)),
+      behavior: 'smooth'
+    })
+  });
+  function updateStripChrome() {
+    const max = listScroll.scrollWidth - listScroll.clientWidth;
+    const scrollable = max > 4;
+    stripWrap.classList.toggle('scrollable', scrollable);
+    stripWrap.classList.toggle('more-start', scrollable && listScroll.scrollLeft > 4);
+    stripWrap.classList.toggle('more-end', scrollable && listScroll.scrollLeft < max - 4);
+    const prev = stripWrap.querySelector('.record-strip-arrow.prev');
+    const next = stripWrap.querySelector('.record-strip-arrow.next');
+    if (prev) prev.disabled = listScroll.scrollLeft <= 4;
+    if (next) next.disabled = listScroll.scrollLeft >= max - 4;
+  }
+  const stripPrev = stripArrow(-1), stripNext = stripArrow(1);
+  stripWrap.append(stripPrev, listScroll, stripNext);
+  // 横栏键盘导航：左右移动焦点，Home/End 跳首尾；选中仍由 Enter/空格触发。
+  listScroll.addEventListener('keydown', event => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    const buttons = Array.from(listScroll.querySelectorAll('.record-strip-option'));
+    const index = buttons.indexOf(document.activeElement);
+    if (index < 0) return;
+    event.preventDefault();
+    const next = event.key === 'Home' ? 0
+      : event.key === 'End' ? buttons.length - 1
+      : Math.min(buttons.length - 1, Math.max(0, index + (event.key === 'ArrowRight' ? 1 : -1)));
+    buttons[next].focus();
+  });
+  state.ui.stripChrome = updateStripChrome; // 供一次性 resize 监听复用，避免每次渲染重复绑定
 
   const updateCount = () => {
     countLine.textContent = key === 'other' && state.sel[key] && state.sel[key].size
@@ -497,47 +735,72 @@ function viewRecords(main, key) {
         })
         : i18n.t('records.total', {count: bucket.items.length});
   };
-  const setActive = id => rowEls.forEach((el, rid) => el.classList.toggle('active', rid === id));
+  const setActive = id => rowEls.forEach((el, rid) => {el.classList.toggle('active',rid===id);el.setAttribute('aria-pressed',String(rid===id));});
 
+  const refreshFilters = () => {
+    const categorySelect=listBox.querySelector('select[data-record-filter="category"]');
+    if(categorySelect){
+      clear(categorySelect);
+      const names=recordCategoryNames(bucket);
+      if(ui.category && !names.includes(ui.category))ui.category=null;
+      [[null,i18n.t('records.all_categories')],['',i18n.t('records.uncategorized')],...names.map(name=>[name,name])]
+        .forEach(([value,label])=>categorySelect.appendChild(h('option',{value:JSON.stringify(value),text:label,selected:value===(ui.category??null)})));
+    }
+    const tagSelect=listBox.querySelector('select[data-record-filter="tag"]');
+    if(tagSelect){
+      clear(tagSelect);
+      const tags=[...new Set(bucket.items.flatMap(recordTags))].sort((a,b)=>a.localeCompare(b));
+      if(ui.tag && !tags.includes(ui.tag))ui.tag='';
+      [['',i18n.t('records.all_tags')],...tags.map(tag=>[tag,tag])].forEach(([value,label])=>
+        tagSelect.appendChild(h('option',{value,text:label,selected:value===ui.tag})));
+    }
+  };
   const drawList = () => {
-    const keepTop = listScroll.scrollTop;
+    refreshFilters();
+    const keepLeft = ui.stripScroll || listScroll.scrollLeft;
+    // 重绘会把按钮全部重建：焦点在横栏里的话要还回去，否则键盘用户每选一次就丢焦点。
+    const hadFocus = listScroll.contains(document.activeElement);
     rowEls.clear();
     const q = ui.q.toLowerCase();
     const items = bucket.items.filter(r => matchesRecordFilter(r, q, ui.category, ui.tag));
     clear(listScroll);
     items.forEach(rec => {
-      const rowEl = h('div', {
-        class: 'list-item' + (ui.sel === rec.id ? ' active' : ''),
-        onclick: () => { ui.sel = rec.id; setActive(rec.id); drawEditor(); }
-      });
-      if (key === 'other') {
-        rowEl.appendChild(h('input', {
-          type: 'checkbox', checked: state.sel[key].has(rec.id),
-          onclick: e => {
-            e.stopPropagation();
-            if (e.target.checked) state.sel[key].add(rec.id); else state.sel[key].delete(rec.id);
-            updateCount();
-          }
-        }));
-      }
-      rowEl.appendChild(h('div', { class: 'name', text: recordName(rec) }));
+      const rowEl=recordStripButton(rec,ui.sel===rec.id,()=>{ui.sel=rec.id;setActive(rec.id);drawEditor();});
+      const item=h('div',{class:'record-strip-item'});
+      if(key==='other')item.appendChild(h('input',{type:'checkbox',checked:state.sel[key].has(rec.id),
+        'aria-label':i18n.t('records.select_for_move',{name:recordName(rec)}),onchange:event=>{
+          if(event.target.checked)state.sel[key].add(rec.id);else state.sel[key].delete(rec.id);updateCount();
+        }}));
+      item.appendChild(rowEl);
       const filled = countFilled(rec.elements);
       const tags = recordTags(rec);
       const meta = [rec.category, tags.length ? tags.join(' / ') : '', filled ? i18n.t('records.filled_suffix', { count: filled }) : ''].filter(Boolean).join(' · ');
-      rowEl.appendChild(h('div', { class: 'meta', text: meta }));
+      if(meta)rowEl.appendChild(h('span', { class: 'meta', text: meta }));
       rowEls.set(rec.id, rowEl);
-      listScroll.appendChild(rowEl);
+      listScroll.appendChild(item);
     });
     if (!items.length) {
-      listScroll.appendChild(h('div', { class: 'muted small', style: { padding: '10px' } }, i18n.t('records.no_match')));
-      // 空状态也要有 AI 生成入口（仅当栏目确实为空，搜索无结果时不出现）。
-      if (!bucket.items.length) {
-        listScroll.appendChild(h('div', { class: 'inline', style: { padding: '0 10px 10px' } },
-          aiSettingGenButton(def)));
-      }
+      // 空态必须给出下一步：筛选条件可清，完全没条目就新建。
+      const filtered = !!(ui.q || ui.category != null || ui.tag);
+      const box = h('div', { class: 'record-strip-empty' },
+        h('div', { class: 'muted small', text: filtered
+          ? i18n.t('records.no_match_query', { query: ui.q || ui.tag || ui.category || '' })
+          : i18n.t('records.no_match') }),
+        h('button', {
+          class: 'mini', text: filtered ? i18n.t('records.clear_filters') : i18n.t('records.new', { singular: def.singular }),
+          onclick: () => {
+            if (!filtered) { createRecord(); return; }
+            ui.q = ''; ui.category = null; ui.tag = '';
+            if (search.value !== '') search.value = '';
+            chooseVisible();
+          }
+        }));
+      listScroll.appendChild(box);
     }
     updateCount();
-    listScroll.scrollTop = keepTop;
+    listScroll.scrollLeft = keepLeft;
+    updateStripChrome();
+    if (hadFocus) rowEls.get(ui.sel)?.focus({ preventScroll: true });
   };
 
   const drawEditor = () => {
@@ -550,59 +813,42 @@ function viewRecords(main, key) {
   const chooseVisible = () => {
     const visible = bucket.items.filter(rec => matchesRecordFilter(rec, ui.q, ui.category, ui.tag));
     if (!visible.some(rec => rec.id === ui.sel)) ui.sel = visible[0]?.id || null;
-    drawList(); drawEditor();
+    drawList(); drawEditor();revealRecordStripSelection(listScroll,ui.sel);
   };
-  const search = h('input', { type: 'text', placeholder: i18n.t('common.search'),
-    'aria-label': i18n.t('common.search'), value: ui.q,
+  const search = h('input', { type: 'text', placeholder: i18n.t('records.search_placeholder'),
+    'aria-label': i18n.t('records.search_label'), value: ui.q,
     oninput: e => { ui.q = e.target.value; chooseVisible(); } });
-  const listCard = h('div', { class: 'card' }, h('div', { class: 'field' }, search));
+  const listCard=h('div',{class:'record-picker'}),
+    tools=h('div',{class:'record-picker-tools'},
+      h('div',{class:'field record-picker-search'},h('label',{text:i18n.t('records.search_label')}),search));
   if (def.hasCategory) {
     const names = recordCategoryNames(bucket);
     if (ui.category && !names.includes(ui.category)) ui.category = null;
-    listCard.appendChild(h('div', { class: 'field' },
+    tools.appendChild(h('div', { class: 'field' },
       h('label', { text: i18n.t('common.category') }),
       h('select', { value: JSON.stringify(ui.category ?? null),
         onchange: e => { ui.category = JSON.parse(e.target.value); chooseVisible(); },
-        'aria-label': i18n.t('records.filter_category')
+        'data-record-filter':'category', 'aria-label': i18n.t('records.filter_category')
       }, [[null, i18n.t('records.all_categories')], ['', i18n.t('records.uncategorized')],
         ...names.map(name => [name, name])].map(([value, label]) => h('option', {
           value: JSON.stringify(value), selected: value === (ui.category ?? null), text: label
-        }))),
-      h('button', { class: 'mini', text: i18n.t('records.manage_categories'),
-        onclick: () => manageRecordCategories(def.coll, () => renderMain()) })));
+        })))));
   }
   if (def.hasTags) {
     const tags = [...new Set(bucket.items.flatMap(recordTags))].sort((a, b) => a.localeCompare(b));
     if (ui.tag && !tags.includes(ui.tag)) ui.tag = '';
-    listCard.appendChild(h('div', { class: 'field' },
+    tools.appendChild(h('div', { class: 'field' },
       h('label', { text: i18n.t('records.filter_tag') }),
       h('select', {
-        'aria-label': i18n.t('records.filter_tag'),
+        'data-record-filter':'tag', 'aria-label': i18n.t('records.filter_tag'),
         onchange: e => { ui.tag = e.target.value; chooseVisible(); }
       }, [['', i18n.t('records.all_tags')], ...tags.map(tag => [tag, tag])].map(([value, label]) =>
         h('option', { value, text: label, selected: value === ui.tag })))));
   }
-  listCard.append(countLine, listScroll);
+  tools.appendChild(countLine);
+  listCard.append(tools,stripWrap);
   listBox.appendChild(listCard);
   chooseVisible();
-}
-
-function showRecordCreate(def, onCreate) {
-  const name = h('input', {type:'text', id:'record-create-name', maxlength:160, 'aria-label':i18n.t('common.name')});
-  const summary = h('input', {type:'text', id:'record-create-summary', 'aria-label':i18n.t('records.summary')});
-  const content = h('textarea', {rows:7, id:'record-create-content', 'aria-label':i18n.t('records.prose'), placeholder:i18n.t('records.prose_placeholder')});
-  const create = () => {
-    if (!name.value.trim()) { name.focus(); toast(i18n.t('records.name_required'), 'err'); return; }
-    const rec = newRecord(def); rec.name=name.value.trim(); rec.summary=summary.value.trim(); rec.content=content.value;
-    dialog.close(); onCreate(rec);
-  };
-  const dialog = modal(i18n.t('records.new', {singular:def.singular}), h('div', {class:'record-create-form'},
-    h('div', {class:'field'}, h('label', {for:'record-create-name', text:i18n.t('common.name')}), name),
-    h('div', {class:'field'}, h('label', {for:'record-create-summary', text:i18n.t('records.summary')}), summary),
-    h('div', {class:'field'}, h('label', {for:'record-create-content', text:i18n.t('records.prose')}), content)), [
-      h('button', {text:i18n.t('common.cancel'), onclick:() => dialog.close()}),
-      h('button', {class:'primary', text:i18n.t('records.create'), dataset:{noclose:'1'}, onclick:create})]);
-  dialog.dlg.classList.add('record-create-dialog'); name.focus();
 }
 
 // The faction owns membership. Characters display the reverse lookup without a second list.
@@ -649,6 +895,35 @@ function recordEditor(def, rec, onListChange, onEditorChange) {
   }));
   if (active === 'relations') body.appendChild(recordRelations(def,rec,onEditorChange));
   else if (active === 'more') {
+    if (rec.source) body.appendChild(h('div', {class:'small muted',text:i18n.t('common.source_prefix',{source:rec.source})}));
+    body.appendChild(h('div', {class:'record-more-actions'},
+      h('button', {text:i18n.t('records.edit_structure'),onclick:() => {
+        const dialog=modal(i18n.t('records.edit_structure'),elementTree(rec.elements,coll,{onChange:()=>{onListChange();onEditorChange();}}),[
+          h('button',{text:i18n.t('common.close'),onclick:()=>{dialog.close();onListChange();onEditorChange();}})]);
+      }}),
+      h('button', {text:i18n.t('records.move'),onclick:()=>moveDialog(coll,[rec.id],()=>{onListChange();onEditorChange();})}),
+      h('button', {class:'danger',text:i18n.t('common.delete'),onclick:()=>confirmDialog(
+        i18n.t('records.delete_title'),
+        i18n.t('common.delete_confirm',{name:recordName(rec)}),
+        ()=>{
+          const bucket=state.db[coll];
+          const index=bucket.items.findIndex(item=>item.id===rec.id);
+          bucket.items=bucket.items.filter(item=>item.id!==rec.id);
+          touch(coll);onListChange();onEditorChange();
+          // 删除可撤销：误删一条设定不该让用户去翻备份。
+          toast(i18n.t('records.deleted_toast',{name:recordName(rec)}),'ok',{
+            duration:7000,
+            action:{label:i18n.t('common.undo'),onClick:()=>{
+              bucket.items.splice(Math.max(0,index),0,rec);
+              const ui=state.ui[coll]; if(ui)ui.sel=rec.id;
+              touch(coll);onListChange();onEditorChange();
+            }}
+          });
+        },
+        {confirmLabel:i18n.t('common.delete_named',{name:recordName(rec)}),danger:true}
+      )})));
+  } else {
+    body.appendChild(field(i18n.t('records.summary'),'summary'));
     if (def.tagLabel) body.appendChild(field(def.tagLabel,'tag'));
     if (def.hasCategory) {
       const categories = recordCategoryNames(state.db[coll]);
@@ -660,60 +935,26 @@ function recordEditor(def, rec, onListChange, onEditorChange) {
             state.db[coll].categories=Array.from(new Set([...categories,name]));rec.category=name;touch(coll);onListChange();onEditorChange();
           })}))));
     }
-    if (def.hasTags) {
-      const tagsInput = h('input', {
-        type: 'text', value: recordTags(rec).join('、'),
-        placeholder: i18n.t('records.tags_placeholder'),
-        'aria-label': i18n.t('records.tags_label'),
-        oninput: e => {
-          rec.tags = Array.from(new Set(e.target.value.split(/[,，、]/).map(value => value.trim()).filter(Boolean)));
-          touch(coll); onListChange();
-        }
-      });
-      body.appendChild(h('div', {class:'field'}, h('label', {text:i18n.t('records.tags_label')}), tagsInput,
-        h('div', {class:'small muted', text:i18n.t('records.tags_hint')})));
-    }
-    if (def.coll === 'items') {
-      const slots = (state.db.items && state.db.items.slots) || [];
+    if (def.hasTags) body.appendChild(recordTagEditor(rec, coll, onListChange));
+    if (def.hasSlots) {
+      const slots = (state.db[coll] && state.db[coll].slots) || [];
       body.appendChild(h('div', {class:'field'}, h('label', {text:i18n.t('records.slot_label')}),
         h('select', {'aria-label':i18n.t('records.slot_label'), onchange:e=>{rec.slot=e.target.value;touch(coll);}},
           [''].concat(slots).map(value=>h('option',{value,selected:(rec.slot || '')===value,text:value || i18n.t('records.slot_none')})))));
     }
-    body.appendChild(field(def.notesLabel || i18n.t('collections.notes'),'notes',4));
-    if (rec.source) body.appendChild(h('div', {class:'small muted',text:i18n.t('common.source_prefix',{source:rec.source})}));
-    body.appendChild(h('div', {class:'record-more-actions'},
-      h('button', {text:i18n.t('records.edit_structure'),onclick:() => {
-        const dialog=modal(i18n.t('records.edit_structure'),elementTree(rec.elements,coll,{onChange:()=>{onListChange();onEditorChange();}}),[
-          h('button',{text:i18n.t('common.close'),onclick:()=>{dialog.close();onListChange();onEditorChange();}})]);
-      }}),
-      h('button', {text:i18n.t('records.move'),onclick:()=>moveDialog(coll,[rec.id],()=>{onListChange();onEditorChange();})}),
-      h('button', {class:'danger',text:i18n.t('common.delete'),onclick:()=>confirmDialog(i18n.t('common.delete'),i18n.t('common.delete_confirm',{name:recordName(rec)}),()=>{
-        state.db[coll].items=state.db[coll].items.filter(item=>item.id!==rec.id);touch(coll);onListChange();onEditorChange();
-      })})));
-  } else {
-    body.appendChild(field(i18n.t('records.summary'),'summary'));
-    body.appendChild(h('div', {class:'field'}, h('label', {text:i18n.t('records.prose')}),h('textarea',{
-      class:'record-prose',rows:8,value:rec.content || '',placeholder:i18n.t('records.prose_placeholder'),'aria-label':i18n.t('records.prose'),
-      oninput:e=>{rec.content=e.target.value;touch(coll);autoGrow(e.target);}
-    })));
-    const renderFields = (nodes, parent='') => h('div',{class:'record-fields'},nodes.filter(node=>node.on!==false).map(node=>{
-      const label=parent ? parent+' · '+node.key : node.key;
-      if(node.children) return renderFields(node.children,label);
-      return h('div',{class:'field'},h('label',{text:label}),h('textarea',{rows:Math.min(5,valueRows(node.value)),value:node.value || '',
-        'aria-label':label,oninput:e=>{node.value=e.target.value;touch(coll);autoGrow(e.target);}}));
-    }));
-    rec.elements.filter(node=>node.on!==false).forEach((node,index)=>{
-      if(node.children) body.appendChild(h('details',{class:'record-field-group',open:countFilled(node.children)>0 || state.ui.recordNewGroup===coll+':'+rec.id+':'+node.key},h('summary',{text:node.key}),renderFields(node.children)));
-      else body.appendChild(renderFields([node]));
-    });
+    body.appendChild(recordGroupsEditor(coll,rec,onListChange,onEditorChange));
     body.appendChild(h('button',{class:'mini',text:i18n.t('records.add_group'),onclick:()=>{
-      const options=(presetsOf(coll)||[]).filter(node=>!rec.elements.some(existing=>existing.key===node.key));
+      const options=(presetsOf(coll)||[]).filter(node=>!rec.elements.some(existing=>existing.key===node.key) && !removedRecordGroups(coll,rec).some(entry=>entry.node.key===node.key));
       if(!options.length){toast(i18n.t('records.no_more_groups'));return;}
       pickDialog(i18n.t('records.add_group'),options.map((node,index)=>({value:index,label:node.key})),index=>{
         applyPreset(rec.elements,[options[index]]);state.ui.recordNewGroup=coll+':'+rec.id+':'+options[index].key;touch(coll);onEditorChange();
       });
     }}));
+    body.appendChild(field(def.notesLabel || i18n.t('collections.notes'),'notes',4));
+    body.appendChild(h('details', {class:'record-field-group', open:!!rec.content},
+      h('summary', {text:i18n.t('records.supplement')}), field(i18n.t('records.supplement'),'content',4)));
   }
+  i18n.apply(card);
   return card;
 }
 
@@ -787,13 +1028,13 @@ function importPanel(defaultKind, opts) {
     const kind = kindSel.value;
     const sources = (state.sources || []).filter(s => {
       const path = String(s.path || '').toLowerCase();
-      if (kind === 'md') return path.endsWith('.md');
+      if (kind === 'md') return /\.(md|txt)$/i.test(path);
       if (kind === 'json') return path.endsWith('.json');
       return true;
     });
     clear(sourceSel);
     if (!sources.length) {
-      sourceSel.appendChild(h('option', { value: '', text: i18n.t('records.no_import_files', { path: state.paths.import || 'workspace/import' }) }));
+      sourceSel.appendChild(h('option', { value: '', text: i18n.t('records.no_import_files', { path: state.paths.import || '' }) }));
     } else {
       sources.forEach(s => sourceSel.appendChild(h('option', {
         value: s.path, text: s.path + '（' + Math.max(1, Math.round((s.size || 0) / 1024)) + ' KB）'
@@ -801,6 +1042,7 @@ function importPanel(defaultKind, opts) {
     }
   };
   drawSources();
+  refreshWorkspaceFiles().then(drawSources).catch(error => toast(error.message,'err'));
 
   const btn = h('button', { class: 'primary', text: i18n.t('common.import') });
   btn.onclick = async () => {
@@ -811,7 +1053,7 @@ function importPanel(defaultKind, opts) {
       await flushPendingSaves();
       const res = await api('/api/import', {
         method: 'POST',
-        body: { kind: kindSel.value, source: sourceSel.value, target }
+        body: { kind: kindSel.value, source: sourceSel.value, target, novel_id:state.activeNovelId }
       });
       setDb(res.collections);
       if (opts.onSuccess) opts.onSuccess();
@@ -825,18 +1067,20 @@ function importPanel(defaultKind, opts) {
   };
 
   if (opts.compact) {
-    const input=h('input',{type:'file',accept:target==='other'?'.json,.md':'.json',hidden:true,onchange:async e=>{
+    const input=h('input',{type:'file',accept:target==='other'?'.json,.md,.txt':'.json',hidden:true,onchange:async e=>{
       const file=e.target.files?.[0];if(!file)return;
       const novel=state.activeNovelId;
       try {
-        const kind=/\.md$/i.test(file.name)?'md':'json';
+        if(!/\.(md|txt|json)$/i.test(file.name))throw new Error(i18n.t('errors.import_extension'));
+        const kind=/\.(md|txt)$/i.test(file.name)?'md':'json';
         if(!kinds.some(option=>option.id===kind))return;
         const content=(await file.text()).replace(/^\uFEFF/,'');
         if(novel!==state.activeNovelId)return;
-        const path=(state.paths.import || 'workspace/import').replace(/[\\/]+$/,'')+'/'+newId('import')+(kind==='md'?'.md':'.json');
-        await api('/api/io/save',{method:'POST',body:{path,content}});
-        kindSel.value=kind;
-        sourceSel.appendChild(h('option',{value:path,text:file.name,selected:true}));sourceSel.value=path;
+        const res=await api('/api/io/save',{method:'POST',body:{directory:'import',novel_id:novel,filename:newId('import')+'_'+file.name.replace(/[\\/:]/g,'_'),content}});
+        if(novel!==state.activeNovelId)return;
+        await refreshWorkspaceFiles();
+        if(novel!==state.activeNovelId)return;
+        kindSel.value=kind; drawSources(); sourceSel.value=res.path;
       }catch(error){toast(error.message,'err');}
     }});
     return h('div',{class:'settings-import-fields'},input,
@@ -846,7 +1090,7 @@ function importPanel(defaultKind, opts) {
   }
 
   return h('details', { class: 'card' },
-    h('summary', null, i18n.t('records.import_panel_title', { title: opts.title || i18n.t('common.import'), path: state.paths.import || 'workspace/import' })),
+    h('summary', null, i18n.t('records.import_panel_title', { title: opts.title || i18n.t('common.import'), path: state.paths.import || '' })),
     h('div', { class: 'field', style: { marginTop: '10px' } },
       kindSel,
       sourceSel),
@@ -864,7 +1108,9 @@ function exportButtons(coll) {
       title: i18n.t('records.export_json_title'),
       onclick: async () => {
         try {
+          await flushPendingSaves();
           const res = await api('/api/export', { method: 'POST', body: { collection: coll, format: 'json' } });
+          await refreshWorkspaceFiles();
           toast(i18n.t('common.exported_to', { path: res.rel }), 'ok');
         } catch (e) { toast(i18n.t('common.export_failed_reason', { reason: e.message }), 'err'); }
       }
@@ -873,7 +1119,9 @@ function exportButtons(coll) {
       text: i18n.t('records.export_txt'),
       onclick: async () => {
         try {
+          await flushPendingSaves();
           const res = await api('/api/export', { method: 'POST', body: { collection: coll, format: 'txt' } });
+          await refreshWorkspaceFiles();
           toast(i18n.t('common.exported_to', { path: res.rel }), 'ok');
         } catch (e) { toast(i18n.t('common.export_failed_reason', { reason: e.message }), 'err'); }
       }
@@ -1014,12 +1262,13 @@ function aiSettingGenDialog(def) {
     const files = (state.sources || []).filter(s => /\.(txt|md)$/i.test(String(s.path || '')));
     clear(fileSel);
     if (!files.length) {
-      fileSel.appendChild(h('option', { value: '', text: i18n.t('setting_gen.no_text_files', { path: state.paths.import || 'workspace/import' }) }));
+      fileSel.appendChild(h('option', { value: '', text: i18n.t('setting_gen.no_text_files', { path: state.paths.import || '' }) }));
     } else {
       files.forEach(s => fileSel.appendChild(h('option', { value: s.path, text: s.path })));
     }
   };
   drawSources();
+  refreshWorkspaceFiles().then(drawSources).catch(error => toast(error.message,'err'));
   const readBtn = h('button', { text: i18n.t('setting_gen.file_read') });
   readBtn.onclick = async () => {
     if (!fileSel.value) { toast(i18n.t('records.choose_file_first'), 'err'); return; }

@@ -59,7 +59,7 @@ common.debug_badge: DEBUG 模式
 common.debug_banner: DEBUG 模式 · 当前数据、输出与日志与正式版本隔离
 common.default_content: 示例 / 默认内容（保留原文）
 common.delete: 删除
-common.delete_confirm: 确定删除「{name}」？
+common.delete_confirm: 删除「{name}」？
 common.delete_failed_reason: 删除失败：{reason}
 common.deleted: 已删除。
 common.disabled_name: '{name}（已停用）'
@@ -831,6 +831,7 @@ modes.target_chars_process_hint: 稿件处理模式不拼装目标字数；如�
 modes.target_chars_write_hint: 字数设置只对写稿模式生效；稿件处理模式不拼装目标字数。
 modes.temp_label: temperature（可留空）
 modes.thinking_option: 发送 thinking 参数（仅部分接口支持）
+nav.cards: 角色卡
 nav.chapters: 章节与导出
 nav.characters: 人物档案
 nav.elements: 元素模板
@@ -1135,7 +1136,6 @@ workstation.send_summary: 本次将发送：{list}
 workstation.start: 开始生成
 workstation.state_label: 当前状态（此刻的时间、地点、人物状态…）
 workstation.state_placeholder: 例如：当前时间、地点、人物位置与情绪……
-workstation.strict: 硬性要求
 workstation.system_label: system（{count} 字）
 workstation.target_default: 默认 {count} 字
 workstation.target_label: 本次目标字数
@@ -1226,7 +1226,7 @@ sections.show_named: "在侧栏显示{name}"
 sections.show_in_nav: "在侧栏显示"
 sections.builtin: "内置栏目"
 sections.record_section: "设定栏目"
-sections.manage_help: "所有内置设定默认展示。人物背包跟随人物档案，地图与势力跟随世界设定；物品统一管理道具、服饰与装备。隐藏栏目只影响侧栏，不删除内容。"
+sections.manage_help: "新小说默认显示核心设定，扩展栏目可单独开启。每个栏目的显示互不影响；隐藏只影响侧栏，不删除内容。"
 records.manage_categories: "管理分类"
 records.filter_category: "按分类筛选"
 records.all_categories: "全部分类"
@@ -1253,7 +1253,6 @@ workstation.details: "设定与要求"
 workstation.more: "更多"
 workstation.welcome: "开始这一次创作"
 workstation.welcome_hint: "在下方输入写作要求，选择模式与设定，开始生成。"
-workstation.context_hint: "续写携带最近最多 8 轮，历史合计不超过 6 万字符；本次使用当前选择的设定。Ctrl+Enter 发送。AI 生成内容请核实。"
 workstation.retry: "重试"
 workstation.expand_result: "展开正文"
 workstation.collapse_result: "收起正文"
@@ -1320,7 +1319,7 @@ records.import_source: "来源文件"
 records.pick_import_file: "选择本地文件"
 sections.import_settings: "导入设定"
 sections.import_target: "导入到"
-sections.guidance: "所有内置设定默认展示；人物背包跟随人物档案，地图与势力跟随世界设定，道具/服饰/装备统一在「物品」中。\n拖动卡片调整顺序，或聚焦后按 Alt + 左右方向键。隐藏栏目只影响侧栏，不删除条目。\n新增栏目默认放在「其他设定」之前。"
+sections.guidance: "新小说默认显示核心设定，扩展栏目可手动开启；各栏目独立显示。\n拖动卡片调整顺序，或聚焦后按 Alt + 左右方向键。隐藏栏目不删除条目。\n新增栏目默认放在“其他设定”之前。"
 sections.import_guidance: "先选择目标栏目，再选择来源文件或本地文件。\nJSON 支持数组、{ \"items\": [...] } 和按名称组织的对象。已有同名记录会合并更新，请先导出备份；导入不会按名称推断人物与势力的关联。\n地图 JSON 需包含 rows、cols、cells、regions。Markdown 仅可导入“其他设定”。"
 
 records.members_plain: "成员"
@@ -1431,4 +1430,97 @@ sections.breadcrumb: 设定管理 / {name}
 sections.child_of: 属于「{name}」
 workstation.supplement_hint: 这里只影响本次生成，不会改动设定库。
 workstation.extra_saved_hint: 已填写补充要求；点此查看或修改。
-workstation.prompt_help: 主输入写创作要求；要改带入的设定或补充要求，点“设定与要求”。
+
+records.manage_tags: "管理标签"
+records.tag_delete_confirm: "删除标签“{name}”？本栏目所有条目将移除此标签，条目内容保留。"
+records.remove_tag: "移除标签 {name}"
+records.add_tag: "添加标签"
+records.supplement: "其他 / 补充描述"
+records.create_hint: "使用右上角“新建”添加条目。"
+records.overwrite_confirm: "文件已存在，是否覆盖？覆盖前将保留 .bak 备份：{path}"
+workstation.model: "本次模型"
+workstation.follow_mode: "跟随当前模式"
+workstation.limited: "限定字数"
+workstation.unlimited: "不限字数"
+workstation.invalid_target: "目标字数必须为正整数。"
+errors.workspace_changed: "当前小说已切换，请重新选择文件。"
+errors.workspace_directory: "工作区目录类型无效。"
+errors.workspace_filename: "请使用不包含路径的有效文件名。"
+errors.import_extension: 仅支持 .json、.md 或 .txt 文件。
+
+relations.network: "关系网"
+relations.network_desc: "查看本小说的全部条目与关联，可筛选、搜索并编辑。"
+relations.open_network: "打开关系网"
+relations.network_empty: "没有匹配条目，请调整搜索或前往设定页新建。"
+relations.source: "关联起点"
+relations.create_collection: "新条目所属栏目"
+relations.default_type: "关联"
+relations.suggestions: "关联|隶属|认识|合作|敌对|位于|持有|参与|追查"
+relations.discarded: "已丢弃 {count} 条无效关联，其余关联已保存。"
+relations.network_hint: "点击条目查看关联；双击跳转关联页；点击连线编辑。拖动可平移，滚轮可缩放。"
+relations.radial_hint: "仅显示当前条目的直接关联。双击其他条目可跳转；完整网络请打开关系网。"
+cards.title: "角色卡"
+cards.description: "独立收藏你的 OC，跨小说保存。"
+cards.add: "添加角色卡"
+cards.edit: "编辑角色卡"
+cards.search: "搜索姓名、身份或标签"
+cards.sort: "角色卡排序"
+cards.sort_updated: "最近编辑"
+cards.sort_created: "最近创建"
+cards.sort_name: "按姓名"
+cards.name: "姓名"
+cards.gender: "性别"
+cards.role: "身份"
+cards.age: "年龄"
+cards.tags: "标签（逗号分隔）"
+cards.summary: "简介"
+cards.notes: "备注"
+cards.empty: "还没有角色卡，添加一位角色开始收藏。"
+cards.no_results: "没有匹配的角色卡。"
+cards.unspecified: "未填写"
+cards.open: "查看角色卡：{name}"
+cards.portrait: "{name} 的角色图片"
+cards.upload: "上传图片"
+cards.image_hint: "支持 PNG、JPEG、WebP，单张不超过 2 MB。"
+cards.save_before_image: "保存角色卡后可上传图片。"
+cards.image_invalid: "请选择不超过 2 MB 的 PNG、JPEG 或 WebP 图片。"
+cards.invalid_data: "角色卡数据格式无效。"
+cards.not_found: "角色卡不存在或已被删除。"
+cards.name_required: "请填写角色姓名。"
+cards.saved: "角色卡已保存。"
+cards.delete_confirm: "删除角色卡“{name}”？此操作不会删除小说人物档案。"
+relations.membership_type: 隶属
+relations.invalid_data: 关联数据无效，请检查条目引用与关系名称。
+
+records.entry_strip: "条目切换"
+records.reorder_group: "调整“{name}”的顺序"
+records.reorder_group_hint: "拖动调整分组顺序，或按 Alt + ↑ / ↓。"
+records.delete_group: "删除信息分组“{name}”"
+records.removed_groups: "已删除 {count} 个信息分组，离开本页后无法恢复。"
+records.restore_group: "恢复上一个"
+records.restore_groups: "恢复全部"
+records.restore_group_conflict: "已存在同名分组，请先改名或移除后再恢复。"
+records.select_for_move: "选择“{name}”用于搬运"
+
+# ── 交互优化：键盘可达、可撤销删除、生成可停止 ──
+common.command_title: "快速跳转"
+common.command_placeholder: "跳转到页面或设定条目…"
+common.command_empty: "没有匹配的页面或条目。"
+common.undo: "撤销"
+common.delete_named: "删除“{name}”"
+records.search_label: "搜索条目"
+records.search_placeholder: "名称、分类或正文内容"
+records.strip_prev: "向前滚动条目"
+records.strip_next: "向后滚动条目"
+records.clear_filters: "清除筛选"
+records.no_match_query: "没有匹配“{query}”的条目。"
+records.delete_title: "删除条目"
+records.deleted_toast: "已删除“{name}”"
+workstation.stop: "停止生成"
+workstation.stopped: "已停止生成"
+workstation.stopped_hint: "已停止等待，本次结果不会保存。"
+workstation.composer_hint: "Enter 换行 · Ctrl+Enter 生成 · Ctrl+K 快速跳转"
+workstation.example_1: "写一段雨夜码头的开场，镜头跟着一封信"
+workstation.example_2: "用三个细节写沈砚的紧张，不要直接说她害怕"
+workstation.example_3: "把上一段改成对话推进，保留环境描写"
+errors.generation_cancelled: "生成已停止，本次结果未保存。"

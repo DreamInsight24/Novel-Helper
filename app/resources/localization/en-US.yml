@@ -867,6 +867,7 @@ modes.target_chars_write_hint: Word count settings only apply to writing modes; 
   a target word count.
 modes.temp_label: temperature (optional)
 modes.thinking_option: Send thinking parameter (supported by some APIs only)
+nav.cards: Character cards
 nav.chapters: Chapters & Export
 nav.characters: Characters
 nav.elements: Element Templates
@@ -1206,7 +1207,6 @@ workstation.send_summary: 'This run will send: {list}'
 workstation.start: Start generating
 workstation.state_label: Current state (time, place, character status right now…)
 workstation.state_placeholder: e.g. current time, place, character positions and mood…
-workstation.strict: Hard requirement
 workstation.system_label: system ({count} chars)
 workstation.target_default: Default {count} chars
 workstation.target_label: Target length this run
@@ -1303,7 +1303,7 @@ sections.show_named: "Show {name} in the sidebar"
 sections.show_in_nav: "Show in sidebar"
 sections.builtin: "Built-in section"
 sections.record_section: "Setting section"
-sections.manage_help: "All built-in settings are shown by default. Inventory follows Characters; Map and Factions follow World Settings; Items unifies props, apparel and equipment. Hiding a section only affects the sidebar and never deletes content."
+sections.manage_help: "New novels show core settings; enable extended sections as needed. Each section has independent visibility. Hiding never deletes content."
 records.manage_categories: "Manage categories"
 records.filter_category: "Filter by category"
 records.all_categories: "All categories"
@@ -1330,7 +1330,6 @@ workstation.details: "Settings & requirements"
 workstation.more: "More"
 workstation.welcome: "Start writing"
 workstation.welcome_hint: "Describe what to write below, choose a mode and references, then generate."
-workstation.context_hint: "Continuation includes up to 8 recent complete turns within 60,000 characters, with your current references. Ctrl+Enter to send. Review AI-generated content."
 workstation.retry: "Retry"
 workstation.expand_result: "Expand result"
 workstation.collapse_result: "Collapse result"
@@ -1397,7 +1396,7 @@ records.import_source: "Source file"
 records.pick_import_file: "Choose local file"
 sections.import_settings: "Import settings"
 sections.import_target: "Import into"
-sections.guidance: "All built-in settings are shown by default. Inventory follows Characters; Map and Factions follow World Settings; props, apparel and equipment live together in Items.\nDrag cards to reorder, or focus one and press Alt + Left/Right. Hiding a section only affects the sidebar.\nNew sections are inserted before Other Settings."
+sections.guidance: "New novels show core settings; extended sections can be enabled individually.\nDrag cards to reorder, or focus a card and press Alt + Left/Right. Hiding never deletes records.\nNew sections appear before Other Settings."
 sections.import_guidance: "Choose a destination and then a source or local file.\nJSON supports arrays, { \"items\": [...] }, and name-keyed objects. Same-name entries are merged; export a backup first. Relationships are not inferred from names.\nMap JSON requires rows, cols, cells and regions. Markdown can only be imported into Other settings."
 
 records.members_plain: "Members"
@@ -1508,4 +1507,97 @@ sections.breadcrumb: Settings management / {name}
 sections.child_of: Part of "{name}"
 workstation.supplement_hint: This only affects the current generation and never changes the setting library.
 workstation.extra_saved_hint: Additional requirements are set; open this to view or edit them.
-workstation.prompt_help: Write the creative request here; use Settings & requirements to change included settings or extra requirements.
+
+records.manage_tags: "Manage tags"
+records.tag_delete_confirm: "Delete tag “{name}” from every record in this section? Records will be kept."
+records.remove_tag: "Remove tag {name}"
+records.add_tag: "Add tags"
+records.supplement: "Other / supplementary description"
+records.create_hint: "Use New in the upper right to add a record."
+records.overwrite_confirm: "This file exists. Overwrite it? A .bak backup will be kept: {path}"
+workstation.model: "Model for this request"
+workstation.follow_mode: "Follow current mode"
+workstation.limited: "Limit length"
+workstation.unlimited: "No length limit"
+workstation.invalid_target: "Target length must be a positive integer."
+errors.workspace_changed: "The active novel changed. Select the file again."
+errors.workspace_directory: "Invalid workspace directory type."
+errors.workspace_filename: "Use a valid filename without a path."
+errors.import_extension: Only .json, .md or .txt files are supported.
+
+relations.network: "Relationship network"
+relations.network_desc: "Explore every record and relationship in this novel. Filter, search and edit links."
+relations.open_network: "Open relationship network"
+relations.network_empty: "No matching records. Change the filters or create a record in Settings."
+relations.source: "Relationship source"
+relations.create_collection: "Section for the new record"
+relations.default_type: "Related"
+relations.suggestions: "Related|Belongs to|Knows|Cooperates|Opposes|Located in|Owns|Participates|Investigates"
+relations.discarded: "Discarded {count} invalid relationships. The remaining links were saved."
+relations.network_hint: "Select a record to inspect links, double-click to open its relationships, or select an edge to edit. Drag to pan; scroll to zoom."
+relations.radial_hint: "Only direct links are shown. Double-click another record to open it; use the network for the complete graph."
+cards.title: "Character cards"
+cards.description: "A global home for your original characters, across novels."
+cards.add: "Add character card"
+cards.edit: "Edit character card"
+cards.search: "Search name, role or tags"
+cards.sort: "Sort character cards"
+cards.sort_updated: "Recently updated"
+cards.sort_created: "Recently created"
+cards.sort_name: "By name"
+cards.name: "Name"
+cards.gender: "Gender"
+cards.role: "Role"
+cards.age: "Age"
+cards.tags: "Tags (comma separated)"
+cards.summary: "Biography"
+cards.notes: "Notes"
+cards.empty: "No character cards yet. Add a character to start your collection."
+cards.no_results: "No matching character cards."
+cards.unspecified: "Not specified"
+cards.open: "Open character card: {name}"
+cards.portrait: "Portrait of {name}"
+cards.upload: "Upload portrait"
+cards.image_hint: "PNG, JPEG or WebP, up to 2 MB per image."
+cards.save_before_image: "Save the card before uploading a portrait."
+cards.image_invalid: "Choose a PNG, JPEG or WebP image of at most 2 MB."
+cards.invalid_data: "Invalid character card data."
+cards.not_found: "The character card does not exist or has been deleted."
+cards.name_required: "Enter the character’s name."
+cards.saved: "Character card saved."
+cards.delete_confirm: "Delete character card “{name}”? Novel character records will remain unchanged."
+relations.membership_type: Belongs to
+relations.invalid_data: Invalid relationship data. Check the record references and relationship name.
+
+records.entry_strip: "Switch records"
+records.reorder_group: "Reorder “{name}”"
+records.reorder_group_hint: "Drag to reorder groups, or press Alt + Up / Down."
+records.delete_group: "Delete information group “{name}”"
+records.removed_groups: "{count} information groups deleted. Restore them before leaving this page."
+records.restore_group: "Restore last"
+records.restore_groups: "Restore all"
+records.restore_group_conflict: "A group with this name already exists. Rename or remove it before restoring."
+records.select_for_move: "Select “{name}” to move"
+
+# ── Interaction pass: keyboard access, undoable delete, cancellable generation ──
+common.command_title: "Quick jump"
+common.command_placeholder: "Jump to a page or setting record…"
+common.command_empty: "No matching page or record."
+common.undo: "Undo"
+common.delete_named: "Delete “{name}”"
+records.search_label: "Search records"
+records.search_placeholder: "Name, category or content"
+records.strip_prev: "Scroll records backward"
+records.strip_next: "Scroll records forward"
+records.clear_filters: "Clear filters"
+records.no_match_query: "No records match “{query}”."
+records.delete_title: "Delete record"
+records.deleted_toast: "Deleted “{name}”"
+workstation.stop: "Stop generating"
+workstation.stopped: "Generation stopped"
+workstation.stopped_hint: "Stopped waiting; this result will not be saved."
+workstation.composer_hint: "Enter for a new line · Ctrl+Enter to generate · Ctrl+K to quick jump"
+workstation.example_1: "Open on a rainy dock at night, the camera following a letter"
+workstation.example_2: "Show Shen Yan's tension through three details without saying she is afraid"
+workstation.example_3: "Rewrite the previous paragraph as dialogue while keeping the setting"
+errors.generation_cancelled: "Generation stopped; this result was not saved."

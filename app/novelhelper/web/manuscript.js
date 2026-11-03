@@ -160,7 +160,10 @@ function viewManuscript(main) {
   // ── 文件自动保存：绑定到具体文件后才写盘 ──
   const saveToFile = async (path, content, quiet) => {
     try {
-      await api('/api/io/save', { method: 'POST', body: { path: path, content: content } });
+      const fresh=!path.includes('/') && !path.includes('\\');
+      const res=await api('/api/io/save', { method: 'POST', body: { novel_id:state.activeNovelId,
+        ...(fresh ? {directory:'text',filename:path} : {path}), content } });
+      if(fresh && ui.path===path)ui.path=res.path;
       if (ui.path === path && ui.value === content) ui.dirty = false;
       const item = (state.io.files || []).find(f => f.path === path);
       if (item) item.size = new Blob([content]).size;
@@ -254,6 +257,7 @@ function viewManuscript(main) {
 
   const rememberSelection = () => { ui.selectionStart = area.selectionStart; ui.selectionEnd = area.selectionEnd; };
   const snapshot = () => ({value:ui.value, start:ui.selectionStart || 0, end:ui.selectionEnd || 0});
+  let refreshUndoState = () => {};   // 工具栏建好后回填：空栈时按钮必须 disabled
   const setText = (value, record = true) => {
     if (record && value !== ui.value) {
       ui.undo.push(snapshot()); ui.redo = [];
@@ -261,13 +265,14 @@ function viewManuscript(main) {
     }
     if (area.value !== value) area.value = value;
     ui.value = value; ui.dirty = true;
-    scheduleDraft(); scheduleFileSave(); updateStat();
+    scheduleDraft(); scheduleFileSave(); updateStat(); refreshUndoState();
   };
   const undoEdit = (redo = false) => {
     const from = redo ? ui.redo : ui.undo, to = redo ? ui.undo : ui.redo;
     if (!from.length) return;
     to.push(snapshot()); const entry = from.pop();
     setText(entry.value, false); area.focus(); area.setSelectionRange(entry.start, entry.end); rememberSelection();
+    refreshUndoState();
   };
   const insertMaterial = (material, index = ui.selectionStart || 0) => {
     const result = manuscriptInsertedText(ui.value, material.content, index);
@@ -301,8 +306,7 @@ function viewManuscript(main) {
           let name = value.trim();
           if (!name) return;
           if (!/\.(txt|md)$/i.test(name)) name += '.txt';
-          const folder = (state.paths.text || 'workspace/text').replace(/[\\/]+$/, '');
-          ui.path = folder + '/' + name.replace(/[\\/]/g, '_');
+          ui.path = name.replace(/[\\/]/g, '_');
           refreshHint(); await saveLocal();
         });
       return;
@@ -781,10 +785,14 @@ function viewManuscript(main) {
     h('div', {class:'inline process-tools-actions'},
       h('button', {class:'mini', text:i18n.t('manuscript.find_replace'), onclick:openFindReplace}),
       ops.map(([label, fn]) => h('button', {class:'mini', text:label, onclick:() => transformText(fn)})))));
+  const undoBtn = h('button', {text:i18n.t('manuscript.undo'), title:'Ctrl+Z', onclick:() => undoEdit()});
+  const redoBtn = h('button', {text:i18n.t('manuscript.redo'), title:'Ctrl+Shift+Z', onclick:() => undoEdit(true)});
+  refreshUndoState = () => { undoBtn.disabled = !ui.undo.length; redoBtn.disabled = !ui.redo.length; };
+  refreshUndoState();
   const toolbar = h('div', {class:'manuscript-toolbar'},
     h('button', {class:'primary', text:i18n.t('manuscript.ai_assist'), onclick:openAiAssist}),
-    h('button', {text:i18n.t('manuscript.undo'), title:'Ctrl+Z', onclick:() => undoEdit()}),
-    h('button', {text:i18n.t('manuscript.redo'), title:'Ctrl+Shift+Z', onclick:() => undoEdit(true)}),
+    undoBtn,
+    redoBtn,
     h('span', {class:'toolbar-sep'}),
     h('button', {text:i18n.t('common.save'), onclick:saveLocal}),
     h('button', {text:i18n.t('manuscript.export_txt_btn'), onclick:() => exportAs(ui.value)}),
@@ -861,9 +869,19 @@ function exportAs(content) {
         let dir = pathInput.value.trim();
         let name = nameInput.value.trim() || 'untitled.txt';
         if (!/\.(txt|md)$/i.test(name)) name += '.txt';
-        const full = dir.replace(/[\\/]+$/, '') + '\\' + name;
+        const full = dir.replace(/[\\/]+$/, '') + '/' + name;
         try {
-          const res = await api('/api/io/export', { method: 'POST', body: { path: full, content, encoding: encSel.value } });
+          const request={path:full,content,encoding:encSel.value};
+          let res=await api('/api/io/export',{method:'POST',body:request});
+          if(res.exists){
+            confirmDialog(i18n.t('common.export'),i18n.t('records.overwrite_confirm',{path:res.path}),async()=>{
+              try{
+                res=await api('/api/io/export',{method:'POST',body:{...request,overwrite:true}});
+                toast(i18n.t('common.exported_to',{path:res.path}),'ok');m.close();
+              }catch(error){toast(error.message,'err');}
+            });
+            return;
+          }
           toast(i18n.t('manuscript.exported_size', { path: res.path, size: (res.size / 1024).toFixed(1) }), 'ok');
           m.close();
         } catch (e) { toast(i18n.t('common.export_failed_reason', { reason: e.message }), 'err'); }

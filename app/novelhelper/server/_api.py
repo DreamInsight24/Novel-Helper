@@ -22,12 +22,13 @@ from .. import localization
 from .. import APP_VERSION
 
 import re
+from pathlib import Path
 
-from .. import ai, context, history, logger, project, prompts as prompts_mod, providers, store
+from .. import ai, context, history, logger, project, prompts as prompts_mod, providers, store, relations, cards
 from ..ports import PortConfigError, normalize_server_config
 from ._helpers import _api_ready, _surface_error
 from ._language import first_run, save_language
-from ._state import _RUN_STATE
+from ._state import _RUN_STATE, cancel_run
 
 
 def _preserve_language_fields(data: dict) -> dict:
@@ -57,6 +58,36 @@ def _preserve_language_fields(data: dict) -> dict:
 
 
 class _ApiMixin:
+    def _workspace_file(self, body: dict) -> Path:
+        """Resolve new filenames on the server; constrain legacy workspace paths."""
+        novel = store.active_novel_id()
+        if body.get("novel_id") is not None and body["novel_id"] != novel:
+            raise ValueError(t("errors.workspace_changed"))
+        directory = body.get("directory")
+        if directory:
+            roots = {"import": store.io_in, "export": store.io_out, "text": store.text_dir}
+            if directory not in roots:
+                raise ValueError(t("errors.workspace_directory"))
+            filename = str(body.get("filename") or "")
+            if not filename or filename in (".", "..") or any(c in filename for c in ("/", "\\", ":")):
+                raise ValueError(t("errors.workspace_filename"))
+            base = roots[directory]().resolve()
+            target = (base / filename).resolve()
+            if not target.is_relative_to(base):
+                raise PermissionError(t("errors.path_outside", path=filename))
+            return target
+        value = str(body.get("path") or "").replace("\\", "/")
+        if not value:
+            raise ValueError(t("errors.workspace_filename"))
+        target = Path(value).expanduser()
+        target = target.resolve() if target.is_absolute() else project.safe_rel(value)
+        workspace = (store.PROJECT_ROOT / "workspace").resolve()
+        if novel and target.is_relative_to(workspace):
+            active = (workspace / "novels" / novel).resolve()
+            if not target.is_relative_to(active):
+                raise PermissionError(t("errors.path_outside", path=value))
+        return target
+
     def _api(self, method: str, path: str, query: dict):
         if method == "GET" and path == "/api/i18n":
             self._json({**localization.get_languages(), "version": APP_VERSION,
@@ -78,6 +109,31 @@ class _ApiMixin:
             logger.log_event("CONFIG", "language", language=saved)
             self._json({"ok": True, "language": saved,
                         "current": localization.get_language()})
+            return
+        if path == '/api/cards' and method == 'GET':
+            self._json({'ok': True, **cards.list_cards()})
+            return
+        if path == '/api/cards' and method == 'POST':
+            card = cards.save_card(self._body())
+            self._json({'ok': True, 'card': card, **cards.list_cards()})
+            return
+        if path == '/api/cards/delete' and method == 'POST':
+            body = self._body()
+            if not isinstance(body, dict):
+                raise ValueError(t('cards.invalid_data'))
+            cards.delete_card(body.get('id') or '')
+            self._json({'ok': True, **cards.list_cards()})
+            return
+        if path == '/api/cards/image' and method == 'POST':
+            body = self._body()
+            if not isinstance(body, dict):
+                raise ValueError(t('cards.invalid_data'))
+            card = cards.save_image(body.get('id') or '', body.get('data_url') or '')
+            self._json({'ok': True, 'card': card, **cards.list_cards()})
+            return
+        if path.startswith('/api/cards/images/') and method == 'GET':
+            target, content_type = cards.image_file(path[len('/api/cards/images/'):])
+            self._send(200, target.read_bytes(), content_type)
             return
         if method == "GET" and path == "/api/novels":
             self._json({"ok": True, "active_novel_id": store.active_novel_id(),
@@ -165,11 +221,16 @@ class _ApiMixin:
                             "efforts": list(providers.EFFORTS),
                             "api_ready": _api_ready(store.current_config())})
                 return
+            raw_relations = store.load('relations')
+            collections = store.load_all()
+            relation_warnings = []
+            relations.normalize(raw_relations, collections, warnings=relation_warnings)
             self._json({
                 "ok": True,
+                "relation_discarded": len(relation_warnings),
                 "active_novel_id": novel_id,
                 "novel": store.read_novel(novel_id),
-                "collections": store.load_all(),
+                "collections": collections,
                 "sources": project.import_sources(),
                 "chapters": project.list_chapters(),
                 "io": project.list_text(),
@@ -196,6 +257,13 @@ class _ApiMixin:
             self._json({"ok": True, "modes": store.load("modes").get("items") or []})
             return
 
+        if path == "/api/workstation/cancel" and method == "POST":
+            # 让前端"停止生成"能立刻重新发起：标记结果作废并放开生成槽位。
+            cancelled = cancel_run()
+            logger.log_event("AI", "cancel_run", cancelled=cancelled)
+            self._json({"ok": True, "cancelled": cancelled})
+            return
+
         if path == "/api/history" and method == "GET":
             self._json({"ok": True, "items": history.list_sessions(),
                         "current": history.current_session_id()})
@@ -220,14 +288,30 @@ class _ApiMixin:
             data = body.get("data")
             if name == "config" and isinstance(data, dict):
                 data = _preserve_language_fields(data)
+            if name == 'relations':
+                if body.get('novel_id') is not None and body['novel_id'] != store.active_novel_id():
+                    raise ValueError(t('errors.workspace_changed'))
+                discarded = []
+                data = relations.normalize(data, store.load_all(), warnings=discarded)
+                saved = store.save(name, data)
+                self._json({'ok': True, 'saved': str(saved), 'data': store.load('relations'),
+                            'factions': store.load('factions'), 'discarded': len(discarded)})
+                return
             saved = store.save(name, data)
             logger.log_event("DATA", "save", collection=name, path=str(saved))
             self._json({"ok": True, "saved": str(saved)})
             return
 
+        if path == "/api/workspace/files" and method == "GET":
+            self._json({"ok": True, "active_novel_id": store.active_novel_id(),
+                        "sources": project.import_sources(), "io": project.list_text(),
+                        "exports": project.list_io(), "import_dir": str(store.io_in()),
+                        "export_dir": str(store.io_out()), "text_dir": str(store.text_dir())})
+            return
+
         if path == "/api/file" and method == "GET":
             rel = (query.get("path") or [""])[0]
-            self._json({"ok": True, "path": rel, "content": project.read_text(rel)})
+            self._json({"ok": True, "path": rel, "content": project.read_text(self._workspace_file({"path": rel}))})
             return
 
         if path == "/api/import" and method == "POST":
@@ -305,21 +389,24 @@ class _ApiMixin:
 
         if path == "/api/io/save" and method == "POST":
             body = self._body()
-            target = project.write_text(
-                body.get("path") or "",
-                body.get("content") or "",
-                encoding=body.get("encoding") or "utf-8",
-            )
-            self._json({"ok": True, "path": str(target), "io": project.list_io()})
+            target = self._workspace_file(body)
+            project.write_text(target, body.get("content") or "", encoding=body.get("encoding") or "utf-8")
+            self._json({"ok": True, "path": project.rel_str(target), "io": project.list_text(),
+                        "sources": project.import_sources()})
             return
 
         if path == "/api/io/export" and method == "POST":
             body = self._body()
-            target = project.write_external(
-                body.get("path") or "",
-                body.get("content") or "",
-                encoding=body.get("encoding") or "utf-8",
-            )
+            target = self._workspace_file(body)
+            if target.exists() and not body.get("overwrite") and not body.get("directory"):
+                self._json({"ok": True, "exists": True, "path": str(target)})
+                return
+            if body.get("directory"):
+                target.parent.mkdir(parents=True, exist_ok=True)
+                # A default export never replaces an existing file.
+                target = project.write_numbered(target, body.get("content") or "", body.get("encoding") or "utf-8")
+            else:
+                project.write_external(str(target), body.get("content") or "", body.get("encoding") or "utf-8")
             self._json({"ok": True, "path": str(target), "size": target.stat().st_size})
             return
 

@@ -21,6 +21,9 @@ from __future__ import annotations
 from ..localization import t
 
 from pathlib import Path
+import os
+import shutil
+import tempfile
 
 from ..store import PROJECT_ROOT
 
@@ -63,5 +66,35 @@ def write_text(path: str | Path, content: str, encoding: str = "utf-8") -> Path:
     if not target.is_absolute():
         target = safe_rel(str(path))
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(content, encoding=encoding)
+    backup = target.with_name(target.name + ".bak")
+    if target.exists():
+        shutil.copy2(target, backup)
+    descriptor, temporary = tempfile.mkstemp(prefix=".write-", dir=target.parent)
+    try:
+        with os.fdopen(descriptor, "w", encoding=encoding) as stream:
+            stream.write(content)
+        os.replace(temporary, target)
+    finally:
+        Path(temporary).unlink(missing_ok=True)
     return target
+
+
+def write_numbered(path: str | Path, content: str, encoding: str = "utf-8") -> Path:
+    """Write a new file using exclusive creation, numbering existing names."""
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    index = 0
+    while True:
+        candidate = target if not index else target.with_name(f"{target.stem}_{index}{target.suffix}")
+        try:
+            stream = candidate.open("x", encoding=encoding)
+        except FileExistsError:
+            index += 1
+            continue
+        try:
+            with stream:
+                stream.write(content)
+        except BaseException:
+            candidate.unlink(missing_ok=True)
+            raise
+        return candidate

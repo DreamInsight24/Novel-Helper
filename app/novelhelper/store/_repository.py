@@ -23,6 +23,8 @@ from ..localization import t
 import json
 import os
 import threading
+import tempfile
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -83,12 +85,36 @@ def save(name: str, data: Any) -> Path:
     with _LOCK:
         if name == 'relations':
             db = relation_snapshot()
-            graph = relations.normalize(data, db, strict=True)
-            path = _write(name, graph)
+            graph = relations.normalize(data, db)
             factions = relations.sync_memberships(db, graph)
-            if factions != db.get('factions'):
-                _write('factions', _clean_records(factions))
+            paths = {key: _path(key) for key in ('relations', 'factions')}
+            originals = {key: path.read_bytes() if path.exists() else None for key, path in paths.items()}
+            backup = paths['relations'].parent / 'relation_backups' / uuid.uuid4().hex
+            backup.mkdir(parents=True)
+            for key, content in originals.items():
+                if content is not None:
+                    (backup / f'{key}.json').write_bytes(content)
+            try:
+                path = _write(name, graph)
+                if factions != db.get('factions'):
+                    _write('factions', _clean_records(factions))
+            except Exception:
+                # Restore raw snapshots even when a collection writer fails.
+                for key, content in originals.items():
+                    target = paths[key]
+                    if content is None:
+                        target.unlink(missing_ok=True)
+                    else:
+                        descriptor, temporary = tempfile.mkstemp(dir=target.parent, prefix='.restore-')
+                        try:
+                            with os.fdopen(descriptor, 'wb') as stream:
+                                stream.write(content)
+                            os.replace(temporary, target)
+                        finally:
+                            Path(temporary).unlink(missing_ok=True)
+                raise
             return path
+
         if name in ('characters', 'factions', 'items', 'equipment', 'other') or is_section(name):
             data = _clean_records(data)
         path = _write(name, data)

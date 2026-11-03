@@ -55,19 +55,56 @@ function appendKids(el, kids) {
 
 function clear(el) { while (el.firstChild) el.removeChild(el.firstChild); }
 
-function toast(msg, kind) {
+/** 提示条：成功 3.2s、失败 8s，可手动关闭，可带一个动作按钮（如「重试」「撤销」）。 */
+function toast(msg, kind, opts) {
   const root = document.getElementById('toast-root');
-  const node = h('div', { class: 'toast ' + (kind || ''), text: msg });
+  if (!root) return null;
+  opts = opts || {};
+  const isError = kind === 'err';
+  const node = h('div', { class: 'toast ' + (kind || ''), role: isError ? 'alert' : 'status' },
+    h('span', { class: 'toast-text', text: msg }));
+  let timer = null;
+  function dismiss() {
+    clearTimeout(timer);
+    if (!node.isConnected) return;
+    node.classList.add('leaving');
+    setTimeout(() => node.remove(), 180);
+  }
+  if (opts.action) {
+    node.appendChild(h('button', {
+      class: 'toast-action', text: opts.action.label,
+      onclick: () => { dismiss(); opts.action.onClick(); }
+    }));
+  }
+  node.appendChild(h('button', {
+    class: 'toast-close', text: '×', title: i18n.t('common.close'),
+    'aria-label': i18n.t('common.close'), onclick: dismiss
+  }));
   root.appendChild(node);
-  setTimeout(() => { node.style.transition = 'opacity .3s'; node.style.opacity = '0'; }, 4200);
-  setTimeout(() => node.remove(), 4700);
+  const ttl = opts.duration || (isError ? 8000 : 3200);
+  timer = setTimeout(dismiss, ttl);
+  // 悬停暂停计时，给用户读完和点按钮的时间。
+  node.addEventListener('mouseenter', () => clearTimeout(timer));
+  node.addEventListener('mouseleave', () => { timer = setTimeout(dismiss, 1600); });
+  return { dismiss };
 }
 
+let statusTimer = null;
+/** 侧栏状态：保存类状态 4s 后回落「就绪」，避免长期显示旧时间戳。 */
 function status(text, kind) {
   const el = document.getElementById('status-mini');
   if (!el) return;
   el.textContent = text;
   el.className = 'status-mini ' + (kind || '');
+  el.title = text;
+  clearTimeout(statusTimer);
+  if (kind === 'ok') {
+    statusTimer = setTimeout(() => {
+      el.textContent = i18n.t('common.ready');
+      el.className = 'status-mini';
+      el.title = '';
+    }, 4000);
+  }
 }
 
 async function api(path, opts) {
@@ -168,7 +205,12 @@ function md(text) {
 // ═══════════════════════════════════════════
 // 弹窗
 // ═══════════════════════════════════════════
-function modal(title, bodyNode, footNodes, onClose) {
+/**
+ * 弹窗。`opts.size` 决定宽度：confirm(440) / form(640，默认) / wide(940)。
+ * 弹窗只做通用交互（Esc、Tab 循环、聚焦），不预设业务按钮。
+ */
+function modal(title, bodyNode, footNodes, onClose, opts) {
+  opts = opts || {};
   const root = document.getElementById('overlay-root');
   const onKey = e => {
     if (e.key === 'Escape') { e.preventDefault(); close(); }
@@ -189,7 +231,8 @@ function modal(title, bodyNode, footNodes, onClose) {
     closed = true; clear(root); document.removeEventListener('keydown', onKey);
     if (onClose) onClose();
   }
-  const dlg = h('div', { class: 'dialog', role: 'dialog', 'aria-modal': 'true', 'aria-label': title },
+  const dlg = h('div', { class: 'dialog', role: 'dialog', 'aria-modal': 'true', 'aria-label': title,
+    dataset: opts.size ? { size: opts.size } : {} },
     h('h3', { text: title }),
     bodyNode,
     footNodes ? h('div', { class: 'dlg-foot' }, footNodes) : null);
@@ -207,15 +250,28 @@ function modal(title, bodyNode, footNodes, onClose) {
   root.appendChild(overlay);
   i18n.apply(overlay);
   document.addEventListener('keydown', onKey);
+  // 调用方没指定焦点时，把焦点交给弹窗内第一个可操作元素（通常是「取消」）。
+  requestAnimationFrame(() => {
+    if (closed || !dlg.isConnected || dlg.contains(document.activeElement)) return;
+    const target = dlg.querySelector('.dlg-foot button:not(.primary)') ||
+      dlg.querySelector('input, textarea, select, button');
+    target?.focus({ preventScroll: true });
+  });
   return { close, dlg };
 }
 
-/** 确认弹窗：替代原生 confirm，样式统一。 */
-function confirmDialog(title, text, onYes) {
+/** 确认弹窗：替代原生 confirm；确认按钮要复述后果（如「删除人物」）。 */
+function confirmDialog(title, text, onYes, opts) {
+  opts = opts || {};
   const m = modal(title, h('div', { class: 'small' }, text), [
     h('button', { text: i18n.t('common.cancel'), onclick: () => m.close() }),
-    h('button', { class: 'primary', text: i18n.t('common.confirm'), dataset: { noclose: '1' }, onclick: () => { m.close(); onYes(); } })
-  ]);
+    h('button', {
+      class: 'primary' + (opts.danger ? ' danger-solid' : ''),
+      text: opts.confirmLabel || i18n.t('common.confirm'),
+      dataset: { noclose: '1' },
+      onclick: () => { m.close(); onYes(); }
+    })
+  ], null, { size: 'confirm' });
   m.dlg.querySelector('.dlg-foot button:not(.primary)')?.focus();
   return m;
 }
@@ -228,7 +284,7 @@ function askDialog(title, label, defaultValue, onSubmit) {
     h('div', { class: 'field' }, h('label', { text: label || i18n.t('common.name') }), input)), [
     h('button', { text: i18n.t('common.cancel'), onclick: () => m.close() }),
     h('button', { class: 'primary', text: i18n.t('common.confirm'), dataset: { noclose: '1' }, onclick: submit })
-  ]);
+  ], null, { size: 'confirm' });
   input.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
   input.focus();
   input.select();
@@ -317,8 +373,7 @@ function settingEntries(includeHidden) {
     label: sec.key === 'world' && ['世界观', 'Worldview'].includes(sec.label)
       ? i18n.t('nav.world_setting') : (sec.label || sec.key),
     desc: sec.desc || '',
-    // All built-in sections are visible from the start; hiding is an explicit
-    // user choice on the management cards.
+    // Each section owns its visibility; expansion defaults only affect new novels.
     on: sec.on !== false
   }));
   const world = sections.find(entry => entry.id === 'section_world');
@@ -358,13 +413,34 @@ function settingEntries(includeHidden) {
     entries.push(other);
   }
 
-  const visible = new Map(entries.map(entry => [entry.id, entry.on]));
-  return includeHidden ? entries : entries.filter(entry =>
-    entry.on && (!entry.parent || visible.get(entry.parent) !== false));
+  return includeHidden ? entries : entries.filter(entry => entry.on);
 }
 
-/** Sliders icon reads as “settings” much more clearly than the old sun-like gear. */
-function settingsIcon() {
+/** 统一的线性图标：单一路径、1.5px 描边、currentColor（颜色与状态交给 CSS）。 */
+function svgIcon(pathD, size) {
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('focusable', 'false');
+  if (size) { svg.setAttribute('width', size); svg.setAttribute('height', size); }
+  const path = document.createElementNS(ns, 'path');
+  path.setAttribute('d', pathD);
+  path.setAttribute('fill', 'none');
+  path.setAttribute('stroke', 'currentColor');
+  path.setAttribute('stroke-width', '1.5');
+  path.setAttribute('stroke-linecap', 'round');
+  path.setAttribute('stroke-linejoin', 'round');
+  svg.appendChild(path);
+  return svg;
+}
+
+const ICONS = {
+  pen: 'M4 20l4.5-1.2L20 7.3 16.7 4 5.2 15.5 4 20zM14.5 6.2l3.3 3.3',
+  user: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4.5 20.5c0-3.6 3.4-6 7.5-6s7.5 2.4 7.5 6'
+};
+
+/** Sliders icon reads as “settings” much more clearly than the old sun-like gear. */function settingsIcon() {
   const ns = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(ns, 'svg');
   svg.setAttribute('viewBox', '0 0 24 24');
@@ -504,6 +580,7 @@ async function persistConfig() {
   } else {
     await api('/api/settings/config', { method: 'POST', body: { scope: 'global', config } });
   }
+  await refreshWorkspaceFiles();
 }
 
 /** 工作站与章节转入的内容先进入当前小说的素材区。 */
@@ -547,6 +624,7 @@ window.addEventListener('unhandledrejection', e => {
 // ═══════════════════════════════════════════
 const HOME_NAV = [
   { id: 'home', label: i18n.t('novels.home') },
+  { id: 'cards', label: i18n.t('nav.cards') },
   { id: 'settings', label: i18n.t('settings.global_settings') }
 ];
 
@@ -569,6 +647,8 @@ function renderNav() {
   const nav = document.getElementById('nav');
   // 重建导航时保留侧栏的滚动位置；否则点击设定项后 #nav 会被清空并跳回顶部。
   const keepTop = nav.scrollTop;
+  // 重建会丢掉焦点：记住焦点所在的导航项，重建后还回去。
+  const focusedView = document.activeElement?.closest?.('#nav [data-view]')?.dataset.view || null;
   clear(nav);
   state.ui.navCollapsed = state.ui.navCollapsed || {};
   const items = state.level === 'home' ? HOME_NAV : NOVEL_NAV;
@@ -602,6 +682,7 @@ function renderNav() {
           class: 'nav-item nav-setting-item' + (item.parent ? ' nav-setting-child' : '') +
             (state.view === item.id ? ' active' : ''),
           'aria-current': state.view === item.id ? 'page' : null,
+          'data-view': item.id,
           title: item.desc || item.label,
           onclick: () => go(item.id)
         }, h('span', { class: 'nav-setting-label' },
@@ -609,6 +690,7 @@ function renderNav() {
              h('span', { text: item.label })),
           count === null ? null : h('span', { class: 'count', text: String(count) })));
       });
+      if(!collapsed)settingNav.appendChild(h('button',{class:'nav-item nav-setting-item'+(state.view==='relations'?' active':''),'data-view':'relations','aria-current':state.view==='relations'?'page':null,text:i18n.t('relations.network'),onclick:()=>go('relations')}));
       nav.appendChild(settingNav);
       continue;
     }
@@ -617,22 +699,28 @@ function renderNav() {
       const collapsed = toggleable && state.ui.navCollapsed[entry.groupKey] !== false;
       skip = !!collapsed;
       const label = !toggleable ? entry.group : (collapsed ? entry.group + ' ▸' : entry.group + ' ▾');
-      nav.appendChild(h('div', {
-        class: 'nav-group' + (toggleable ? ' nav-group-toggle' : '') + (collapsed ? ' collapsed' : ''),
-        text: label,
-        onclick: toggleable ? () => {
-          state.ui.navCollapsed[entry.groupKey] = !collapsed;
-          renderNav();
-        } : null
-      }));
+      const groupClass = 'nav-group' + (toggleable ? ' nav-group-toggle' : '') + (collapsed ? ' collapsed' : '');
+      // 可折叠分组必须是按钮：div 既不可聚焦，也没有展开状态可播报。
+      nav.appendChild(toggleable
+        ? h('button', {
+            class: groupClass, 'aria-expanded': String(!collapsed), text: label,
+            onclick: () => {
+              state.ui.navCollapsed[entry.groupKey] = !collapsed;
+              renderNav();
+            }
+          })
+        : h('div', { class: groupClass, text: label }));
       continue;
     }
     if (skip) continue;
     if (entry.sections) {
       sectionDefs().forEach(sec => {
         const view = 'section_' + sec.key;
-        nav.appendChild(h('div', {
-          class: 'nav-item' + (state.view === view ? ' active' : ''),
+        const active = state.view === view;
+        nav.appendChild(h('button', {
+          class: 'nav-item' + (active ? ' active' : ''),
+          'data-view': view,
+          'aria-current': active ? 'page' : null,
           onclick: () => go(view)
         },
           h('span', { text: sec.label || sec.key }),
@@ -641,14 +729,23 @@ function renderNav() {
       continue;
     }
     const count = entry.coll ? collItems(entry.coll).length : '';
-    nav.appendChild(h('div', {
-      class: 'nav-item' + (state.view === entry.id ? ' active' : ''),
+    const active = state.view === entry.id;
+    nav.appendChild(h('button', {
+      class: 'nav-item' + (active ? ' active' : ''),
+      'data-view': entry.id,
+      'aria-current': active ? 'page' : null,
       onclick: () => entry.id === 'settings' ? openSettings() : go(entry.id)
     },
       h('span', { text: entry.label }),
       count !== '' ? h('span', { class: 'count', text: String(count) }) : null));
   }
   nav.scrollTop = keepTop;
+  // 当前项可能被底部的状态区挡住（长导航 + 小窗口）：滚到只保证可见的位置。
+  nav.querySelector('.nav-item.active')?.scrollIntoView({ block: 'nearest' });
+  if (focusedView) {
+    const restored = nav.querySelector('[data-view="' + focusedView + '"]');
+    if (restored) restored.focus({ preventScroll: true });
+  }
 }
 
 async function loadNovelList() {
@@ -676,9 +773,6 @@ async function openSettings() {
 }
 
 function viewHome(main) {
-  main.appendChild(h('div', { class: 'home-hero' },
-    h('h1', { class: 'home-title', text: 'NovelHelper' }),
-    h('div', { class: 'home-tagline', text: i18n.t('common.tagline') })));
   main.appendChild(pageHead(i18n.t('novels.home'), i18n.t('novels.home_desc'),
     h('button', { class: 'primary', text: i18n.t('novels.create'), onclick: showCreateNovel })));
   if (!state.novels.length) {
@@ -773,6 +867,7 @@ function editNovel(item) {
 function confirmDeleteNovel(item) {
   const broken = item.ok === false;
   const confirmation = broken ? item.id : item.title;
+  const name = broken ? item.id : (item.title || i18n.t('common.unnamed'));
   confirmDialog(i18n.t('novels.delete'), i18n.t('novels.delete_confirm', { title: confirmation }), async () => {
     try {
       const wasActive = item.id === state.activeNovelId;
@@ -782,7 +877,7 @@ function confirmDeleteNovel(item) {
       if (wasActive) { state.activeNovelId = ''; state.db = null; state.level = 'home'; state.configMeta = null; state.view = 'home'; }
       renderNav(); renderMain();
     } catch (error) { toast(error.message, 'err'); }
-  });
+  }, { confirmLabel: i18n.t('common.delete_named', { name }), danger: true });
 }
 
 async function switchNovel(id) {
@@ -826,7 +921,8 @@ function go(view) {
       state.ui.leavePromise = result && typeof result.then === 'function' ? result : null;
     } catch (e) { /* 落盘失败由具体页面反馈；继续允许切页 */ }
   }
-  if (view === 'home') {
+  if (view === 'home' || view === 'cards') {
+    // 「作品库 / 角色卡」属于库级页面，两者都不依赖当前小说。
     state.level = 'home';
   } else if (view === 'settings') {
     // 设置页沿用当前层级：首页=全局配置，小说内=本小说配置。
@@ -836,12 +932,16 @@ function go(view) {
   } else {
     state.level = 'novel';
   }
+  // 换页回到顶部；同一视图重绘（自动保存后）仍保留原滚动位置。
+  if (view !== state.view) state.ui.resetScroll = true;
   state.view = view;
   renderNav();
   renderMain();
 }
 
 function renderMain() {
+  const recordSession=state.ui.recordEditSession;
+  if(recordSession && (recordSession.view!==state.view || recordSession.novel!==(state.activeNovelId || '')))delete state.ui.recordEditSession;
   const main = document.getElementById('main');
   const keepTop = main.scrollTop;
   main.classList.toggle('writer-main', state.view === 'writer');
@@ -852,16 +952,18 @@ function renderMain() {
   }
   const map = {
     home: viewHome,
+    cards: viewCharacterCards,
     writer: viewWorkstation, chapters: viewChapters, text: viewManuscript,
+    relations: viewRelations,
     inventory: viewInventory, memories: viewMemories, world: viewWorld,
     elements: viewElements, sections: viewSections, modes: viewModes, settings: viewAI
   };
   if (map[state.view]) map[state.view](main);
   else if (defFor(state.view)) viewRecords(main, state.view);
   else main.appendChild(h('div', { class: 'card muted', text: i18n.t('common.unknown_page') }));
-  if (!['writer', 'text'].includes(state.view)) main.appendChild(h('div', {class: 'small muted', text: i18n.t('common.data_content')}));
   i18n.apply(main);
-  main.scrollTop = keepTop;
+  main.scrollTop = state.ui.resetScroll ? 0 : keepTop;
+  delete state.ui.resetScroll;
 }
 
 function guidanceButton(title, text) {
@@ -885,6 +987,105 @@ function pageHead(title, desc, actions) {
 }
 
 // ═══════════════════════════════════════════
+// 命令面板（Ctrl+K）：跳页面 / 跳设定条目
+// ═══════════════════════════════════════════
+function commandEntries() {
+  const out = [];
+  const add = (label, hint, run, extra) => out.push({ label, hint, run, keys: label + ' ' + (hint || '') + ' ' + (extra || '') });
+  add(i18n.t('novels.home'), i18n.t('novels.home_desc'), () => go('home'));
+  if (state.level !== 'novel') {
+    add(i18n.t('nav.cards'), i18n.t('cards.description'), () => go('cards'));
+    add(i18n.t('settings.global_settings'), '', () => openSettings());
+    return out;
+  }
+  NOVEL_NAV.forEach(entry => {
+    if (!entry.id) return;
+    if (entry.id === 'settings') add(i18n.t('nav.settings'), '', () => openSettings());
+    else add(entry.label, '', () => go(entry.id));
+  });
+  const settings = settingEntries();
+  settings.forEach(entry => add(entry.label, entry.desc || '', () => go(entry.id)));
+  add(i18n.t('relations.network'), '', () => go('relations'));
+  const openRecord = (view, rec) => {
+    const ui = state.ui[view] = state.ui[view] || { sel: null, q: '' };
+    ui.sel = rec.id; ui.q = ''; ui.category = null; ui.tag = '';
+    go(view);
+  };
+  settings.forEach(entry => {
+    if (!entry.coll || entry.coll === 'worldmap') return;
+    collItems(entry.coll).forEach(rec => add(recordName(rec), entry.label, () => openRecord(entry.id, rec)));
+  });
+  return out;
+}
+
+function openCommandPalette() {
+  if (document.getElementById('overlay-root')?.querySelector('.dialog')) return;
+  const entries = commandEntries();
+  const previousFocus = document.activeElement;
+  let current = [], active = 0;
+  const input = h('input', {
+    class: 'cmdk-input', type: 'search', autocomplete: 'off',
+    placeholder: i18n.t('common.command_placeholder'),
+    'aria-label': i18n.t('common.command_placeholder'),
+    role: 'combobox', 'aria-expanded': 'true', 'aria-controls': 'cmdk-list'
+  });
+  const list = h('div', { class: 'cmdk-list', id: 'cmdk-list', role: 'listbox' });
+  const panel = h('div', { class: 'cmdk', role: 'dialog', 'aria-modal': 'true', 'aria-label': i18n.t('common.command_title') },
+    input, list);
+  const overlay = h('div', { class: 'cmdk-overlay', onclick: e => { if (e.target === overlay) close(); } }, panel);
+
+  const close = () => {
+    document.removeEventListener('keydown', onKey);
+    overlay.remove();
+    previousFocus?.focus?.({ preventScroll: true });
+  };
+  const run = entry => { close(); entry.run(); };
+  function draw() {
+    const query = input.value.trim().toLocaleLowerCase();
+    current = entries.filter(entry => !query || entry.keys.toLocaleLowerCase().includes(query)).slice(0, 40);
+    active = Math.min(active, Math.max(0, current.length - 1));
+    clear(list);
+    current.forEach((entry, index) => {
+      list.appendChild(h('button', {
+        class: 'cmdk-row' + (index === active ? ' active' : ''), role: 'option',
+        'aria-selected': String(index === active),
+        onclick: () => run(entry)
+      }, h('span', { class: 'cmdk-label', text: entry.label }),
+        entry.hint ? h('span', { class: 'cmdk-hint', text: entry.hint }) : null));
+    });
+    if (!current.length) list.appendChild(h('div', { class: 'cmdk-empty', text: i18n.t('common.command_empty') }));
+    list.querySelector('.cmdk-row.active')?.scrollIntoView({ block: 'nearest' });
+  }
+  function move(delta) {
+    if (!current.length) return;
+    active = (active + delta + current.length) % current.length;
+    draw();
+  }
+  const onKey = e => {
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); move(1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); move(-1); }
+    else if (e.key === 'Enter') { e.preventDefault(); if (current[active]) run(current[active]); }
+  };
+  input.addEventListener('input', () => { active = 0; draw(); });
+  document.addEventListener('keydown', onKey);
+  document.getElementById('overlay-root').appendChild(overlay);
+  draw();
+  input.focus();
+}
+
+// Ctrl+K：命令面板。测试环境（无 DOM）会跳过绑定。
+if (typeof document !== 'undefined' && document && typeof document.addEventListener === 'function') {
+  document.addEventListener('keydown', e => {
+    if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return;
+    if (String(e.key).toLowerCase() !== 'k') return;
+    e.preventDefault();
+    if (document.querySelector('.cmdk')) return;
+    openCommandPalette();
+  });
+}
+
+// ═══════════════════════════════════════════
 // 集合定义
 // ═══════════════════════════════════════════
 const COLLECTIONS = {
@@ -903,7 +1104,7 @@ const COLLECTIONS = {
     coll: 'items', singular: i18n.t('collections.singular_item'), label: i18n.t('nav.items'), idPrefix: 'it',
     desc: i18n.t('collections.items.desc'),
     tagLabel: i18n.t('collections.alias'), notesLabel: i18n.t('collections.notes'),
-    hasCategory: true, hasTags: true
+    hasCategory: true, hasTags: true, hasSlots: true, defaultCategoryKey: 'defaults.category.item'
   },
   other: {
     coll: 'other', singular: i18n.t('collections.singular_entry'), label: i18n.t('nav.other'), idPrefix: 'ot',
@@ -917,8 +1118,19 @@ const EFFORTS = ['none', 'low', 'medium', 'high', 'max'];
 // ═══════════════════════════════════════════
 // 数据刷新
 // ═══════════════════════════════════════════
+let workspaceRefreshVersion=0;
+async function refreshWorkspaceFiles() {
+  const requestVersion=++workspaceRefreshVersion;
+  const novel=state.activeNovelId;
+  const r=await api('/api/workspace/files');
+  if(novel!==state.activeNovelId || r.active_novel_id!==novel || requestVersion!==workspaceRefreshVersion)return;
+  state.sources=r.sources || [];state.io=r.io || {files:[]};state.exports=r.exports;
+  state.paths={...state.paths,import:r.import_dir,export:r.export_dir,text:r.text_dir};
+}
+
 async function refreshFiles() {
   const r = await api('/api/state');
+  if(r.relation_discarded)toast(i18n.t('relations.discarded',{count:r.relation_discarded}),'err');
   setDb(r.collections);
   state.sources = r.sources;
   state.chapters = r.chapters;

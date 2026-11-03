@@ -8,6 +8,7 @@
 docs/
   README.md                    # 本文档：文档规范
   architecture.md              # 包结构、边界、豁免清单、迁移记录
+  code-map.md                  # 面向 AI Agent 的代码映射表：功能 → 文件/函数索引
   localization.md              # 本地化规范：key、yml、回退策略、新增语言 SOP
   localization/                # 本地化实现说明与开发记录
     README.md                   # 本地化文档导航与实现范围
@@ -18,7 +19,8 @@ docs/
     validation.md               # 自测结果与验收边界
   requirements/
     v2610.2.md                 # 版本需求归档，一个版本一个文件
-    v2610.3.md                 # 当前版本需求：多小说首页、设定视觉化、AI 设定生成、桌面化与动态端口
+    v2610.3.md                 # 版本需求归档：多小说首页、设定视觉化、AI 设定生成、桌面化与动态端口
+    v2611.1.md                 # 当前版本需求：设定体验修复、关系网、角色卡与安卓迁移
   api/
     README.md                   # Python 公共 API 总索引
     <package>.md               # 各软件包接口文档，与 __all__/docstring 一致
@@ -40,6 +42,7 @@ scripts/
 |---|---|---|
 | `docs/README.md` | 文档规范本身 | 是 |
 | `docs/architecture.md` | 代码结构、包边界、行为不变约束、迁移记录 | 是 |
+| `docs/code-map.md` | 面向 AI Agent 的功能 → 文件/函数映射、API 路由与数据布局 | 是 |
 | `docs/localization.md` | 本地化规范与接口用法 | 是 |
 | `docs/localization/` | 本地化实现说明、盘点与验证记录 | 随实现维护 |
 | `docs/requirements/` | 各版本需求归档，只增不改 | 否，归档后冻结 |

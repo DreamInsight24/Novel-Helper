@@ -253,7 +253,7 @@ def default_meta() -> dict:
     return {"version": 3, "created": now_str(), "last_import": {}, "notes": ""}
 
 def default_sections() -> dict:
-    """内置设定栏目；默认全部显示，顺序由前端导航统一编排。
+    """内置设定栏目；默认只显示世界设定，扩展栏目可手动开启，顺序由前端导航统一编排。
 
     道具、服饰、装备已合并为「物品」，因此这里不再声明 equipment。
     """
@@ -261,18 +261,18 @@ def default_sections() -> dict:
         "items": [
             {"key": "world", "label": "世界设定", "desc": "世界背景、大陆概况、总体设定", "on": True,
              "auto_from": ["世界背景", "设定", "关于世界"]},
-            {"key": "species", "label": "物种", "desc": "种族、生理特征、社会地位与亚种", "on": True,
+            {"key": "species", "label": "物种", "desc": "种族、生理特征、社会地位与亚种", "on": False,
              "auto_from": ["物种"]},
-            {"key": "magic", "label": "魔法与技能", "desc": "属性、来源、技能类型、学习方式", "on": True,
+            {"key": "magic", "label": "魔法与技能", "desc": "属性、来源、技能类型、学习方式", "on": False,
              "auto_from": ["魔法"]},
-            {"key": "places", "label": "地点与城市", "desc": "地理、城市、地点与交通", "on": True},
-            {"key": "history", "label": "历史与时间线", "desc": "重大事件、战争、条约、预言", "on": True,
+            {"key": "places", "label": "地点与城市", "desc": "地理、城市、地点与交通", "on": False},
+            {"key": "history", "label": "历史与时间线", "desc": "重大事件、战争、条约、预言", "on": False,
              "auto_from": ["时间线以及重大事件", "历史事件"]},
-            {"key": "economy", "label": "经济与物价", "desc": "货币、物价参考、贸易", "on": True,
+            {"key": "economy", "label": "经济与物价", "desc": "货币、物价参考、贸易", "on": False,
              "auto_from": ["货币"]},
-            {"key": "rules", "label": "规则与疾病", "desc": "世界规则、特殊疾病、习俗", "on": True,
+            {"key": "rules", "label": "规则与疾病", "desc": "世界规则、特殊疾病、习俗", "on": False,
              "auto_from": ["特殊疾病"]},
-            {"key": "religion", "label": "宗教与信仰", "desc": "教会、神系、信仰", "on": True,
+            {"key": "religion", "label": "宗教与信仰", "desc": "教会、神系、信仰", "on": False,
              "auto_from": ["宗教"]},
         ],
         "layout_version": 2,

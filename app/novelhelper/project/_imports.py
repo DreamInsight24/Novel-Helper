@@ -21,6 +21,7 @@ from __future__ import annotations
 from ..localization import t
 
 import json
+from pathlib import Path
 
 from ..store import new_id, now_str
 from ._parsers import _nested_to_elements, parse_name_tag, split_sections

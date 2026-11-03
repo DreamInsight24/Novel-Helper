@@ -24,7 +24,7 @@ from datetime import datetime
 from pathlib import Path
 
 from ..store import io_in, io_out, text_dir
-from ._paths import rel_str
+from ._paths import rel_str, write_text
 
 
 def import_sources() -> list:
@@ -110,5 +110,4 @@ def write_external(path: str, content: str, encoding: str = "utf-8") -> Path:
         raise IsADirectoryError(str(target))
     if not target.parent.exists():
         raise FileNotFoundError(t("errors.dir_missing", path=target.parent))
-    target.write_text(content, encoding=encoding, errors="replace")
-    return target
+    return write_text(target, content, encoding=encoding)

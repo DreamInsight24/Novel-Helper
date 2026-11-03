@@ -262,7 +262,7 @@ def render_memory(rec: dict) -> str:
     return f"### {head}\n\n{(rec.get('content') or '').strip()}"
 
 
-def render_worldmap(world: dict) -> str:
+def render_worldmap(world: dict, db: dict | None = None) -> str:
     """
     世界地图 → 文字：根表格 + 逐层子表格。
 
@@ -271,7 +271,7 @@ def render_worldmap(world: dict) -> str:
     """
     if not world:
         return ""
-    regions = world.get("regions") or {}
+    regions = {rid: dict(rec, id=rid) for rid, rec in (world.get("regions") or {}).items()}
     lines = [f"### {world.get('name') or '世界地图'}"]
     seen: set = set()
 
@@ -299,6 +299,10 @@ def render_worldmap(world: dict) -> str:
         out += render_elements(region.get("elements"))
         if (region.get("details") or "").strip():
             out += ["", region["details"].strip()]
+        if db is not None:
+            links = render_record_relations(db, "worldmap", region)
+            if links:
+                out.append(links)
         board = region.get("board") or {}
         if board and depth < 4:
             rows, cols, cells = board.get("rows") or [], board.get("cols") or [], board.get("cells") or {}
@@ -393,6 +397,8 @@ def selected_world_groups(db: dict, ids: Iterable[str] | None) -> list:
 
 
 def _target_chars(config: dict, selection: dict) -> int:
+    if selection.get("length_mode") == "unlimited":
+        return 0
     try:
         value = int(selection.get("target_chars") or 0)
     except (TypeError, ValueError):
@@ -424,46 +430,55 @@ def render_record_selection(db: dict, selection: dict) -> list[str]:
             continue
         records = _pick(db, coll, ids)
         if coll == "characters":
-            body = "\n\n".join(render_character(rec, db) for rec in records)
+            body = "\n\n".join(_render_record_with_relations(db, coll, rec, lambda value: render_character(value, db)) for rec in records)
         elif coll == "factions":
-            body = "\n\n".join(render_faction(rec, db) for rec in records)
+            body = "\n\n".join(_render_record_with_relations(db, coll, rec, lambda value: render_faction(value, db)) for rec in records)
         elif coll == "items":
-            body = "\n\n".join(render_item(rec) for rec in records)
+            body = "\n\n".join(_render_record_with_relations(db, coll, rec, render_item) for rec in records)
         elif coll == "memories":
-            body = "\n\n".join(render_memory(rec) for rec in records)
+            body = "\n\n".join(_render_record_with_relations(db, coll, rec, render_memory) for rec in records)
         else:
-            body = "\n\n".join(render_other(rec) for rec in records)
+            body = "\n\n".join(_render_record_with_relations(db, coll, rec, render_other) for rec in records)
         if not body.strip():
             continue
         prefs = ((db.get("sections") or {}).get("builtins") or {}).get(coll) or {}
         label = section_label(db, coll[8:]) if coll in custom else prefs.get("label") or labels[coll]
         parts.append(f"## {label}\n\n{body}")
     if (selection.get("include") or {}).get("worldmap"):
-        body = render_worldmap(db.get("worldmap") or {})
+        body = render_worldmap(db.get("worldmap") or {}, db)
         if body.strip():
             parts.append(f"## 世界地图\n\n{body}")
     return parts
 
 
-def render_selected_relations(db: dict, selection: dict) -> str:
-    from .relations import catalog, ref_key
-    mapping = selection.get("record_selections")
-    if not isinstance(mapping, dict):
-        return ""
-    active = set(selection.get("setting_categories", mapping.keys()))
-    selected = {(coll, rid) for coll, ids in mapping.items() if coll in active for rid in ids}
+def render_record_relations(db: dict, collection: str, rec: dict) -> str:
+    """Render only names and relation metadata, never unselected endpoint bodies."""
+    from .relations import catalog, ref_key, normalize
     pool = catalog(db)
+    current = (collection, rec.get('id'))
     lines = []
-    for edge in (db.get("relations") or {}).get("items", []):
-        a, b = ref_key(edge["source"]), ref_key(edge["target"])
-        if a not in selected or b not in selected or a not in pool or b not in pool:
+    for edge in normalize(db.get('relations') or {}, db)['items']:
+        source, target = ref_key(edge['source']), ref_key(edge['target'])
+        if current not in (source, target):
             continue
-        left = pool[a].get("name") or pool[a].get("title") or a[1]
-        right = pool[b].get("name") or pool[b].get("title") or b[1]
-        arrow = "→" if edge.get("directed", True) else "↔"
-        note = "（" + edge["note"] + "）" if edge.get("note") else ""
-        lines.append(f"- {left} {arrow} {right}：{edge['type']}{note}")
-    return "## 条目关联\n\n" + "\n".join(lines) if lines else ""
+        other = target if source == current else source
+        node = pool.get(other)
+        if not node:
+            continue
+        label = node.get('name') or node.get('title') or other[1]
+        arrow = '↔' if edge.get('directed') is False else '→' if source == current else '←'
+        note = f"（{edge['note']}）" if edge.get('note') else ''
+        lines.append(f"- {arrow} {label}：{edge['type']}{note}")
+    return '\n\n条目关联：\n' + '\n'.join(lines) if lines else ''
+
+
+def render_selected_relations(db: dict, selection: dict) -> str:
+    """Compatibility entry point: relations are now rendered inside each record."""
+    return ''
+
+
+def _render_record_with_relations(db: dict, coll: str, rec: dict, renderer) -> str:
+    return renderer(rec) + render_record_relations(db, coll, rec)
 
 
 def build_user_message(
@@ -500,13 +515,16 @@ def build_user_message(
         # 世界观 / 自定义栏目：按栏目名称分组，条目名由 render_other 自动生成
         if include.get("world"):
             for label, records in selected_world_groups(db, selection.get("world_ids")):
-                body = "\n\n".join(render_other(rec) for rec in records if rec)
+                body = "\n\n".join(render_other(rec) + ''.join(
+                    render_record_relations(db, coll, rec) for coll, bucket in db.items()
+                    if (coll == 'other' or coll.startswith('section_')) and isinstance(bucket, dict)
+                    and any(item is rec for item in bucket.get('items', []))) for rec in records if rec)
                 if body.strip():
                     parts.append(f"## {label}\n\n{body}")
 
         # 世界地图
         if include.get("worldmap"):
-            map_md = render_worldmap(db.get("worldmap") or {})
+            map_md = render_worldmap(db.get("worldmap") or {}, db)
             if map_md.strip():
                 parts.append(f"## 世界地图\n\n{map_md}")
 
@@ -521,29 +539,25 @@ def build_user_message(
             cats = selection.get("memory_categories") or []
             if cats:
                 mems = [m for m in mems if (m.get("category") or "") in set(cats)]
-            mem_md = "\n\n".join(render_memory(rec) for rec in mems if rec)
+            mem_md = "\n\n".join(_render_record_with_relations(db, 'memories', rec, render_memory) for rec in mems if rec)
             if mem_md.strip():
                 parts.append(f"## 故事记忆\n\n{mem_md}")
 
         # 人物
         if include.get("characters"):
             chars = _pick(db, "characters", selection.get("character_ids"))
-            char_md = "\n\n".join(render_character(rec, db) for rec in chars if rec)
+            char_md = "\n\n".join(_render_record_with_relations(db, 'characters', rec, lambda value: render_character(value, db)) for rec in chars if rec)
             if char_md.strip():
                 parts.append(f"## 人物档案\n\n{char_md}")
 
         # 势力
         if include.get("factions"):
             facs = _pick(db, "factions", selection.get("faction_ids"), default_all=True)
-            fac_md = "\n\n".join(render_faction(rec, db) for rec in facs if rec)
+            fac_md = "\n\n".join(_render_record_with_relations(db, 'factions', rec, lambda value: render_faction(value, db)) for rec in facs if rec)
             if fac_md.strip():
                 parts.append(f"## 势力设定\n\n{fac_md}")
 
         # 道具 / 服饰与装备不单独发送：它们跟着人物的背包与穿戴走。
-
-    relation_text = render_selected_relations(db, selection)
-    if relation_text:
-        parts.append(relation_text)
 
     extra = (selection.get("extra") or "").strip()
     if extra:

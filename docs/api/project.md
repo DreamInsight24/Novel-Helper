@@ -23,7 +23,7 @@ output = project.write_output("一个新场景")
 | `rel_str(path: Path) -> str` | 可转换时返回相对于项目目录的 POSIX 路径；否则返回 `str(path)`。 |
 | `safe_rel(rel: str) -> Path` | 解析项目相对路径。若解析后的目标越出项目根目录，则抛出 `PermissionError`。 |
 | `read_text(path: str \| Path, encoding: str = "utf-8") -> str` | 读取绝对路径，或读取经 `safe_rel` 解析的路径；文件不存在时抛出 `FileNotFoundError`，无法解码的字节会被替换。 |
-| `write_text(path: str \| Path, content: str, encoding: str = "utf-8") -> Path` | 创建父目录、写入内容并返回目标路径。相对路径通过 `safe_rel` 解析。 |
+| `write_text(path: str \| Path, content: str, encoding: str = "utf-8") -> Path` | 创建父目录，通过同目录临时文件原子替换；覆盖前保留最近一版 `.bak`。失败时旧文件不变。相对路径通过 `safe_rel` 解析，返回目标 Path。 |
 
 ## 解析与导入
 
@@ -72,3 +72,9 @@ output = project.write_output("一个新场景")
 | `write_external(path: str, content: str, encoding: str = "utf-8") -> Path` | 将文本写入用户指定的外部路径。目标为目录时抛出 `IsADirectoryError`；父目录不存在时抛出 `FileNotFoundError`。 |
 
 写入操作不会吞掉文件系统和序列化错误。以上公共名称均列在 `project.__all__` 中；仍支持 `from novelhelper import project` 和 `from novelhelper.project import read_text` 等现有导入方式。
+
+## 编号导出与覆盖备份
+
+`write_numbered(path: str | Path, content: str, encoding: str = "utf-8") -> Path` 创建父目录，以独占模式写新文件；同名时按 `name_1.ext`、`name_2.ext` 编号，返回实际路径。编码或 I/O 异常向上抛出，写入失败删除不完整新文件。示例：`project.write_numbered(store.io_out() / "notes.txt", "内容")`。
+
+`save_json()` / `save_txt()` 复用编号写入，filename 只允许导出目录下的文件名；越界抛出 PermissionError，数据格式不变。`write_external()` 仍要求父目录存在，覆盖行为复用 `write_text()` 的原子替换与 `.bak`，UI 通过 `/api/io/export` 先确认覆盖。
