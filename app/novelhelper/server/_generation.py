@@ -21,7 +21,7 @@ from ..localization import t
 
 from .. import ai, context, history, logger, project, prompts as prompts_mod, providers, setting_gen, store, tool_prompts
 from ._helpers import _compact_selection, _surface_error
-from ._state import _RUN_LOCK, _RUN_STATE
+from ._state import _RUN_LOCK, _RUN_STATE, begin_run, finish_run, run_cancelled
 
 
 class _GenerationMixin:
@@ -84,11 +84,10 @@ class _GenerationMixin:
         if surface == "manuscript" and not source_text.strip():
             self._error(t('errors.workspace_empty'))
             return
-        if not _RUN_LOCK.acquire(blocking=False):
+        token = begin_run(mode=mode_id, surface=surface, started=store.now_str())
+        if token is None:
             self._error(t('errors.generation_locked'), status=409)
             return
-        _RUN_STATE.update(busy=True, started=store.now_str(), mode=mode_id,
-                          surface=surface, transport="")
         try:
             config = db.get("config") or store.current_config()
             selection = body.get("selection") or {}
@@ -120,6 +119,13 @@ class _GenerationMixin:
                 prompt_excerpt=user_prompt[:240],
             )
             result = ai.chat_settings(config, settings, messages)
+            if run_cancelled(token):
+                # 用户已停止等待：结果丢弃，不写历史、不覆盖 state。
+                logger.log_event("AI", "cancelled", surface=surface, mode=mode_id,
+                                 elapsed=result.get("elapsed"))
+                self._json({"ok": False, "cancelled": True,
+                            "error": t('errors.generation_cancelled')})
+                return
             result["text"] = prompts_mod.with_notice(result.get("text", ""))
             clean_text = prompts_mod.without_notice(result.get("text"))
             _RUN_STATE["transport"] = result.get("transport", "")
@@ -245,8 +251,7 @@ class _GenerationMixin:
             logger.log_exception("AI", "workstation failed", exc, mode=mode_id, surface=surface)
             raise
         finally:
-            _RUN_STATE.update(busy=False, started="", mode="", surface="", transport="")
-            _RUN_LOCK.release()
+            finish_run(token)
 
     def _ai_setting_gen(self):
         """AI 设定生成：只读取 text 字段，忽略一切试图覆盖行为参数的字段。"""

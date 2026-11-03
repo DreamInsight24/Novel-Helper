@@ -31,6 +31,14 @@
   --danger: #c0392b;
   --radius: 10px;
   --shadow: 0 1px 2px rgba(16, 24, 40, .06), 0 8px 24px rgba(16, 24, 40, .06);
+
+  /* 交互基线：动效、焦点、命中区。改这里的值即可全站生效。 */
+  --ease-out: cubic-bezier(.2, 0, 0, 1);
+  --dur-fast: 120ms;
+  --dur-base: 180ms;
+  --ring: 2px solid var(--accent);
+  --hit: 28px;
+  --radius-sm: 6px; --radius-md: 8px; --radius-lg: 10px; --radius-xl: 14px;
 }
 
 * { box-sizing: border-box; }
@@ -85,12 +93,19 @@ html, body {
 
 #nav { flex: 1; overflow-y: auto; padding: 6px 10px 16px; }
 .nav-group { margin: 12px 0 4px; padding: 0 8px; font-size: 11px; color: var(--muted); letter-spacing: .12em; }
-.nav-group-toggle { cursor: pointer; user-select: none; border-radius: 6px; padding: 4px 8px; }
+.nav-group-toggle { cursor: pointer; user-select: none; border-radius: 6px; padding: 4px 8px;
+  width: 100%; border: 1px solid transparent; background: transparent; text-align: left;
+  font: inherit; font-size: 11px; letter-spacing: .12em; color: var(--muted);
+  transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
 .nav-group-toggle:hover { background: var(--panel-2); color: var(--text); }
 .nav-item {
   display: flex; align-items: center; gap: 8px;
   padding: 7px 10px; margin: 2px 0; border-radius: 8px;
   cursor: pointer; color: #374151; user-select: none;
+  /* 导航项现在是 <button>：清掉按钮默认外观，保持原来的行式排版 */
+  width: 100%; border: 0; background: transparent; font: inherit;
+  text-align: left; box-shadow: none;
+  transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
 }
 .nav-item:hover { background: var(--panel-2); }
 .nav-item.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
@@ -218,8 +233,14 @@ html, body {
 button, .btn {
   font: inherit; border: 1px solid var(--line-strong); background: #fff;
   color: var(--text); padding: 6px 12px; border-radius: 8px; cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
 }
 button:hover, .btn:hover { border-color: var(--accent); color: var(--accent); }
+button:not(:disabled):active, .btn:not(:disabled):active { transform: scale(.96); }
 button:disabled { opacity: .5; cursor: default; }
 button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
 button.primary:hover { color: #fff; filter: brightness(1.06); }
@@ -227,14 +248,15 @@ button.ghost { background: transparent; border-color: transparent; color: var(--
 button.ghost:hover { background: var(--panel-2); }
 button.danger { color: var(--danger); border-color: #eccdd0; }
 button.danger:hover { color: #fff; background: var(--danger); border-color: var(--danger); }
-button.mini { padding: 2px 8px; font-size: 12px; border-radius: 6px; }
+button.mini { min-height: var(--hit); padding: 5px 10px; font-size: 12px; border-radius: 6px; }
 button.wide { width: 100%; }
 
 input[type=text], input[type=search], input[type=password], input[type=number], select, textarea {
   font: inherit; color: var(--text); background: #fff;
   border: 1px solid var(--line-strong); border-radius: 8px; padding: 6px 9px; width: 100%;
 }
-input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+input:focus-visible, textarea:focus-visible { outline: var(--ring); outline-offset: 2px; }
 textarea { resize: vertical; line-height: 1.7; }
 
 .field { margin-bottom: 10px; }
@@ -311,13 +333,18 @@ th.axis-th:hover { color: var(--accent); text-decoration: underline; }
 /* ── 弹窗 ───────────────────────────── */
 #overlay-root .overlay {
   position: fixed; inset: 0; background: rgba(20, 24, 33, .38);
-  display: flex; align-items: flex-start; justify-content: center; padding: 40px 20px;
+  display: flex; align-items: center; justify-content: center; padding: 24px 20px;
   z-index: 50; overflow-y: auto;
 }
 .dialog {
   background: #fff; border-radius: 12px; box-shadow: var(--shadow);
-  width: min(940px, 100%); padding: 18px 20px 20px;
+  width: min(var(--dlg-w, 640px), calc(100vw - 32px)); padding: 18px 20px 20px;
+  /* 视觉中心：垂直也居中；比视口高时 auto 边距归零，退化为顶部对齐并由遮罩滚动。 */
+  margin: auto;
 }
+.dialog[data-size="confirm"] { --dlg-w: 440px; }
+.dialog[data-size="form"] { --dlg-w: 640px; }
+.dialog[data-size="wide"] { --dlg-w: 940px; }
 .dialog h3 { margin: 0 0 12px; font-size: 16px; }
 .dialog .dlg-foot { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
 
@@ -724,6 +751,9 @@ textarea.notepad.ai-result-area { min-height: 220px; }
 .agent-head > div { min-width: 0; }
 .agent-info { position: relative; flex: none; color: var(--muted); font-size: 12px; }
 .agent-info > summary, .agent-more > summary, .agent-target > summary { cursor: pointer; }
+/* 这些 summary 是按钮：命中区不能塌成一行字（原来 20px 高）。 */
+.agent-info > summary { display: inline-flex; align-items: center; min-height: var(--hit); padding: 2px 6px; border-radius: 6px; }
+.agent-info > summary:hover { background: var(--panel-2); color: var(--text); }
 .agent-info .log { position: absolute; right: 0; top: 25px; width: min(480px, 65vw); z-index: 5; box-shadow: var(--shadow); }
 .agent-feed { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 28px max(24px, calc((100% - 880px) / 2)); scrollbar-gutter: stable; }
 .agent-turn { padding-bottom: 36px; overflow-wrap: anywhere; }
@@ -984,7 +1014,7 @@ textarea.agent-prompt { width: 100%; min-height: 72px; max-height: 180px; resize
 .agent-model { max-width:220px; min-width:120px; }
 .agent-target-menu .seg { display:flex; flex-wrap:wrap; }
 .record-detail input, .record-detail textarea, .category-manage-row input { min-width:0; max-width:100%; }
-button:focus-visible, select:focus-visible, summary:focus-visible { outline:2px solid var(--accent, #7465d4); outline-offset:2px; }
+button:focus-visible, select:focus-visible, summary:focus-visible, a:focus-visible, [tabindex]:focus-visible { outline:2px solid var(--accent, #7465d4); outline-offset:2px; }
 .agent-target-menu .seg { border:1px solid var(--line); border-radius:8px; overflow:hidden; }
 .agent-target-menu .seg button { flex:1; border:0; border-radius:0; background:transparent; }
 .agent-target-menu .seg button.seg-on { background:var(--accent-soft); color:var(--accent); font-weight:600; }
@@ -1005,31 +1035,35 @@ button:focus-visible, select:focus-visible, summary:focus-visible { outline:2px 
 .relation-create-row select { flex:1; min-width:120px; }
 .relation-picker input[type=search], .relation-picker textarea { width:100%; }
 
-/* Global OC library: 3/5 portrait and 2/5 information, independent detail pane. */
-.character-cards { margin-top:32px; padding-top:24px; border-top:1px solid var(--line); }
+/* 独立「角色卡」页：整页网格，新建与编辑都进弹窗。 */
+.character-cards { min-width: 0; }
 .character-card-tools { margin-bottom:16px; }
+.character-card-tools[hidden] { display:none; }
 .character-card-tools input { flex:1; min-width:160px; max-width:480px; }
-.character-card-layout { display:flex; gap:20px; align-items:flex-start; min-width:0; }
-.character-card-grid { flex:1; min-width:0; display:grid; grid-template-columns:repeat(auto-fill,minmax(145px,1fr)); gap:16px; align-items:start; }
+.character-card-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(145px,1fr)); gap:16px; align-items:start; }
 .character-card { padding:0; width:100%; max-width:250px; aspect-ratio:3/5; display:grid; grid-template-rows:3fr 2fr; overflow:hidden; border:1px solid var(--line); border-radius:14px; background:var(--panel); text-align:left; }
-.character-card:hover, .character-card.active { border-color:var(--accent); box-shadow:0 4px 18px #3b6ef018; }
+.character-card:hover { border-color:var(--accent); box-shadow:0 4px 18px #3b6ef018; }
 .character-card-image { min-height:0; overflow:hidden; }
 .character-card-image img { display:block; width:100%; height:100%; object-fit:cover; }
 .character-card-info { min-height:0; display:flex; flex-direction:column; padding:14px; gap:6px; overflow:hidden; }
 .character-card-info strong { font-size:17px; }
 .character-card-info span { font-size:13px; color:var(--muted); }
 .character-card-info > * { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.character-card-detail { flex:0 0 310px; min-width:0; padding:20px; border:1px solid var(--line); border-radius:14px; background:var(--panel); }
-.character-card-detail[hidden] { display:none; }
-.character-card-detail .record-section-head { display:flex; align-items:center; justify-content:space-between; gap:12px; }
-.character-card-detail h3 { min-width:0; overflow-wrap:anywhere; margin:0 0 12px; }
-.character-detail-image { height:180px; overflow:hidden; border-radius:10px; margin:12px 0; background:var(--panel-2); }
-.character-detail-image img { width:100%; height:100%; object-fit:contain; }
-.character-card-empty { grid-column:1/-1; }
-@media(max-width:850px) {
-  .character-card-layout { flex-direction:column; }
-  .character-card-grid { width:100%; }
-  .character-card-detail { flex:auto; width:100%; }
+.character-card-empty { grid-column:1/-1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:56px 24px; text-align:center; }
+.character-card-empty > p { margin:0; }
+
+/* 角色卡编辑弹窗：左图右字段，窗口在视觉中心。 */
+.character-edit { display:grid; grid-template-columns:168px minmax(0,1fr); gap:18px; align-items:start; }
+.character-edit-preview { width:168px; height:210px; border-radius:10px; overflow:hidden; border:1px solid var(--line); background:var(--panel-2); }
+.character-edit-preview img { display:block; width:100%; height:100%; object-fit:cover; }
+.character-edit-media { display:flex; flex-direction:column; gap:6px; min-width:0; }
+.character-edit-media .small { margin:0; }
+.character-edit-fields { display:grid; grid-template-columns:1fr 1fr; gap:0 14px; min-width:0; }
+.character-edit-fields .field.full { grid-column:1/-1; }
+.dlg-foot .foot-start { margin-right:auto; }
+@media(max-width:560px) {
+  .character-edit, .character-edit-fields { grid-template-columns:1fr; }
+  .character-edit-preview { width:100%; height:180px; }
 }
 
 /* Settings records share a full-width editor with a compact horizontal picker. */
@@ -1066,3 +1100,121 @@ button:focus-visible, select:focus-visible, summary:focus-visible { outline:2px 
 .record-element-group.group-drop-before::before { top:-5px; }
 .record-element-group.group-drop-after::after { bottom:-5px; }
 @media(max-width:700px) { .record-picker { padding:12px; } .record-picker-tools .field { flex:1 1 130px; max-width:none; } }
+
+/* ═══════════════════════════════════════════
+   交互基线：提示条、命令面板、条目横栏、动效降级
+   ═══════════════════════════════════════════ */
+
+/* 提示条：图标位 + 文本 + 动作 + 关闭；进出用小位移，不撑高布局。 */
+.toast {
+  display: flex; align-items: center; gap: 10px;
+  opacity: 1; transform: translateY(0);
+  animation: nh-toast-in var(--dur-base) var(--ease-out);
+}
+.toast .toast-text { min-width: 0; overflow-wrap: anywhere; }
+.toast.leaving { opacity: 0; transform: translateY(4px); transition: opacity var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out); }
+.toast-action, .toast-close {
+  flex: none; border: 0; background: transparent; color: inherit;
+  box-shadow: none; padding: 2px 4px; min-height: 0; font-size: 13px;
+  opacity: .82;
+}
+.toast-action { font-weight: 600; text-decoration: underline; }
+.toast-close { font-size: 16px; line-height: 1; }
+.toast-action:hover, .toast-close:hover { opacity: 1; color: inherit; background: rgba(255,255,255,.14); }
+@keyframes nh-toast-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+/* 危险操作的确认按钮：实心红，和普通主按钮区分。 */
+button.primary.danger-solid { background: var(--danger); border-color: var(--danger); }
+button.primary.danger-solid:hover { color: #fff; filter: brightness(1.06); }
+
+/* 侧栏状态压成一行：状态点 + 文本，不再常驻时间戳与路径说明。 */
+.side-foot { display: flex; flex-direction: column; gap: 4px; }
+.status-mini { display: flex; align-items: center; gap: 6px; }
+.status-mini::before {
+  content: ''; width: 6px; height: 6px; flex: none; border-radius: 50%;
+  background: var(--line-strong); transition: background-color var(--dur-base) var(--ease-out);
+}
+.status-mini.ok::before { background: var(--ok); }
+.status-mini.busy::before { background: var(--accent); }
+.status-mini.err::before { background: var(--danger); }
+.side-note { transition: color var(--dur-fast) var(--ease-out); }
+
+/* 法务注脚只在设置页出现一次。 */
+.legal-note { font-size: 11.5px; color: #9aa1ac; line-height: 1.6; margin: 18px 0 0; }
+
+/* 设定条目：名字看起来必须能改（悬停/聚焦给出可编辑提示）。 */
+.record-detail-head .record-name-input { border-radius: 6px; transition: background-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out); }
+.record-detail-head .record-name-input:hover { background: var(--panel-2); box-shadow: inset 0 -1px 0 var(--line-strong); }
+.record-detail-head .record-name-input:focus { background: #fff; box-shadow: inset 0 -1px 0 var(--accent); }
+
+/* 条目横栏：两端渐隐 + 左右按钮，明确"还有更多"。 */
+.record-strip-wrap { position: relative; min-width: 0; }
+.record-strip-wrap::before, .record-strip-wrap::after {
+  content: ''; position: absolute; top: 0; bottom: 9px; width: 28px; z-index: 1;
+  pointer-events: none; opacity: 0; transition: opacity var(--dur-fast) var(--ease-out);
+}
+.record-strip-wrap::before { left: 0; background: linear-gradient(to right, var(--panel), transparent); }
+.record-strip-wrap::after { right: 0; background: linear-gradient(to left, var(--panel), transparent); }
+.record-strip-wrap.more-start::before, .record-strip-wrap.more-end::after { opacity: 1; }
+.record-strip-arrow {
+  position: absolute; top: 50%; z-index: 2; width: 28px; height: 28px; padding: 0;
+  display: none; align-items: center; justify-content: center;
+  transform: translateY(-50%); border-radius: 50%; background: #fff;
+  box-shadow: 0 1px 4px rgba(16,24,40,.16); font-size: 14px; line-height: 1;
+}
+.record-strip-wrap.scrollable .record-strip-arrow { display: inline-flex; }
+.record-strip-arrow.prev { left: -6px; }
+.record-strip-arrow.next { right: -6px; }
+.record-strip-arrow:disabled { opacity: 0; pointer-events: none; }
+.record-picker-tools .record-picker-search { position: relative; }
+
+/* 横栏空态（筛选无结果 / 一条都没有）：一句话 + 一个出口按钮。 */
+.record-strip-empty { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 2px; }
+.record-strip-empty .mini { flex: none; }
+
+/* AI 工作站的示例请求与快捷键提示。 */
+.agent-examples { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 14px; max-width: 560px; }
+.agent-examples .chip { text-align: left; }
+.agent-shortcut { margin-top: 2px; }
+.agent-stop { background: var(--danger); border-color: var(--danger); color: #fff; font-weight: 600; }
+.agent-stop:hover { color: #fff; background: var(--danger); border-color: var(--danger); filter: brightness(1.06); }
+
+/* 空状态：图标用 SVG（1.5px 描边、currentColor），不再用文字符号。 */
+.empty-icon svg { width: 34px; height: 34px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+
+/* 命令面板（Ctrl+K） */
+.cmdk-overlay {
+  position: fixed; inset: 0; z-index: 60; background: rgba(20, 24, 33, .32);
+  display: flex; justify-content: center; align-items: flex-start; padding: 12vh 16px 0;
+}
+.cmdk {
+  width: min(620px, 100%); background: var(--panel); border: 1px solid var(--line);
+  border-radius: var(--radius-xl); box-shadow: 0 18px 60px rgba(16,24,40,.24);
+  overflow: hidden; animation: nh-cmdk-in var(--dur-base) var(--ease-out);
+}
+.cmdk-input { width: 100%; border: 0; border-bottom: 1px solid var(--line); border-radius: 0;
+  padding: 14px 16px; font-size: 15px; background: transparent; }
+.cmdk-input:focus, .cmdk-input:focus-visible { outline: none; border-color: var(--line); }
+.cmdk-list { max-height: 52vh; overflow-y: auto; padding: 6px; }
+.cmdk-row { display: flex; align-items: center; gap: 10px; width: 100%;
+  border: 0; background: transparent; box-shadow: none; text-align: left;
+  padding: 8px 10px; border-radius: var(--radius-md); font-size: 13px; color: var(--text); }
+.cmdk-row.active { background: var(--accent-soft); color: var(--accent); }
+.cmdk-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cmdk-hint { flex: none; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 11.5px; color: var(--muted); }
+.cmdk-row.active .cmdk-hint { color: inherit; opacity: .8; }
+.cmdk-empty { padding: 14px 12px; font-size: 12.5px; color: var(--muted); }
+@keyframes nh-cmdk-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+
+/* 键盘可达：只在悬停时出现的控件，聚焦时也要出现。 */
+.doc-line:hover .doc-tools, .doc-line:focus-within .doc-tools { opacity: 1; }
+
+/* 动效降级：只保留"进度"这一类有意义的循环，并放慢。 */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important; animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important; scroll-behavior: auto !important;
+  }
+  .spinner { animation: nh-spin 1.8s linear infinite !important; animation-iteration-count: infinite !important; }
+}

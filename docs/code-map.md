@@ -40,7 +40,7 @@
 | 历史会话 | `web/workstation.js`: `refreshWorkstationHistory`、`switchWorkstationSession`、`newConversation`、`loadCurrentSession` | `history.py`: `create_session`、`list_sessions`、`load_session`、`save_session`、`delete_session`；`server/_api.py`: `/api/history*` | `history.json`、`conversations/<id>.json` |
 | 备份 | `web/config.js`: 设置页「备份全部」按钮 | `server/_api.py`: `/api/backup`；`store/_backup.py`: `backup_all` | `workspace/novels/<id>/export/backup_<时间戳>/` |
 | 日志 | `web/core.js`: `clientLog`（浏览器异常上报） | `logger.py`: `start_session`、`log_event`、`log_exception` | `log/`（配置 `paths.log_dir`） |
-| 角色卡（v2611.1 待实现） | 计划：`web/core.js` 首页新增区块 | 计划：新增全局集合与 `/api/cards*` | 计划：`data/cards.json`、`data/card_images/` |
+| 角色卡 | `web/cards.js`: `viewCharacterCards`、`openCardEditor`、`cardImage`；`web/core.js`: `HOME_NAV`、`renderMain` | `cards.py`: ensure/list_cards/save_card/delete_card/save_image/image_file；`server/_api.py`: `/api/cards*` | `data/cards.json`、`data/card_images/` |
 | 移动端（v2611.1 仅方案，不实现） | 方案：安卓/鸿蒙移植路径、模块映射、工作量 | 方案：Kotlin/ArkTS/跨端框架对比 | 计划：应用私有目录 |
 
 ## 3. 后端函数索引
@@ -116,12 +116,12 @@
 
 | 文件 | 关键符号 |
 |---|---|
-| `core.js` | `api()`、`h()`、`modal()`、`confirmDialog()`、`askDialog()`、`state`、`go()`、`renderMain()`、`renderNav()`、`settingEntries()`、`defFor()`、`COLLECTIONS`、`touch()`/`saveNow()`（防抖保存）、`refreshFiles()`、`viewHome()`、`showCreateNovel()`、`switchNovel()` |
-| `records.js` | `viewRecords()`、`recordEditor()`、`newRecord()`、`elementTree()`、`applyPreset()`、`manageRecordCategories()`、`renameRecordCategory()`、`recordTags()`、`importPanel()`、`exportButtons()`、`moveBar()`/`moveDialog()`、`aiSettingGenDialog()`、`showAiSettingGenResult()` |
+| `core.js` | `api()`、`h()`、`svgIcon()`、`modal()`、`confirmDialog()`、`askDialog()`、`toast()`、`status()`、`state`、`go()`、`renderMain()`、`renderNav()`、`commandEntries()`、`openCommandPalette()`（Ctrl+K）、`settingEntries()`、`defFor()`、`COLLECTIONS`、`touch()`/`saveNow()`（防抖保存）、`refreshFiles()`、`viewHome()`、`showCreateNovel()`、`switchNovel()` |
+| `records.js` | `viewRecords()`、`createRecord()`、`recordEditor()`、`newRecord()`、`elementTree()`、`applyPreset()`、`recordStrip()`、`manageRecordCategories()`、`renameRecordCategory()`、`recordTags()`、`importPanel()`、`exportButtons()`、`moveBar()`/`moveDialog()`、`aiSettingGenDialog()`、`showAiSettingGenResult()` |
 | `relations.js` | `relationCatalog()`、`relationEdges()`、`relationVisibleGraph()`、`relationLayout()`、`relationGraph()`、`relationEditor()`、`relationDialog()`、`relationSave()`、`openRelationRecord()` |
 | `views.js` | `viewInventory()`、`viewWorld()`、`viewMemories()`、`compressMemories()`、`viewChapters()`、`previewFile()` |
 | `config.js` | `viewAI()`（设置页）、`viewModes()`、`addModeDialog()`、`viewSections()`、`viewElements()`、`settingMetadataEditor()`、`currentModels()`、`refreshConfigMeta()`、`restoreNovelConfig()`、`showOnboarding()`、`showSettingImport()` |
-| `workstation.js` | `viewWorkstation()`、`runWorkstation()`、`previewWorkstation()`、`newConversation()`、`loadCurrentSession()`、`pollBusyState()`、`boot()`、`refreshWorkstationHistory()`、`switchWorkstationSession()`、`saveOutputDialog()`、`sendOutputToText()` |
+| `workstation.js` | `viewWorkstation()`、`runWorkstation()`、`stopWorkstation()`、`previewWorkstation()`、`newConversation()`、`loadCurrentSession()`、`pollBusyState()`、`boot()`、`refreshWorkstationHistory()`、`switchWorkstationSession()`、`saveOutputDialog()`、`sendOutputToText()` |
 | `manuscript.js` | `viewManuscript()`、`exportAs()`、`browseOpen()`、`processModes()` |
 | `i18n/i18n.js` | `i18n.t()`、`i18n.apply()`、`i18n.load()` |
 | `i18n/bootstrap.js` | 翻译表加载完成后按顺序加载 `core/records/relations/cards/views/config/workstation/manuscript`，再 `boot()` |
@@ -153,6 +153,7 @@
 | `/api/ai/run` | POST | `_generation.py:_ai_run` | 内置工具（摘要/压缩/润色/修复） |
 | `/api/ai/setting-gen`、`/undo` | POST | `_generation.py` → `setting_gen` | AI 设定生成 / 撤销 |
 | `/api/workstation/run` | POST | `_generation.py:_workstation_run` | AI 工作站生成 |
+| `/api/workstation/cancel` | POST | `_api.py` → `_state.cancel_run` | 停止生成：标记结果作废并放开生成锁 |
 | `/api/workstation/status`、`/modes` | GET | `_api.py` | 生成状态 / 模式列表 |
 | `/api/history`、`/api/history/<id>` | GET/DELETE | `_api.py` → `history` | 会话列表 / 读取 / 删除 |
 | `/api/history/current`、`/rename`、`/new` | POST | `_api.py` → `history` | 切换 / 重命名 / 新建会话 |
@@ -184,7 +185,7 @@ log/                               # 日志（配置 paths.log_dir）
 - 基线：`python -X utf8 -B scripts/smoke_test.py`、`python -X utf8 -B app/selftest.py`、`python -X utf8 -B scripts/check_dependencies.py`
 - 前端语法：`node --check app/novelhelper/web/<file>.js`
 - 国际化：`node scripts/test_i18n.cjs`、`python scripts/test_localization.py`
-- 模块测试：`scripts/test_relations.py`、`test_relations_ui.cjs`、`test_settings_ui.cjs`、`test_record_forms.cjs`、`test_setting_gen.py`、`test_setting_gen_ui.cjs`、`test_workstation_ui.cjs`、`test_workstation_details.cjs`、`test_manuscript_ui.cjs`、`test_memories_ui.cjs`、`test_layout_migration.py`、`test_language_settings.py`、`test_desktop.py`
+- 模块测试：`scripts/test_relations.py`、`test_relations_ui.cjs`、`test_settings_ui.cjs`、`test_record_forms.cjs`、`test_setting_gen.py`、`test_setting_gen_ui.cjs`、`test_workstation_ui.cjs`、`test_workstation_details.cjs`、`test_manuscript_ui.cjs`、`test_memories_ui.cjs`、`test_layout_migration.py`、`test_language_settings.py`、`test_desktop.py`、`test_run_cancel.py`
 - 打包：`scripts/exe_smoke_test.py`；Windows 工作流 `.github/workflows/build-windows.yml`
 
 ## 8. 常见改动定位示例
@@ -227,7 +228,7 @@ log/                               # 日志（配置 paths.log_dir）
 | 功能 | 代码 | 验证 |
 |---|---|---|
 | 全局角色卡数据、快照、图片 | `cards.py`: ensure/list_cards/save_card/delete_card/save_image/image_file；`server/_api.py`: /api/cards* | `scripts/test_cards.py` |
-| 首页卡片与右侧详情 | `web/core.js`: viewHome；`web/cards.js`: viewCharacterCards/cardImageUrl；`web/card-default.svg` | `scripts/test_relations_cards_ui.cjs` |
+| 独立角色卡页与编辑弹窗 | `web/cards.js`: viewCharacterCards/openCardEditor；`web/core.js`: HOME_NAV、renderMain；`web/card-default.svg` | `scripts/test_relations_cards_ui.cjs` |
 | 全局网络、条目一层图、共享选择器 | `web/relations.js`: viewRelations/relationGraph/relationDialog/relationDirectList/relationRemove/relationSave | `scripts/test_relations_ui.cjs`、`scripts/test_relations_cards_ui.cjs` |
 | 坏边告警、关系投影事务 | `relations.py`: normalize；`store/_repository.py`: save('relations')；`server/_api.py`: /api/state、/api/collections/relations | `scripts/test_relations.py` |
 | 按条目渲染关联 | `context.py`: render_record_relations、render_record_selection、render_worldmap、build_user_message | `scripts/test_relations.py`、`app/selftest.py` |

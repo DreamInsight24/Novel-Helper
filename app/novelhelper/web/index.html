@@ -36,14 +36,14 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
     </div>
     <nav id="nav"></nav>
     <div class="side-foot">
-      <div id="status-mini" class="status-mini" data-i18n="common.ready"></div>
+      <div id="status-mini" class="status-mini" role="status" aria-live="polite" aria-atomic="true" data-i18n="common.ready"></div>
       <div class="side-note" data-i18n="common.side_note"></div>
     </div>
   </aside>
   <main id="main"></main>
 </div>
 <div id="overlay-root"></div>
-<div id="toast-root"></div>
+<div id="toast-root" role="status" aria-live="polite" aria-relevant="additions"></div>
 <script src="/i18n/i18n.js"></script>
 <script src="/i18n/bootstrap.js"></script>
 </body>

@@ -246,10 +246,18 @@ function viewWorkstation(main) {
           h('button', { text: i18n.t('workstation.view_raw'), onclick: () => showRawOutput(text) })))));
     feed.appendChild(message);
   });
-  if (!shown.length) feed.appendChild(h('div', { class: 'agent-empty' },
-    h('div', { class: 'empty-icon', text: '✎' }),
+  if (!shown.length && !busy) feed.appendChild(h('div', { class: 'agent-empty' },
+    h('div', { class: 'empty-icon' }, svgIcon(ICONS.pen)),
     h('h2', { text: i18n.t('workstation.welcome') }),
-    h('p', { class: 'muted', text: i18n.t('workstation.welcome_hint') })));
+    h('p', { class: 'muted', text: i18n.t('workstation.welcome_hint') }),
+    h('div', { class: 'agent-examples' },
+      [1, 2, 3].map(index => {
+        const text = i18n.t('workstation.example_' + index);
+        return h('button', {
+          class: 'chip', text,
+          onclick: () => { ws.prompt = text; wsRememberDraft(); renderMain(); }
+        });
+      }))));
   if (busy) feed.appendChild(h('div', { class: 'agent-pending', role: 'status' },
     h('div', { class: 'spinner' }), h('span', { text: i18n.t('common.generating') })));
   if (state.ui.wsError) feed.appendChild(h('div', { class: 'notice warn', role: 'alert' },
@@ -282,17 +290,20 @@ function viewWorkstation(main) {
     }})));
   target.appendChild(h('div',{class:'agent-target-menu'},choices,targetInput));updateTarget();
   composer.appendChild(h('div', { class: 'agent-controls' },
-    h('select', { class: 'agent-mode', 'aria-label': i18n.t('modes.kind_write'), disabled: busy || !modes.length,
+    h('select', { class: 'agent-mode', 'aria-label': i18n.t('modes.kind_write'), disabled: !modes.length,
       onchange: e => { ws.mode = e.target.value; touch('state', true); }
     }, modes.map(item => h('option', { value: item.id, text: item.label, selected: ws.mode === item.id }))),
-    h('select',{class:'agent-model','aria-label':i18n.t('workstation.model'),disabled:busy,
+    h('select',{class:'agent-model','aria-label':i18n.t('workstation.model'),
       onchange:e=>{ws.selection.model=e.target.value;touch('state',true);}},
       [h('option',{value:'',text:i18n.t('workstation.follow_mode'),selected:!ws.selection.model}),
         ...currentModels().map(model=>h('option',{value:model,text:model,selected:ws.selection.model===model}))]),
     target,
     h('button', { text: i18n.t('workstation.details'), disabled: busy, onclick: openWorkstationDetails }),
-    h('button', { class: 'primary agent-send', text: i18n.t(busy ? 'common.generating' : 'workstation.start'),
-      title: 'Ctrl+Enter', disabled: busy || !mode, onclick: runWorkstation })));
+    busy
+      // 生成中可以停下来：不锁死整个界面，也不让人干等。
+      ? h('button', { class: 'agent-send agent-stop', text: i18n.t('workstation.stop'), onclick: stopWorkstation })
+      : h('button', { class: 'primary agent-send', text: i18n.t('workstation.start'),
+          title: 'Ctrl+Enter', disabled: !mode, onclick: runWorkstation })));
   if ((ws.extra || '').trim()) {
     composer.appendChild(h('div', { class: 'agent-extra-hint small muted' },
       h('span', { text: i18n.t('workstation.extra_saved_hint') }),
@@ -300,6 +311,8 @@ function viewWorkstation(main) {
         onclick: openWorkstationDetails })));
   }
   composer.appendChild(h('div', { class: 'agent-summary small muted', text: wsSummary() }));
+  // 快捷键写在这里而不是 title 里：不用悬停也能发现。
+  composer.appendChild(h('div', { class: 'agent-shortcut small muted', text: i18n.t('workstation.composer_hint') }));
   if (!modes.length) composer.appendChild(h('button', { text: i18n.t('workstation.go_modes'), onclick: () => go('modes') }));
   shell.appendChild(h('div', { class: 'agent-compose-wrap' }, composer));
   main.appendChild(shell);
@@ -372,10 +385,23 @@ function openWorkstationDetails() {
 // ─────────────────────────────────────────────
 // 生成
 // ─────────────────────────────────────────────
+let runController = null;    // 当前生成请求的 AbortController
+let stopRequested = false;   // 是"用户主动停止"还是真的失败
+
+/** 停止生成：先让后端放弃这次结果并放开生成锁，再断开本地等待。 */
+async function stopWorkstation() {
+  if (!runController) return;
+  stopRequested = true;
+  try { await api('/api/workstation/cancel', { method: 'POST', body: {} }); }
+  catch (e) { /* 可能刚好结束了，忽略 */ }
+  runController.abort();
+}
+
 async function runWorkstation() {
   if (state.ui.busy || state.ui.wsSwitching) return;
   const ws = wsState();
   if (!ws.mode) { toast(i18n.t('workstation.no_mode_toast'), 'err'); return; }
+  stopRequested = false;
   state.ui.wsError = '';
   wsRememberDraft();
   state.ui.busy = true;
@@ -385,6 +411,8 @@ async function runWorkstation() {
   renderMain();
   status(i18n.t('common.generating'), 'busy');
 
+  const controller = new AbortController();
+  runController = controller;
   try {
     await flushPendingSaves();
     await saveNow('modes');
@@ -395,6 +423,7 @@ async function runWorkstation() {
     const selection = await wsLoadProjectFiles();
     const res = await api('/api/workstation/run', {
       method: 'POST',
+      signal: controller.signal,
       body: {
         surface: 'workstation',
         mode_id: ws.mode,
@@ -440,12 +469,21 @@ async function runWorkstation() {
     status(i18n.t('workstation.done'), 'ok');
     toast(i18n.t('workstation.done_saved'), 'ok');
   } catch (e) {
+    const stopped = stopRequested || e?.name === 'AbortError' || !!controller.signal.aborted;
+    stopRequested = false;
     state.ui.busy = false;
-    state.ui.wsError = e.message;
+    if (!stopped) state.ui.wsError = e.message;
     renderNav();
     renderMain();
-    status(i18n.t('workstation.failed'), 'err');
-    toast(i18n.t('workstation.failed_reason', { reason: e.message }), 'err');
+    if (stopped) {
+      status(i18n.t('workstation.stopped'), 'ok');
+      toast(i18n.t('workstation.stopped_hint'), 'ok');
+    } else {
+      status(i18n.t('workstation.failed'), 'err');
+      toast(i18n.t('workstation.failed_reason', { reason: e.message }), 'err');
+    }
+  } finally {
+    if (runController === controller) runController = null;
   }
 }
 
