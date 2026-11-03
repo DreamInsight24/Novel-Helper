@@ -287,8 +287,8 @@ $check.ExitCode
 发布新版本：
 
 ```bash
-git tag -a v2610.3 -m "v2610.3"
-git push origin v2610.3
+git tag -a v2611.1 -m "v2611.1"
+git push origin v2611.1
 ```
 
 工作流会先检查 tag 与应用版本 `novelhelper._version.APP_VERSION` 是否一致（不一致直接失败），再运行桌面/端口测试、自检和 EXE `--check`/`--no-window` 冒烟；通过后才上传产物并创建 Release。
