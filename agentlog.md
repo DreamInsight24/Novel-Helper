@@ -5,3 +5,4 @@
 2026-11-03：按已批准方案在 dev/v2611.1-bugfix 完成角色 A 的设定编辑器、默认栏目、分类标签、导入导出与 AI 工作站改造，并更新相关文档。统一回归 27/27 通过、浏览器交互通过，生成中英双尺寸 16 张截图，交付清单见 docs/validation/v2611.1-a/checklist.md。
 2026-11-03：已启动本地前端及后端服务，地址为 http://127.0.0.1:9000/，使用项目默认数据目录。
 2026-11-03：按要求删除 docs/validation/ 及其中的验收截图、清单，更新文档以移除失效链接，并在 dev/v2611.1-bugfix 提交角色 A 改动。向 https://github.com/DreamInsight24/Novel-Helper.git 的推送被自动审批拒绝，尚未上传，等待用户明确确认该目的地及代码文档上传范围。
+2026-11-03：用户已明确确认将角色 A 的代码、测试与文档上传至 https://github.com/DreamInsight24/Novel-Helper.git 的 dev/v2611.1-bugfix 分支，本次记录该授权并继续执行推送。
