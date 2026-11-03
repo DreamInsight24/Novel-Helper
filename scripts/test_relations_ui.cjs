@@ -18,7 +18,7 @@ assert.equal(run('graph.nodes.length'),4,'Expanding an organization adds its oth
 assert.equal(run('layout[relationKey(center)].x'),390);
 assert.equal(run('layout[relationKey(center)].y'),245);
 assert.equal(run('Object.values(layout).every(p=>Number.isFinite(p.x)&&Number.isFinite(p.y))'),true);
-run(`touch=()=>{};relationSave();`);
+run(`touch=()=>{};relationSyncLocal();`);
 assert.equal(run('state.db.factions.items[0].members.join(",")'),'a,b,c','Legacy membership is a projection');
 console.log('PASS: one shared node, closed cycles, one-hop expansion, centered layout and membership projection');
 
@@ -74,3 +74,14 @@ assert.equal(run("graphView.querySelectorAll('.relation-node').find(node=>node.d
 run(`pointer('pointerdown',180,140);pointer('pointercancel',180,140);pointer('pointermove',300,200);`);
 assert.equal(run('positionB.x'),run('finalX'),'Cancelled pointer capture must stop dragging');
 console.log('PASS: live edges and labels before release, screen transforms, stable release and pointer cancellation');
+
+assert.equal(run("graphView.querySelectorAll('.relation-expand').length"),0,'Record graph has no expansion controls');
+console.log('PASS: record graph is a fixed one-hop radial view');
+
+run(`state.ui.characters={q:'hidden query',category:'hidden category',tag:'hidden tag'};go=view=>{state.view=view;};openRelationRecord({collection:'characters',id:'b'});`);
+assert.equal(run('state.ui.characters.sel'),'b');
+assert.equal(run('state.ui.characters.q'),'');
+assert.equal(run('state.ui.characters.category'),null);
+assert.equal(run('state.ui.characters.tag'),'');
+assert.equal(run("state.ui.recordTabs['characters:b']"),'relations');
+console.log('PASS: record jumps clear filters that could hide the target');

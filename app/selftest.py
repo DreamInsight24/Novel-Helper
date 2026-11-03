@@ -304,6 +304,15 @@ def main() -> int:
     check("世界地图可独立于世界观条目发送",
           "测试地图" in map_user and "测试城" in map_user and "临海城市" not in map_user)
 
+    relation_db = {"characters": {"items": [
+        {"id": "rel_a", "name": "关联起点", "content": "被选中内容"},
+        {"id": "rel_b", "name": "关联对端", "content": "对端内容不得展开"}]},
+        "relations": {"initialized": True, "items": [{"source": {"collection": "characters", "id": "rel_a"},
+        "target": {"collection": "characters", "id": "rel_b"}, "type": "合作", "note": "测试备注", "directed": True}]}}
+    relation_user = context.build_user_message({}, relation_db, {"record_selections": {"characters": ["rel_a"]}, "setting_categories": ["characters"]})
+    check("选中条目携带对未选中条目的方向、类型与备注", "→ 关联对端：合作（测试备注）" in relation_user)
+    check("关联不展开未选对端内容且没有全局关联区块", "对端内容不得展开" not in relation_user and "## 条目关联" not in relation_user)
+
     # Focused setting prose and canonical / legacy faction memberships.
     linked_char = {"id": "ch_link", "name": "新人物", "summary": "新概述", "content": "新正文", "elements": []}
     linked_faction = {"id": "fa_link", "name": "测试势力", "members": ["ch_link", {"id": "ch_link", "note": "旧身份"}, {"id": "ch_missing"}], "member_roles": {"ch_link": "护卫"}}

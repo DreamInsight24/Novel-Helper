@@ -77,12 +77,26 @@ app/novelhelper/
 
 ### v2611.1 设定体验与文件 I/O
 
+- 设定条目列表由 `recordStrip()` / `recordStripButton()` 渲染为编辑面板顶部横栏，`viewRecords()` 保留筛选与其他设定批量选择；人物背包与地图区域复用选择器，地图表格仍保留原有层级和拖放行为。
+- `recordGroupsEditor()` 操作当前条目的 elements 数组，复用到常规设定和地图区域，支持 HTML 原生拖动及 Alt+方向键排序。拖动使用独立 MIME，避免被地图区域拖放误识别；排序不改字段值或模板定义。
+- 快速删除前把完整节点、索引和展开状态保存在 `state.ui.recordEditSession`；恢复采用逐次逆序插入，遇到同名分组则保留恢复记录并提示。会话按活动小说和当前视图隔离，`renderMain()` 在视图/小说变化时清理；同页重绘、切换条目或页签保留会话。恢复记录与 WeakMap 展开状态不写 JSON，实际删除/恢复仍走原集合自动保存。
+
 - `web/records.js` 的新建入口直接调用 `newRecord()`，经 `presetsOf(coll)` / `applyPreset()` 深拷贝栏目模板；已有条目不自动补模板。分类、标签、备注与补充正文留在内容页，通用编辑器仍保留元素树结构。
 - 新小说 `default_sections()` 只开启 world；七个扩展栏目保留定义并默认隐藏。旧小说 `_restore_sections()` 不变；前端显示只取栏目自己的 on，父子导航仅表示视觉层级。
 - `server/_api.py::_workspace_file()` 处理 `{directory, filename, novel_id}` 新文件请求，也兼容原 path 请求；在解析真实路径后拒绝当前小说外的 workspace 路径。任意位置导出继续保留用户选择的外部路径语义。
 - `GET /api/workspace/files` 只刷新文件元数据，`refreshWorkspaceFiles()` 不替换未保存集合；返回活动小说 ID，忽略切换小说后的迟到响应。
 - 导入前 `backup_all()` 快照集合，失败恢复受影响集合及关系投影。文本覆盖通过同目录临时文件原子替换，旧版保留为 `.bak`；默认导出使用独占创建及编号，避免覆盖。
 - 工作站本次模型写入 `override.model`；`selection.length_mode=unlimited` 明确禁用目标字数配置回填，旧客户端的 target_chars / strict_length 仍受支持。
+
+### v2611.1 关系网与全局角色卡
+
+- `relations` 集合保持小说级数据格式；`relations.normalize()` 支持可选 warnings 输出，普通保存丢弃无效边且去重；strict=True 的直接校验接口仍可用于严格检查。读取旧坏数据时 `/api/state` 返回 relation_discarded 提示数量。
+- `store/_repository.py::save('relations')` 在锁内保存关系及势力成员投影，写前将原文件快照到该小说 `relation_backups/<唯一标识>/`；任一步失败恢复两份原始文件，不依赖可能失败的集合写入函数。
+- `web/relations.js` 共享目录、布局、绘制、选择器和直接关联列表。`viewRelations()` 注册为 relations 页面，与集合名共享标识但分别由路由/集合 API 分派；条目内绘制固定一层，页面绘制所有匹配节点（含孤立节点）。关联保存先 flushPendingSaves，再即时请求，不依赖关系防抖保存。
+- `context.render_record_relations(db, collection, rec)` 只渲染对端名称及关联元数据；详细选择、旧选择和地图区域渲染均在各条目块内追加。`render_selected_relations()` 保留兼容入口并返回空文本。
+- `cards.py` 使用全局 DATA_DIR，独立于 COLLECTIONS 和小说路径解析；服务启动幂等创建空 cards.json，GET/POST 专用接口提供卡片及图片服务。`store.load_all()`、设定导航和 AI 拼装不会枚举角色卡。
+- 全局图片存于 `card_images/<随机文件名>`，JSON 只存引用；限制 2 MB 的 PNG/JPEG/WebP，拒绝 SVG/data URL 持久化和路径文件名。默认图为 web/card-default.svg，现有 web 资源打包规则已覆盖新增 JS/SVG。
+- 全局卡片修改前快照到 `card_backups/<唯一标识>/cards.json`；JSON 与图片通过同目录临时文件原子替换，保存失败删除新上传图片。保留旧图片使历史快照可恢复，删除小说只触碰小说命名空间。
 
 ### v2610.3 桌面启动与端口
 

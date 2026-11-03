@@ -26,16 +26,42 @@ with tempfile.TemporaryDirectory(prefix='novelhelper_relations_') as temp:
     store.save('relations',graph)
     assert store.load('factions')['items'][0]['members']==['b']
     assert len(store.load_all()['relations']['items'])==2
-    try:
-        store.save('relations',{'items':[dict(mutual,target={'collection':'characters','id':'missing'})],'initialized':True})
-        raise AssertionError('Invalid reference accepted')
-    except ValueError:
-        pass
-    assert len(store.load('relations')['items'])==2
-    selection={'record_selections':{'characters':['a','b']},'setting_categories':['characters']}
-    assert 'knows' in context.render_selected_relations(store.load_all(),selection)
-    selection['record_selections']['characters']=['a']
-    assert not context.render_selected_relations(store.load_all(),selection)
+    # A bad edge is discarded without blocking a valid one in the same batch.
+    store.save('relations',{'items':[mutual,dict(mutual,target={'collection':'characters','id':'missing'}),
+                                   dict(mutual,id='self',target=mutual['source'])],'initialized':True})
+    assert len(store.load('relations')['items'])==1
+    selection={'record_selections':{'characters':['a']},'setting_categories':['characters']}
+    rendered=context.build_user_message({},store.load_all(),selection)
+    assert 'knows' in rendered and 'B' in rendered and '## 条目关联' not in rendered
+    assert rendered.count('### B')==0, 'An unselected peer is named without its content'
+    assert '↔' in context.render_record_relations(store.load_all(),'characters',{'id':'a'})
+    full=context.build_user_message({},store.load_all(),{'record_selections':{'characters':['a','b']},'setting_categories':['characters']})
+    assert full.count('条目关联：')==2, 'Each selected endpoint carries its own relationship'
+    region_db={'characters':{'items':[{'id':'a','name':'A'}]},
+               'memories':{'items':[{'id':'m','title':'Memory','content':'memory body'}]},
+               'sections':{'items':[{'key':'custom','label':'Custom'}]},
+               'section_custom':{'items':[{'id':'s','name':'Setting','content':'setting body'}]},
+               'worldmap':{'regions':{'r':{'id':'r','name':'Region'}}},
+               'relations':{'initialized':True,'items':[
+                   {'source':{'collection':'characters','id':'a'},'target':{'collection':'memories','id':'m'},'type':'remembers'},
+                   {'source':{'collection':'worldmap','id':'r'},'target':{'collection':'section_custom','id':'s'},'type':'contains'}]}}
+    rendered=context.build_user_message({},region_db,{'record_selections':{'memories':['m'],'section_custom':['s']},'setting_categories':['memories','section_custom'],'include':{'worldmap':True}})
+    assert '← A：remembers' in rendered and '← Region：contains' in rendered and '→ Setting：contains' in rendered
+    # Failure after writing edges must restore the graph and the membership projection.
+    from unittest.mock import patch
+    from novelhelper.store import _repository
+    before={name:store.load(name) for name in ('relations','factions')}
+    real_write=_repository._write
+    def fail_faction(name,data):
+        if name=='factions': raise OSError('injected projection write failure')
+        return real_write(name,data)
+    membership={'source':{'collection':'characters','id':'a'},'target':{'collection':'factions','id':'o'},'type':'隶属'}
+    with patch.object(_repository,'_write',side_effect=fail_faction):
+        try:store.save('relations',{'items':[membership],'initialized':True})
+        except OSError:pass
+        else:raise AssertionError('Expected injected write failure')
+    assert all(store.load(name)==value for name,value in before.items())
+    assert list((store.novel_data_dir(novel['id'])/'relation_backups').glob('*/relations.json'))
     store.save('characters',{'items':[{'id':'a','name':'A'}]})
     assert store.load('relations')['items']==[]
     assert not store.load('factions')['items'][0].get('members')
@@ -58,11 +84,15 @@ with tempfile.TemporaryDirectory(prefix='novelhelper_relations_') as temp:
         assert {edge['source']['collection'],edge['target']['collection']}=={'characters','other'}
         with urllib.request.urlopen(base+'/relations.js',timeout=10) as response:
             assert b'relationVisibleGraph' in response.read()
-        try:
-            post('/api/collections/relations',{'data':{'items':[dict(mutual,target={'collection':'characters','id':'missing'})],'initialized':True}})
-            raise AssertionError('Invalid HTTP reference accepted')
-        except urllib.error.HTTPError as error:
-            assert error.code==400
+        result=post('/api/collections/relations',{'data':{'items':[edge,
+            dict(mutual,target={'collection':'characters','id':'missing'}),None],'initialized':True}})
+        assert result['discarded']==2 and len(result['data']['items'])==1
+        _repository._write('relations',{'items':[edge,dict(mutual,target={'collection':'characters','id':'missing'})],'initialized':True})
+        with urllib.request.urlopen(base+'/api/state') as response:
+            state=json.loads(response.read())
+        assert state['relation_discarded']==1 and len(state['collections']['relations']['items'])==1
+
+
     finally:
         httpd.shutdown();httpd.server_close()
     store.save('other',{'items':[]})

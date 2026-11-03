@@ -96,3 +96,9 @@ print(config["server"]["port_mode"])  # auto
 ## 兼容性
 
 以上公共名称均列在 `store.__all__` 中。仍支持 `from novelhelper import store` 和 `from novelhelper.store import load` 等现有导入方式。保留 `store._migrate_mode_kinds` 仅因为 `app/selftest.py` 使用它；该名称为私有接口，不在 `__all__` 中。
+
+## 关系集合事务
+
+`save("relations", data)` 保持返回 Path 的签名；普通保存不再因单条坏边抛错，而是丢弃坏边、规范化去重后保存，顶层 items 格式错误仍报错。关系与势力成员投影写前在小说目录 relation_backups/ 备份，失败恢复两文件。HTTP 层另外返回 discarded 数量；需要严格检测时直接使用 `relations.normalize(data, db, strict=True)`。
+
+全局角色卡由根模块 `novelhelper.cards` 管理，不加入 COLLECTIONS，因而 load_all、小说备份/删除和上下文集合枚举不会将角色卡当作小说条目。

@@ -21,9 +21,9 @@
 | 元素模板 | `web/config.js`: `viewElements`；`web/records.js`: `applyPreset` | `elements.py`: `from_preset`、`apply_preset`、`normalize`；`store/_defaults.py`: `default_schema` | `data/novels/<id>/schema.json` |
 | 栏目（分区）管理 | `web/config.js`: `viewSections`、`settingMetadataEditor`、`reorderSettingIds` | `store/_defaults.py`: `default_sections`；`store/_layout.py`: `migrate_active_layout`、`_restore_sections` | `data/novels/<id>/sections.json` |
 | 分类与标签 | `web/records.js`: `manageRecordCategories`、`renameRecordCategory`、`recordTags`、`recordCategoryNames` | `store/_repository.py`: `_clean_records`（写入时清理） | 集合 JSON 内 `categories` / `tags` 字段 |
-| 关系网与关联 | `web/relations.js`: `relationCatalog`、`relationEdges`、`relationVisibleGraph`、`relationLayout`、`relationGraph`、`relationEditor` | `relations.py`: `catalog`、`memberships`、`normalize`、`sync_memberships`；`store/_repository.py`: `save('relations')` | `data/novels/<id>/relations.json` |
-| 创建/编辑关联 | `web/relations.js`: `relationDialog`、`relationSave`、`openRelationRecord` | `store/_repository.py`: `save('relations')`（strict 校验）；`relations.normalize` | 同上 |
-| AI 上下文拼装 | — | `context.py`: `build_user_message`、`assemble_mode`、`render_record_selection`、`render_character/faction/item/other/memory/worldmap`、`render_selected_relations` | 内存组装，不落盘 |
+| 关系网与关联 | `web/relations.js`: `relationCatalog`、`relationEdges`、`relationVisibleGraph`、`relationLayout`、`relationGraph`、`relationEditor`、`viewRelations` | `relations.py`: `catalog`、`memberships`、`normalize`、`sync_memberships`；`store/_repository.py`: `save('relations')` | `data/novels/<id>/relations.json` |
+| 创建/编辑关联 | `web/relations.js`: `relationDialog`、`relationSave`、`openRelationRecord` | `store/_repository.py`: `save('relations')`（坏边丢弃、快照与事务回滚）；`relations.normalize` | 同上 |
+| AI 上下文拼装 | — | `context.py`: `build_user_message`、`assemble_mode`、`render_record_selection`、`render_character/faction/item/other/memory/worldmap`、`render_record_relations` | 内存组装，不落盘 |
 | AI 工作站（写稿） | `web/workstation.js`: `viewWorkstation`、`runWorkstation`、`previewWorkstation`、`saveOutputDialog`、`sendOutputToText` | `server/_generation.py`: `_workstation_run`；`ai.py`: `chat_settings`；`history.py`: `append_turn`、`context_messages` | `data/novels/<id>/history.json`、`conversations/<id>.json` |
 | AI 设定生成 | `web/records.js`: `aiSettingGenDialog`、`showAiSettingGenResult`、`aiSettingGenButton` | `setting_gen.py`: `extract_records`、`validate_batch`、`write_batch`、`undo_last_batch`、`map_fields`；`server/_generation.py`: `_ai_setting_gen`、`_ai_setting_gen_undo` | 目标集合 JSON |
 | 模式管理 | `web/config.js`: `viewModes`、`addModeDialog`、`modeModelOptions`、`modeKindLabel` | `prompts.py`: `DEFAULT_MODES`、`default_modes`；`ai.py`: `mode_settings` | `data/novels/<id>/modes.json` |
@@ -101,7 +101,7 @@
 | 文件 | 关键符号 |
 |---|---|
 | `ai.py` | `api_settings()`、`mode_settings()`、`chat_settings()`、`ping()`、`list_models()` |
-| `context.py` | `build_user_message()`、`assemble_mode()`、`render_record_selection()`、`render_selected_relations()`、`render_character/faction/item/other/memory/worldmap()`、`loadout()` |
+| `context.py` | `build_user_message()`、`assemble_mode()`、`render_record_selection()`、`render_record_relations()`、`render_character/faction/item/other/memory/worldmap()`、`loadout()` |
 | `elements.py` | `node()`、`normalize()`、`get()`、`add_child()`、`remove()`、`move()`、`apply_preset()`、`from_preset()`、`render_md()`、`stats()` |
 | `relations.py` | `catalog()`、`memberships()`、`normalize()`、`sync_memberships()`、`RECORDS` |
 | `setting_gen.py` | `extract_records()`、`validate_batch()`、`write_batch()`、`undo_last_batch()`、`map_fields()`、`target_catalog()` |
@@ -124,7 +124,7 @@
 | `workstation.js` | `viewWorkstation()`、`runWorkstation()`、`previewWorkstation()`、`newConversation()`、`loadCurrentSession()`、`pollBusyState()`、`boot()`、`refreshWorkstationHistory()`、`switchWorkstationSession()`、`saveOutputDialog()`、`sendOutputToText()` |
 | `manuscript.js` | `viewManuscript()`、`exportAs()`、`browseOpen()`、`processModes()` |
 | `i18n/i18n.js` | `i18n.t()`、`i18n.apply()`、`i18n.load()` |
-| `i18n/bootstrap.js` | 翻译表加载完成后按顺序加载 `core/records/relations/views/config/workstation/manuscript`，再 `boot()` |
+| `i18n/bootstrap.js` | 翻译表加载完成后按顺序加载 `core/records/relations/cards/views/config/workstation/manuscript`，再 `boot()` |
 | `index.html` | 外壳：`#sidebar`、`#nav`、`#main`、`#overlay-root`、`#toast-root` |
 | `style.css` | 全部样式与响应式断点 |
 
@@ -139,7 +139,7 @@
 | `/api/novels/open`、`/update`、`/delete` | POST | `_api.py` → `store/_novels` | 打开 / 更新 / 删除 |
 | `/api/settings/config` | GET/POST | `_api.py` → `store` | 全局或小说级配置 |
 | `/api/state` | GET | `_api.py` → `store.load_all()`、`project.import_sources()` | 前端全量状态 |
-| `/api/collections/<name>` | GET/POST | `_api.py` → `store.load/save` | 集合读写（relations 走 strict 校验） |
+| `/api/collections/<name>` | GET/POST | `_api.py` → `store.load/save` | 集合读写（relations 走坏边过滤与投影事务） |
 | `/api/file` | GET | `_api.py` → `project.read_text` | 读取工作区文件 |
 | `/api/import` | POST | `_records.py:_import` | 导入 md/txt/json |
 | `/api/export` | POST | `_api.py` → `project.save_json/save_txt` | 导出集合 |
@@ -221,3 +221,21 @@ log/                               # 日志（配置 paths.log_dir）
 | 文件刷新及路径 | `server/_api.py`: `_workspace_file`, `/api/workspace/files`；`web/core.js`: `refreshWorkspaceFiles` | `scripts/test_setting_io.py` |
 | 导入事务、原子覆盖与编号导出 | `server/_records.py`: `_import`, `_import_apply`；`project/_paths.py`: `write_text`, `write_numbered`；`project/_exports.py`: `save_json`, `save_txt` | `scripts/test_setting_io.py` |
 | 请求模型与限定/不限字数 | `web/workstation.js`: `wsState`, `wsSelection`, `viewWorkstation`, `runWorkstation`；`context.py`: `_target_chars` | `scripts/test_setting_experience_ui.cjs`, `scripts/test_setting_io.py` |
+
+## 全局角色卡与关系网定位
+
+| 功能 | 代码 | 验证 |
+|---|---|---|
+| 全局角色卡数据、快照、图片 | `cards.py`: ensure/list_cards/save_card/delete_card/save_image/image_file；`server/_api.py`: /api/cards* | `scripts/test_cards.py` |
+| 首页卡片与右侧详情 | `web/core.js`: viewHome；`web/cards.js`: viewCharacterCards/cardImageUrl；`web/card-default.svg` | `scripts/test_relations_cards_ui.cjs` |
+| 全局网络、条目一层图、共享选择器 | `web/relations.js`: viewRelations/relationGraph/relationDialog/relationDirectList/relationRemove/relationSave | `scripts/test_relations_ui.cjs`、`scripts/test_relations_cards_ui.cjs` |
+| 坏边告警、关系投影事务 | `relations.py`: normalize；`store/_repository.py`: save('relations')；`server/_api.py`: /api/state、/api/collections/relations | `scripts/test_relations.py` |
+| 按条目渲染关联 | `context.py`: render_record_relations、render_record_selection、render_worldmap、build_user_message | `scripts/test_relations.py`、`app/selftest.py` |
+
+角色卡全局布局：`DATA_DIR/cards.json`、`DATA_DIR/card_images/`、`DATA_DIR/card_backups/`。关系快照位于当前小说数据目录 `relation_backups/`，不改关系集合格式。浏览器验收截图默认生成到系统临时目录，不写 validation 目录。
+
+## 设定横栏与分组排序、恢复
+
+- `web/records.js`: `recordStrip` / `recordStripButton` 是常规设定、背包和地图区域的顶部选择器；`recordGroupsEditor` 提供拖动、键盘排序及右侧删除；`moveRecordGroup`、`removeRecordGroup`、`restoreRecordGroup` 保存完整节点与顺序，`recordEditSession` / `removedRecordGroups` 管理仅本页可用的恢复记录。
+- `web/core.js::renderMain` 在小说或视图变化时清理临时恢复；`web/views.js::viewInventory/viewWorld` 保留背包和地图原有数据操作，并复用选择器/地图信息分组编辑。
+- 自动测试：`scripts/test_record_forms.cjs` 验证数据与恢复范围，`scripts/test_record_layout_ui.cjs` 用临时作品库验证全部常规栏目、真实拖动、键盘操作、筛选、多选、恢复/退出/刷新以及背包和地图。截图生成在系统临时目录，不写项目 validation 目录。

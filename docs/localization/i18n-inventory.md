@@ -1110,3 +1110,15 @@ API Key 改为只读取应用配置、不再回退环境变量（见 CHANGELOG S
 移除 `workstation.context_hint`、`workstation.prompt_help`、`workstation.strict`，目标字数以限定/不限分段展示。更新 `sections.manage_help` / `sections.guidance` 说明新默认栏目及独立显隐。数据默认值和用户内容继续保留原文；动态控件复用 `h()` 内的 `i18n.apply()`，标签重绘后补 apply。
 
 回归覆盖 `scripts/test_localization.py`、`scripts/test_i18n.cjs`、`scripts/test_setting_io.py` 与 `scripts/test_setting_experience_ui.cjs`；验证目录和截图按要求不保留在仓库中。
+
+## v2611.1 关系网与角色卡
+
+新增 `relations.network*`、open_network/source/create_collection/default_type/suggestions/discarded/radial_hint/membership_type/invalid_data 文案，以及 `cards.*`（字段、搜索排序、空状态、图片、保存和删除确认）。中英文 key 与占位符保持一致；角色卡和关系图动态 DOM 通过 h()/i18n.apply() 处理。
+
+角色卡姓名、性别、身份、标签等为用户数据；关系类型/备注及旧成员投影类型“隶属”是数据。英文界面的“Belongs to”预设保存时映射为已有“隶属”类型，以兼容势力成员投影。无图的内置 SVG 由外层 img 提供翻译后的 alt。浏览器测试以语言预览重新加载业务模块，覆盖两种尺寸与键盘焦点。
+
+验证：`scripts/test_localization.py`、`scripts/test_i18n.cjs`、`scripts/test_relations_cards_ui.cjs`；截图留在临时目录，不创建项目 validation 目录。
+
+## 设定横栏与信息分组操作
+
+新增 `records.entry_strip`、reorder_group、reorder_group_hint、delete_group、removed_groups、restore_group、restore_groups、restore_group_conflict、select_for_move；中英包含一致的 name/count 占位符。拖动柄、删除、恢复和批量选择均有可读名称；分组名、条目名及字段值保留为用户数据。通过本地化检查及双语 1024/1440 浏览器截图验收。
