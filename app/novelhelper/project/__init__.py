@@ -35,7 +35,7 @@ from ._parsers import (
     split_sections,
     strip_code_fence,
 )
-from ._paths import in_project, read_text, rel_str, safe_rel, write_text
+from ._paths import in_project, read_text, rel_str, safe_rel, write_text, write_numbered
 from ._text import (
     apply_text_op,
     clean_blank_lines,
@@ -54,6 +54,7 @@ __all__ = [
     "safe_rel",
     "read_text",
     "write_text",
+    "write_numbered",
     "split_sections",
     "strip_code_fence",
     "parse_name_tag",

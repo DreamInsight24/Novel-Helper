@@ -1135,7 +1135,6 @@ workstation.send_summary: 本次将发送：{list}
 workstation.start: 开始生成
 workstation.state_label: 当前状态（此刻的时间、地点、人物状态…）
 workstation.state_placeholder: 例如：当前时间、地点、人物位置与情绪……
-workstation.strict: 硬性要求
 workstation.system_label: system（{count} 字）
 workstation.target_default: 默认 {count} 字
 workstation.target_label: 本次目标字数
@@ -1226,7 +1225,7 @@ sections.show_named: "在侧栏显示{name}"
 sections.show_in_nav: "在侧栏显示"
 sections.builtin: "内置栏目"
 sections.record_section: "设定栏目"
-sections.manage_help: "所有内置设定默认展示。人物背包跟随人物档案，地图与势力跟随世界设定；物品统一管理道具、服饰与装备。隐藏栏目只影响侧栏，不删除内容。"
+sections.manage_help: "新小说默认显示核心设定，扩展栏目可单独开启。每个栏目的显示互不影响；隐藏只影响侧栏，不删除内容。"
 records.manage_categories: "管理分类"
 records.filter_category: "按分类筛选"
 records.all_categories: "全部分类"
@@ -1253,7 +1252,6 @@ workstation.details: "设定与要求"
 workstation.more: "更多"
 workstation.welcome: "开始这一次创作"
 workstation.welcome_hint: "在下方输入写作要求，选择模式与设定，开始生成。"
-workstation.context_hint: "续写携带最近最多 8 轮，历史合计不超过 6 万字符；本次使用当前选择的设定。Ctrl+Enter 发送。AI 生成内容请核实。"
 workstation.retry: "重试"
 workstation.expand_result: "展开正文"
 workstation.collapse_result: "收起正文"
@@ -1320,7 +1318,7 @@ records.import_source: "来源文件"
 records.pick_import_file: "选择本地文件"
 sections.import_settings: "导入设定"
 sections.import_target: "导入到"
-sections.guidance: "所有内置设定默认展示；人物背包跟随人物档案，地图与势力跟随世界设定，道具/服饰/装备统一在「物品」中。\n拖动卡片调整顺序，或聚焦后按 Alt + 左右方向键。隐藏栏目只影响侧栏，不删除条目。\n新增栏目默认放在「其他设定」之前。"
+sections.guidance: "新小说默认显示核心设定，扩展栏目可手动开启；各栏目独立显示。\n拖动卡片调整顺序，或聚焦后按 Alt + 左右方向键。隐藏栏目不删除条目。\n新增栏目默认放在“其他设定”之前。"
 sections.import_guidance: "先选择目标栏目，再选择来源文件或本地文件。\nJSON 支持数组、{ \"items\": [...] } 和按名称组织的对象。已有同名记录会合并更新，请先导出备份；导入不会按名称推断人物与势力的关联。\n地图 JSON 需包含 rows、cols、cells、regions。Markdown 仅可导入“其他设定”。"
 
 records.members_plain: "成员"
@@ -1431,4 +1429,20 @@ sections.breadcrumb: 设定管理 / {name}
 sections.child_of: 属于「{name}」
 workstation.supplement_hint: 这里只影响本次生成，不会改动设定库。
 workstation.extra_saved_hint: 已填写补充要求；点此查看或修改。
-workstation.prompt_help: 主输入写创作要求；要改带入的设定或补充要求，点“设定与要求”。
+
+records.manage_tags: "管理标签"
+records.tag_delete_confirm: "删除标签“{name}”？本栏目所有条目将移除此标签，条目内容保留。"
+records.remove_tag: "移除标签 {name}"
+records.add_tag: "添加标签"
+records.supplement: "其他 / 补充描述"
+records.create_hint: "使用右上角“新建”添加条目。"
+records.overwrite_confirm: "文件已存在，是否覆盖？覆盖前将保留 .bak 备份：{path}"
+workstation.model: "本次模型"
+workstation.follow_mode: "跟随当前模式"
+workstation.limited: "限定字数"
+workstation.unlimited: "不限字数"
+workstation.invalid_target: "目标字数必须为正整数。"
+errors.workspace_changed: "当前小说已切换，请重新选择文件。"
+errors.workspace_directory: "工作区目录类型无效。"
+errors.workspace_filename: "请使用不包含路径的有效文件名。"
+errors.import_extension: 仅支持 .json、.md 或 .txt 文件。

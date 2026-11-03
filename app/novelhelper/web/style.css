@@ -981,3 +981,15 @@ textarea.agent-prompt { width: 100%; min-height: 72px; max-height: 180px; resize
 .relation-edge:not(.highlighted) .relation-edge-label { opacity:0; }
 .relation-edge:hover .relation-edge-label { opacity:1; }
 .relation-edge:hover path { stroke:#547eb6; }
+
+/* Setting metadata and request controls wrap within the desktop minimum width. */
+.record-tag-editor .tag { display:inline-flex; align-items:center; gap:4px; }
+.record-tag-editor input { flex:1; min-width:120px; }
+.agent-controls { flex-wrap:wrap; }
+.agent-model { max-width:220px; min-width:120px; }
+.agent-target-menu .seg { display:flex; flex-wrap:wrap; }
+.record-detail input, .record-detail textarea, .category-manage-row input { min-width:0; max-width:100%; }
+button:focus-visible, select:focus-visible, summary:focus-visible { outline:2px solid var(--accent, #7465d4); outline-offset:2px; }
+.agent-target-menu .seg { border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+.agent-target-menu .seg button { flex:1; border:0; border-radius:0; background:transparent; }
+.agent-target-menu .seg button.seg-on { background:var(--accent-soft); color:var(--accent); font-weight:600; }

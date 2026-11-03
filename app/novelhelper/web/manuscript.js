@@ -160,7 +160,10 @@ function viewManuscript(main) {
   // ── 文件自动保存：绑定到具体文件后才写盘 ──
   const saveToFile = async (path, content, quiet) => {
     try {
-      await api('/api/io/save', { method: 'POST', body: { path: path, content: content } });
+      const fresh=!path.includes('/') && !path.includes('\\');
+      const res=await api('/api/io/save', { method: 'POST', body: { novel_id:state.activeNovelId,
+        ...(fresh ? {directory:'text',filename:path} : {path}), content } });
+      if(fresh && ui.path===path)ui.path=res.path;
       if (ui.path === path && ui.value === content) ui.dirty = false;
       const item = (state.io.files || []).find(f => f.path === path);
       if (item) item.size = new Blob([content]).size;
@@ -301,8 +304,7 @@ function viewManuscript(main) {
           let name = value.trim();
           if (!name) return;
           if (!/\.(txt|md)$/i.test(name)) name += '.txt';
-          const folder = (state.paths.text || 'workspace/text').replace(/[\\/]+$/, '');
-          ui.path = folder + '/' + name.replace(/[\\/]/g, '_');
+          ui.path = name.replace(/[\\/]/g, '_');
           refreshHint(); await saveLocal();
         });
       return;
@@ -861,9 +863,19 @@ function exportAs(content) {
         let dir = pathInput.value.trim();
         let name = nameInput.value.trim() || 'untitled.txt';
         if (!/\.(txt|md)$/i.test(name)) name += '.txt';
-        const full = dir.replace(/[\\/]+$/, '') + '\\' + name;
+        const full = dir.replace(/[\\/]+$/, '') + '/' + name;
         try {
-          const res = await api('/api/io/export', { method: 'POST', body: { path: full, content, encoding: encSel.value } });
+          const request={path:full,content,encoding:encSel.value};
+          let res=await api('/api/io/export',{method:'POST',body:request});
+          if(res.exists){
+            confirmDialog(i18n.t('common.export'),i18n.t('records.overwrite_confirm',{path:res.path}),async()=>{
+              try{
+                res=await api('/api/io/export',{method:'POST',body:{...request,overwrite:true}});
+                toast(i18n.t('common.exported_to',{path:res.path}),'ok');m.close();
+              }catch(error){toast(error.message,'err');}
+            });
+            return;
+          }
           toast(i18n.t('manuscript.exported_size', { path: res.path, size: (res.size / 1024).toFixed(1) }), 'ok');
           m.close();
         } catch (e) { toast(i18n.t('common.export_failed_reason', { reason: e.message }), 'err'); }

@@ -75,6 +75,15 @@ app/novelhelper/
 - `store._layout` 在活动小说启动/打开时执行一次性 v2 布局迁移：补齐内置设定栏目并默认显示，将旧 `equipment` 记录按原 ID 合并进 `items`，同步人物装备指针与关系引用；迁移前在小说目录写入 `migration_backups/v2_<时间戳>/` 快照，迁移幂等。
 - `server` 配置属于全局配置，不参与小说级覆盖；`_novels._GLOBAL_ONLY_KEYS` 会从小说配置中移除 `server`。端口解析只在 `ports` 中进行，HTTP 服务按解析结果绑定。
 
+### v2611.1 设定体验与文件 I/O
+
+- `web/records.js` 的新建入口直接调用 `newRecord()`，经 `presetsOf(coll)` / `applyPreset()` 深拷贝栏目模板；已有条目不自动补模板。分类、标签、备注与补充正文留在内容页，通用编辑器仍保留元素树结构。
+- 新小说 `default_sections()` 只开启 world；七个扩展栏目保留定义并默认隐藏。旧小说 `_restore_sections()` 不变；前端显示只取栏目自己的 on，父子导航仅表示视觉层级。
+- `server/_api.py::_workspace_file()` 处理 `{directory, filename, novel_id}` 新文件请求，也兼容原 path 请求；在解析真实路径后拒绝当前小说外的 workspace 路径。任意位置导出继续保留用户选择的外部路径语义。
+- `GET /api/workspace/files` 只刷新文件元数据，`refreshWorkspaceFiles()` 不替换未保存集合；返回活动小说 ID，忽略切换小说后的迟到响应。
+- 导入前 `backup_all()` 快照集合，失败恢复受影响集合及关系投影。文本覆盖通过同目录临时文件原子替换，旧版保留为 `.bak`；默认导出使用独占创建及编号，避免覆盖。
+- 工作站本次模型写入 `override.model`；`selection.length_mode=unlimited` 明确禁用目标字数配置回填，旧客户端的 target_chars / strict_length 仍受支持。
+
 ### v2610.3 桌面启动与端口
 
 - `ports.normalize_server_config` 在启动时把旧配置迁移为 `server.port_mode`：无端口或旧默认端口（普通 8765 / 调试 8766）转为 `auto`，其他合法端口保留为 `fixed`；无效显式端口抛出 `PortConfigError`，不静默回退。

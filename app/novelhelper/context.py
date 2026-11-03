@@ -393,6 +393,8 @@ def selected_world_groups(db: dict, ids: Iterable[str] | None) -> list:
 
 
 def _target_chars(config: dict, selection: dict) -> int:
+    if selection.get("length_mode") == "unlimited":
+        return 0
     try:
         value = int(selection.get("target_chars") or 0)
     except (TypeError, ValueError):
