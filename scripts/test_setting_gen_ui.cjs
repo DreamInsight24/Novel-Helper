@@ -23,6 +23,7 @@ run(`
        added_items:[{target:'characters',name:'张三',dropped_fields:0},{target:'items',name:'短剑',dropped_fields:1}],
        dropped_items:[{target:'characters',name:'李四',reason:'duplicate'},
                       {target:'section_unknown',name:'',reason:'unknown_target'}]},collections:{}};}
+   if(path==='/api/workspace/files')return {ok:true,active_novel_id:state.activeNovelId,sources:state.sources,io:{files:[]}};
    if(path.startsWith('/api/file'))return {ok:true,path:'a.txt',content:'文件内容'};
    return {ok:true};};
  setDb=()=>{};renderNav=()=>{};renderMain=()=>{};flushPendingSaves=async()=>{};autoGrow=()=>{};
@@ -44,7 +45,8 @@ assert.equal(run('modals.length'),1,'Entry button opens the dialog');
 run(`globalThis.srcNode=walk(modals[0].body).find(n=>n.props.id==='setting-gen-source');
  modals[0].buttons[1].props.onclick();`);
 await new Promise(r=>setImmediate(r));
-assert.equal(run('apiCalls.length'),0,'Empty text must not call the API');
+assert.equal(run("apiCalls.filter(call=>call.path==='/api/ai/setting-gen').length"),0,'Empty text must not generate');
+run('apiCalls.length=0');
 assert.equal(run('toasts[0]'),'errors.setting_gen_empty');
 
 // 正常生成：先落盘、请求带文本、关闭输入框、打开结果框。
@@ -73,6 +75,7 @@ assert.equal(run('walk(modals[1].body).some(n=>n.textContent==="setting_gen.undo
 // 取消等待：请求挂起时点取消 → 不弹结果框。
 run(`aiSettingGenDialog({coll:'characters'});`);
 assert.equal(run('modals.length'),3);
+await new Promise(r=>setImmediate(r));
 run(`walk(modals[2].body).find(n=>n.props.id==='setting-gen-source').value='SLOW';
  modals[2].buttons[1].props.onclick();`);
 await new Promise(r=>setImmediate(r));

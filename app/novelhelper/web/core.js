@@ -317,8 +317,7 @@ function settingEntries(includeHidden) {
     label: sec.key === 'world' && ['世界观', 'Worldview'].includes(sec.label)
       ? i18n.t('nav.world_setting') : (sec.label || sec.key),
     desc: sec.desc || '',
-    // All built-in sections are visible from the start; hiding is an explicit
-    // user choice on the management cards.
+    // Each section owns its visibility; expansion defaults only affect new novels.
     on: sec.on !== false
   }));
   const world = sections.find(entry => entry.id === 'section_world');
@@ -358,9 +357,7 @@ function settingEntries(includeHidden) {
     entries.push(other);
   }
 
-  const visible = new Map(entries.map(entry => [entry.id, entry.on]));
-  return includeHidden ? entries : entries.filter(entry =>
-    entry.on && (!entry.parent || visible.get(entry.parent) !== false));
+  return includeHidden ? entries : entries.filter(entry => entry.on);
 }
 
 /** Sliders icon reads as “settings” much more clearly than the old sun-like gear. */
@@ -504,6 +501,7 @@ async function persistConfig() {
   } else {
     await api('/api/settings/config', { method: 'POST', body: { scope: 'global', config } });
   }
+  await refreshWorkspaceFiles();
 }
 
 /** 工作站与章节转入的内容先进入当前小说的素材区。 */
@@ -903,7 +901,7 @@ const COLLECTIONS = {
     coll: 'items', singular: i18n.t('collections.singular_item'), label: i18n.t('nav.items'), idPrefix: 'it',
     desc: i18n.t('collections.items.desc'),
     tagLabel: i18n.t('collections.alias'), notesLabel: i18n.t('collections.notes'),
-    hasCategory: true, hasTags: true
+    hasCategory: true, hasTags: true, hasSlots: true, defaultCategoryKey: 'defaults.category.item'
   },
   other: {
     coll: 'other', singular: i18n.t('collections.singular_entry'), label: i18n.t('nav.other'), idPrefix: 'ot',
@@ -917,6 +915,16 @@ const EFFORTS = ['none', 'low', 'medium', 'high', 'max'];
 // ═══════════════════════════════════════════
 // 数据刷新
 // ═══════════════════════════════════════════
+let workspaceRefreshVersion=0;
+async function refreshWorkspaceFiles() {
+  const requestVersion=++workspaceRefreshVersion;
+  const novel=state.activeNovelId;
+  const r=await api('/api/workspace/files');
+  if(novel!==state.activeNovelId || r.active_novel_id!==novel || requestVersion!==workspaceRefreshVersion)return;
+  state.sources=r.sources || [];state.io=r.io || {files:[]};state.exports=r.exports;
+  state.paths={...state.paths,import:r.import_dir,export:r.export_dir,text:r.text_dir};
+}
+
 async function refreshFiles() {
   const r = await api('/api/state');
   setDb(r.collections);

@@ -46,6 +46,12 @@ assert.equal(run('settingEntries()[0].label'), 'Props');
 assert.equal(run(`settingEntries().some(entry => entry.id === 'characters')`), false);
 assert.equal(run(`settingEntries(true).some(entry => entry.id === 'characters')`), true);
 
+assert.equal(run(`settingEntries().some(entry => entry.id === 'inventory')`), true, 'Inventory visibility is independent from Characters');
+run(`state.db.sections.items.find(section=>section.key==='world').on=false`);
+assert.equal(run(`settingEntries().some(entry => entry.id === 'world')`), true, 'Map visibility is independent from World Settings');
+assert.equal(run(`settingEntries().some(entry => entry.id === 'factions')`), true, 'Factions visibility is independent from World Settings');
+run(`state.db.sections.items.find(section=>section.key==='world').on=true`);
+
 run(`state.db.section_world = {categories: ['Economy', 'History'], items: [
   {id: 'a', name: 'Currency', category: 'Economy', content: 'Keep this text', elements: [{key: 'value', value: '100'}]},
   {id: 'b', name: 'War', category: 'History'}, {id: 'c', name: 'Unsorted'}]}`);

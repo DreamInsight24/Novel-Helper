@@ -22,6 +22,7 @@ from .. import localization
 from .. import APP_VERSION
 
 import re
+from pathlib import Path
 
 from .. import ai, context, history, logger, project, prompts as prompts_mod, providers, store
 from ..ports import PortConfigError, normalize_server_config
@@ -57,6 +58,36 @@ def _preserve_language_fields(data: dict) -> dict:
 
 
 class _ApiMixin:
+    def _workspace_file(self, body: dict) -> Path:
+        """Resolve new filenames on the server; constrain legacy workspace paths."""
+        novel = store.active_novel_id()
+        if body.get("novel_id") is not None and body["novel_id"] != novel:
+            raise ValueError(t("errors.workspace_changed"))
+        directory = body.get("directory")
+        if directory:
+            roots = {"import": store.io_in, "export": store.io_out, "text": store.text_dir}
+            if directory not in roots:
+                raise ValueError(t("errors.workspace_directory"))
+            filename = str(body.get("filename") or "")
+            if not filename or filename in (".", "..") or any(c in filename for c in ("/", "\\", ":")):
+                raise ValueError(t("errors.workspace_filename"))
+            base = roots[directory]().resolve()
+            target = (base / filename).resolve()
+            if not target.is_relative_to(base):
+                raise PermissionError(t("errors.path_outside", path=filename))
+            return target
+        value = str(body.get("path") or "").replace("\\", "/")
+        if not value:
+            raise ValueError(t("errors.workspace_filename"))
+        target = Path(value).expanduser()
+        target = target.resolve() if target.is_absolute() else project.safe_rel(value)
+        workspace = (store.PROJECT_ROOT / "workspace").resolve()
+        if novel and target.is_relative_to(workspace):
+            active = (workspace / "novels" / novel).resolve()
+            if not target.is_relative_to(active):
+                raise PermissionError(t("errors.path_outside", path=value))
+        return target
+
     def _api(self, method: str, path: str, query: dict):
         if method == "GET" and path == "/api/i18n":
             self._json({**localization.get_languages(), "version": APP_VERSION,
@@ -225,9 +256,16 @@ class _ApiMixin:
             self._json({"ok": True, "saved": str(saved)})
             return
 
+        if path == "/api/workspace/files" and method == "GET":
+            self._json({"ok": True, "active_novel_id": store.active_novel_id(),
+                        "sources": project.import_sources(), "io": project.list_text(),
+                        "exports": project.list_io(), "import_dir": str(store.io_in()),
+                        "export_dir": str(store.io_out()), "text_dir": str(store.text_dir())})
+            return
+
         if path == "/api/file" and method == "GET":
             rel = (query.get("path") or [""])[0]
-            self._json({"ok": True, "path": rel, "content": project.read_text(rel)})
+            self._json({"ok": True, "path": rel, "content": project.read_text(self._workspace_file({"path": rel}))})
             return
 
         if path == "/api/import" and method == "POST":
@@ -305,21 +343,24 @@ class _ApiMixin:
 
         if path == "/api/io/save" and method == "POST":
             body = self._body()
-            target = project.write_text(
-                body.get("path") or "",
-                body.get("content") or "",
-                encoding=body.get("encoding") or "utf-8",
-            )
-            self._json({"ok": True, "path": str(target), "io": project.list_io()})
+            target = self._workspace_file(body)
+            project.write_text(target, body.get("content") or "", encoding=body.get("encoding") or "utf-8")
+            self._json({"ok": True, "path": project.rel_str(target), "io": project.list_text(),
+                        "sources": project.import_sources()})
             return
 
         if path == "/api/io/export" and method == "POST":
             body = self._body()
-            target = project.write_external(
-                body.get("path") or "",
-                body.get("content") or "",
-                encoding=body.get("encoding") or "utf-8",
-            )
+            target = self._workspace_file(body)
+            if target.exists() and not body.get("overwrite") and not body.get("directory"):
+                self._json({"ok": True, "exists": True, "path": str(target)})
+                return
+            if body.get("directory"):
+                target.parent.mkdir(parents=True, exist_ok=True)
+                # A default export never replaces an existing file.
+                target = project.write_numbered(target, body.get("content") or "", body.get("encoding") or "utf-8")
+            else:
+                project.write_external(str(target), body.get("content") or "", body.get("encoding") or "utf-8")
             self._json({"ok": True, "path": str(target), "size": target.stat().st_size})
             return
 

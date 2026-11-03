@@ -389,6 +389,56 @@ function recordTags(rec) {
   return [...new Set(values.map(value => String(value || '').trim()).filter(Boolean))];
 }
 
+/** Rename or remove a tag across this collection, merging duplicates. */
+function renameRecordTag(bucket, from, to) {
+  (bucket.items || []).forEach(rec => {
+    rec.tags = [...new Set(recordTags(rec).map(tag => tag === from ? to.trim() : tag).filter(Boolean))];
+  });
+}
+
+function manageRecordTags(coll, onChange) {
+  const bucket=state.db[coll], body=h('div');
+  const draw=() => {
+    clear(body);
+    const tags=[...new Set(bucket.items.flatMap(recordTags))].sort((a,b)=>a.localeCompare(b));
+    if(!tags.length) body.appendChild(h('p',{class:'muted',text:i18n.t('common.empty_paren')}));
+    tags.forEach(tag => {
+      const input=h('input',{type:'text',value:tag,'aria-label':i18n.t('records.tags_label')});
+      body.appendChild(h('div',{class:'inline category-manage-row'},input,
+        h('button',{text:i18n.t('common.save'),onclick:()=>{
+          if(!input.value.trim())return;
+          renameRecordTag(bucket,tag,input.value); touch(coll);onChange();draw();
+        }}),h('button',{class:'danger',text:i18n.t('common.delete'),onclick:()=>confirmDialog(
+          i18n.t('common.delete'),i18n.t('records.tag_delete_confirm',{name:tag}),()=>{
+            renameRecordTag(bucket,tag,'');touch(coll);onChange();manageRecordTags(coll,onChange);
+          })})));
+    });
+    i18n.apply(body);
+  };
+  draw();modal(i18n.t('records.manage_tags'),body,[h('button',{text:i18n.t('common.close')})]);
+}
+
+function recordTagEditor(rec, coll, onChange) {
+  const box=h('div',{class:'field record-tag-editor'}), chips=h('div',{class:'inline'});
+  const input=h('input',{type:'text',placeholder:i18n.t('records.tags_placeholder'),'aria-label':i18n.t('records.tags_label')});
+  const draw=()=>{
+    clear(chips);
+    recordTags(rec).forEach(tag=>chips.appendChild(h('span',{class:'tag'},tag,
+      h('button',{class:'ghost mini',text:'×','aria-label':i18n.t('records.remove_tag',{name:tag}),onclick:()=>{
+        rec.tags=recordTags(rec).filter(value=>value!==tag);touch(coll);onChange();draw();
+      }}))));
+    i18n.apply(chips);
+  };
+  const add=()=>{
+    rec.tags=[...new Set([...recordTags(rec),...input.value.split(/[,，、]/).map(value=>value.trim()).filter(Boolean)])];
+    input.value='';touch(coll);onChange();draw();input.focus();
+  };
+  input.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();add();}});
+  box.append(h('label',{text:i18n.t('records.tags_label')}),chips,h('div',{class:'inline'},input,
+    h('button',{text:i18n.t('records.add_tag'),onclick:add})));
+  draw();return box;
+}
+
 function matchesRecordFilter(rec, query, category, tag) {
   return (category == null || (rec.category || '') === category)
     && (!tag || recordTags(rec).includes(tag))
@@ -437,10 +487,11 @@ function manageRecordCategories(coll, onChange) {
 function newRecord(def) {
   const stamp = nowStr();
   const rec = { id: newId(def.idPrefix), name: i18n.t('defaults.record.unnamed'), elements: [], tags: [], created: stamp, updated: stamp };
+  applyPreset(rec.elements, presetsOf(def.coll));
   if (def.tagLabel) rec.tag = '';
   if (def.notesLabel) rec.notes = '';
-  if (def.hasCategory) rec.category = def.coll === 'items'
-    ? (recordCategoryNames(state.db.items)[0] || '') : '';
+  if (def.hasCategory) rec.category = def.defaultCategoryKey
+    ? (recordCategoryNames(state.db[def.coll] || {}).find(name => name === i18n.t(def.defaultCategoryKey)) || recordCategoryNames(state.db[def.coll] || {})[0] || i18n.t(def.defaultCategoryKey)) : '';
   if (def.hasContent) rec.content = '';
   if (def.hasInventory) { rec.inventory = []; rec.equipment = []; }
   if (def.hasMembers) rec.members = [];
@@ -468,11 +519,18 @@ function viewRecords(main, key) {
       guidanceButton(i18n.t('records.help_title'), i18n.t('records.edit_guidance')),
       exportButtons(def.coll),
       aiSettingGenButton(def),
+      def.hasCategory ? h('button', {text:i18n.t('records.manage_categories'), onclick:() => manageRecordCategories(def.coll, renderMain)}) : null,
+      def.hasTags ? h('button', {text:i18n.t('records.manage_tags'), onclick:() => manageRecordTags(def.coll, renderMain)}) : null,
       h('button', {class:'primary', text:i18n.t('records.new', {singular:def.singular}),
-        onclick:() => showRecordCreate(def, rec => {
+        onclick:() => {
+          const rec = newRecord(def);
           if (def.hasCategory && ui.category != null) rec.category = ui.category;
-          bucket.items.unshift(rec); ui.sel=rec.id; ui.q=''; touch(def.coll); renderNav(); renderMain();
-        })}))));
+          bucket.items.unshift(rec); ui.sel=rec.id; ui.q=''; ui.tag='';
+          state.ui.recordTabs = state.ui.recordTabs || {}; state.ui.recordTabs[def.coll+':'+rec.id]='content';
+          state.ui.recordNewRecord=def.coll+':'+rec.id;
+          touch(def.coll); renderNav(); renderMain();
+          requestAnimationFrame(() => { const input=main.querySelector('.record-name-input'); input?.focus(); input?.select(); });
+        }}))));
   if (key === 'other') main.appendChild(moveBar(def.coll, key));
 
   const row = h('div', { class: 'row' });
@@ -499,7 +557,26 @@ function viewRecords(main, key) {
   };
   const setActive = id => rowEls.forEach((el, rid) => el.classList.toggle('active', rid === id));
 
+  const refreshFilters = () => {
+    const categorySelect=listBox.querySelector('select[data-record-filter="category"]');
+    if(categorySelect){
+      clear(categorySelect);
+      const names=recordCategoryNames(bucket);
+      if(ui.category && !names.includes(ui.category))ui.category=null;
+      [[null,i18n.t('records.all_categories')],['',i18n.t('records.uncategorized')],...names.map(name=>[name,name])]
+        .forEach(([value,label])=>categorySelect.appendChild(h('option',{value:JSON.stringify(value),text:label,selected:value===(ui.category??null)})));
+    }
+    const tagSelect=listBox.querySelector('select[data-record-filter="tag"]');
+    if(tagSelect){
+      clear(tagSelect);
+      const tags=[...new Set(bucket.items.flatMap(recordTags))].sort((a,b)=>a.localeCompare(b));
+      if(ui.tag && !tags.includes(ui.tag))ui.tag='';
+      [['',i18n.t('records.all_tags')],...tags.map(tag=>[tag,tag])].forEach(([value,label])=>
+        tagSelect.appendChild(h('option',{value,text:label,selected:value===ui.tag})));
+    }
+  };
   const drawList = () => {
+    refreshFilters();
     const keepTop = listScroll.scrollTop;
     rowEls.clear();
     const q = ui.q.toLowerCase();
@@ -530,11 +607,7 @@ function viewRecords(main, key) {
     });
     if (!items.length) {
       listScroll.appendChild(h('div', { class: 'muted small', style: { padding: '10px' } }, i18n.t('records.no_match')));
-      // 空状态也要有 AI 生成入口（仅当栏目确实为空，搜索无结果时不出现）。
-      if (!bucket.items.length) {
-        listScroll.appendChild(h('div', { class: 'inline', style: { padding: '0 10px 10px' } },
-          aiSettingGenButton(def)));
-      }
+      listScroll.appendChild(h('div', {class:'muted small', text:i18n.t('records.create_hint')}));
     }
     updateCount();
     listScroll.scrollTop = keepTop;
@@ -563,13 +636,11 @@ function viewRecords(main, key) {
       h('label', { text: i18n.t('common.category') }),
       h('select', { value: JSON.stringify(ui.category ?? null),
         onchange: e => { ui.category = JSON.parse(e.target.value); chooseVisible(); },
-        'aria-label': i18n.t('records.filter_category')
+        'data-record-filter':'category', 'aria-label': i18n.t('records.filter_category')
       }, [[null, i18n.t('records.all_categories')], ['', i18n.t('records.uncategorized')],
         ...names.map(name => [name, name])].map(([value, label]) => h('option', {
           value: JSON.stringify(value), selected: value === (ui.category ?? null), text: label
-        }))),
-      h('button', { class: 'mini', text: i18n.t('records.manage_categories'),
-        onclick: () => manageRecordCategories(def.coll, () => renderMain()) })));
+        })))));
   }
   if (def.hasTags) {
     const tags = [...new Set(bucket.items.flatMap(recordTags))].sort((a, b) => a.localeCompare(b));
@@ -577,7 +648,7 @@ function viewRecords(main, key) {
     listCard.appendChild(h('div', { class: 'field' },
       h('label', { text: i18n.t('records.filter_tag') }),
       h('select', {
-        'aria-label': i18n.t('records.filter_tag'),
+        'data-record-filter':'tag', 'aria-label': i18n.t('records.filter_tag'),
         onchange: e => { ui.tag = e.target.value; chooseVisible(); }
       }, [['', i18n.t('records.all_tags')], ...tags.map(tag => [tag, tag])].map(([value, label]) =>
         h('option', { value, text: label, selected: value === ui.tag })))));
@@ -585,24 +656,6 @@ function viewRecords(main, key) {
   listCard.append(countLine, listScroll);
   listBox.appendChild(listCard);
   chooseVisible();
-}
-
-function showRecordCreate(def, onCreate) {
-  const name = h('input', {type:'text', id:'record-create-name', maxlength:160, 'aria-label':i18n.t('common.name')});
-  const summary = h('input', {type:'text', id:'record-create-summary', 'aria-label':i18n.t('records.summary')});
-  const content = h('textarea', {rows:7, id:'record-create-content', 'aria-label':i18n.t('records.prose'), placeholder:i18n.t('records.prose_placeholder')});
-  const create = () => {
-    if (!name.value.trim()) { name.focus(); toast(i18n.t('records.name_required'), 'err'); return; }
-    const rec = newRecord(def); rec.name=name.value.trim(); rec.summary=summary.value.trim(); rec.content=content.value;
-    dialog.close(); onCreate(rec);
-  };
-  const dialog = modal(i18n.t('records.new', {singular:def.singular}), h('div', {class:'record-create-form'},
-    h('div', {class:'field'}, h('label', {for:'record-create-name', text:i18n.t('common.name')}), name),
-    h('div', {class:'field'}, h('label', {for:'record-create-summary', text:i18n.t('records.summary')}), summary),
-    h('div', {class:'field'}, h('label', {for:'record-create-content', text:i18n.t('records.prose')}), content)), [
-      h('button', {text:i18n.t('common.cancel'), onclick:() => dialog.close()}),
-      h('button', {class:'primary', text:i18n.t('records.create'), dataset:{noclose:'1'}, onclick:create})]);
-  dialog.dlg.classList.add('record-create-dialog'); name.focus();
 }
 
 // The faction owns membership. Characters display the reverse lookup without a second list.
@@ -649,37 +702,6 @@ function recordEditor(def, rec, onListChange, onEditorChange) {
   }));
   if (active === 'relations') body.appendChild(recordRelations(def,rec,onEditorChange));
   else if (active === 'more') {
-    if (def.tagLabel) body.appendChild(field(def.tagLabel,'tag'));
-    if (def.hasCategory) {
-      const categories = recordCategoryNames(state.db[coll]);
-      body.appendChild(h('div', {class:'field'}, h('label', {text:i18n.t('common.category')}),
-        h('div', {class:'inline'}, h('select', {'aria-label':i18n.t('common.category'), onchange:e => {rec.category=e.target.value; touch(coll); onListChange();}},
-          ['',...categories].map(value => h('option', {value,selected:value === (rec.category || ''),text:value || i18n.t('records.uncategorized')}))),
-          h('button', {class:'mini',text:i18n.t('records.add_category'),onclick:() => askDialog(i18n.t('records.add_category'),i18n.t('common.name'),'',value => {
-            const name=value.trim(); if(!name) return;
-            state.db[coll].categories=Array.from(new Set([...categories,name]));rec.category=name;touch(coll);onListChange();onEditorChange();
-          })}))));
-    }
-    if (def.hasTags) {
-      const tagsInput = h('input', {
-        type: 'text', value: recordTags(rec).join('、'),
-        placeholder: i18n.t('records.tags_placeholder'),
-        'aria-label': i18n.t('records.tags_label'),
-        oninput: e => {
-          rec.tags = Array.from(new Set(e.target.value.split(/[,，、]/).map(value => value.trim()).filter(Boolean)));
-          touch(coll); onListChange();
-        }
-      });
-      body.appendChild(h('div', {class:'field'}, h('label', {text:i18n.t('records.tags_label')}), tagsInput,
-        h('div', {class:'small muted', text:i18n.t('records.tags_hint')})));
-    }
-    if (def.coll === 'items') {
-      const slots = (state.db.items && state.db.items.slots) || [];
-      body.appendChild(h('div', {class:'field'}, h('label', {text:i18n.t('records.slot_label')}),
-        h('select', {'aria-label':i18n.t('records.slot_label'), onchange:e=>{rec.slot=e.target.value;touch(coll);}},
-          [''].concat(slots).map(value=>h('option',{value,selected:(rec.slot || '')===value,text:value || i18n.t('records.slot_none')})))));
-    }
-    body.appendChild(field(def.notesLabel || i18n.t('collections.notes'),'notes',4));
     if (rec.source) body.appendChild(h('div', {class:'small muted',text:i18n.t('common.source_prefix',{source:rec.source})}));
     body.appendChild(h('div', {class:'record-more-actions'},
       h('button', {text:i18n.t('records.edit_structure'),onclick:() => {
@@ -692,10 +714,24 @@ function recordEditor(def, rec, onListChange, onEditorChange) {
       })})));
   } else {
     body.appendChild(field(i18n.t('records.summary'),'summary'));
-    body.appendChild(h('div', {class:'field'}, h('label', {text:i18n.t('records.prose')}),h('textarea',{
-      class:'record-prose',rows:8,value:rec.content || '',placeholder:i18n.t('records.prose_placeholder'),'aria-label':i18n.t('records.prose'),
-      oninput:e=>{rec.content=e.target.value;touch(coll);autoGrow(e.target);}
-    })));
+    if (def.tagLabel) body.appendChild(field(def.tagLabel,'tag'));
+    if (def.hasCategory) {
+      const categories = recordCategoryNames(state.db[coll]);
+      body.appendChild(h('div', {class:'field'}, h('label', {text:i18n.t('common.category')}),
+        h('div', {class:'inline'}, h('select', {'aria-label':i18n.t('common.category'), onchange:e => {rec.category=e.target.value; touch(coll); onListChange();}},
+          ['',...categories].map(value => h('option', {value,selected:value === (rec.category || ''),text:value || i18n.t('records.uncategorized')}))),
+          h('button', {class:'mini',text:i18n.t('records.add_category'),onclick:() => askDialog(i18n.t('records.add_category'),i18n.t('common.name'),'',value => {
+            const name=value.trim(); if(!name) return;
+            state.db[coll].categories=Array.from(new Set([...categories,name]));rec.category=name;touch(coll);onListChange();onEditorChange();
+          })}))));
+    }
+    if (def.hasTags) body.appendChild(recordTagEditor(rec, coll, onListChange));
+    if (def.hasSlots) {
+      const slots = (state.db[coll] && state.db[coll].slots) || [];
+      body.appendChild(h('div', {class:'field'}, h('label', {text:i18n.t('records.slot_label')}),
+        h('select', {'aria-label':i18n.t('records.slot_label'), onchange:e=>{rec.slot=e.target.value;touch(coll);}},
+          [''].concat(slots).map(value=>h('option',{value,selected:(rec.slot || '')===value,text:value || i18n.t('records.slot_none')})))));
+    }
     const renderFields = (nodes, parent='') => h('div',{class:'record-fields'},nodes.filter(node=>node.on!==false).map(node=>{
       const label=parent ? parent+' · '+node.key : node.key;
       if(node.children) return renderFields(node.children,label);
@@ -703,7 +739,7 @@ function recordEditor(def, rec, onListChange, onEditorChange) {
         'aria-label':label,oninput:e=>{node.value=e.target.value;touch(coll);autoGrow(e.target);}}));
     }));
     rec.elements.filter(node=>node.on!==false).forEach((node,index)=>{
-      if(node.children) body.appendChild(h('details',{class:'record-field-group',open:countFilled(node.children)>0 || state.ui.recordNewGroup===coll+':'+rec.id+':'+node.key},h('summary',{text:node.key}),renderFields(node.children)));
+      if(node.children) body.appendChild(h('details',{class:'record-field-group',open:state.ui.recordNewRecord===tabKey || countFilled(node.children)>0 || state.ui.recordNewGroup===coll+':'+rec.id+':'+node.key},h('summary',{text:node.key}),renderFields(node.children)));
       else body.appendChild(renderFields([node]));
     });
     body.appendChild(h('button',{class:'mini',text:i18n.t('records.add_group'),onclick:()=>{
@@ -713,7 +749,11 @@ function recordEditor(def, rec, onListChange, onEditorChange) {
         applyPreset(rec.elements,[options[index]]);state.ui.recordNewGroup=coll+':'+rec.id+':'+options[index].key;touch(coll);onEditorChange();
       });
     }}));
+    body.appendChild(field(def.notesLabel || i18n.t('collections.notes'),'notes',4));
+    body.appendChild(h('details', {class:'record-field-group', open:!!rec.content},
+      h('summary', {text:i18n.t('records.supplement')}), field(i18n.t('records.supplement'),'content',4)));
   }
+  i18n.apply(card);
   return card;
 }
 
@@ -787,13 +827,13 @@ function importPanel(defaultKind, opts) {
     const kind = kindSel.value;
     const sources = (state.sources || []).filter(s => {
       const path = String(s.path || '').toLowerCase();
-      if (kind === 'md') return path.endsWith('.md');
+      if (kind === 'md') return /\.(md|txt)$/i.test(path);
       if (kind === 'json') return path.endsWith('.json');
       return true;
     });
     clear(sourceSel);
     if (!sources.length) {
-      sourceSel.appendChild(h('option', { value: '', text: i18n.t('records.no_import_files', { path: state.paths.import || 'workspace/import' }) }));
+      sourceSel.appendChild(h('option', { value: '', text: i18n.t('records.no_import_files', { path: state.paths.import || '' }) }));
     } else {
       sources.forEach(s => sourceSel.appendChild(h('option', {
         value: s.path, text: s.path + '（' + Math.max(1, Math.round((s.size || 0) / 1024)) + ' KB）'
@@ -801,6 +841,7 @@ function importPanel(defaultKind, opts) {
     }
   };
   drawSources();
+  refreshWorkspaceFiles().then(drawSources).catch(error => toast(error.message,'err'));
 
   const btn = h('button', { class: 'primary', text: i18n.t('common.import') });
   btn.onclick = async () => {
@@ -811,7 +852,7 @@ function importPanel(defaultKind, opts) {
       await flushPendingSaves();
       const res = await api('/api/import', {
         method: 'POST',
-        body: { kind: kindSel.value, source: sourceSel.value, target }
+        body: { kind: kindSel.value, source: sourceSel.value, target, novel_id:state.activeNovelId }
       });
       setDb(res.collections);
       if (opts.onSuccess) opts.onSuccess();
@@ -825,18 +866,20 @@ function importPanel(defaultKind, opts) {
   };
 
   if (opts.compact) {
-    const input=h('input',{type:'file',accept:target==='other'?'.json,.md':'.json',hidden:true,onchange:async e=>{
+    const input=h('input',{type:'file',accept:target==='other'?'.json,.md,.txt':'.json',hidden:true,onchange:async e=>{
       const file=e.target.files?.[0];if(!file)return;
       const novel=state.activeNovelId;
       try {
-        const kind=/\.md$/i.test(file.name)?'md':'json';
+        if(!/\.(md|txt|json)$/i.test(file.name))throw new Error(i18n.t('errors.import_extension'));
+        const kind=/\.(md|txt)$/i.test(file.name)?'md':'json';
         if(!kinds.some(option=>option.id===kind))return;
         const content=(await file.text()).replace(/^\uFEFF/,'');
         if(novel!==state.activeNovelId)return;
-        const path=(state.paths.import || 'workspace/import').replace(/[\\/]+$/,'')+'/'+newId('import')+(kind==='md'?'.md':'.json');
-        await api('/api/io/save',{method:'POST',body:{path,content}});
-        kindSel.value=kind;
-        sourceSel.appendChild(h('option',{value:path,text:file.name,selected:true}));sourceSel.value=path;
+        const res=await api('/api/io/save',{method:'POST',body:{directory:'import',novel_id:novel,filename:newId('import')+'_'+file.name.replace(/[\\/:]/g,'_'),content}});
+        if(novel!==state.activeNovelId)return;
+        await refreshWorkspaceFiles();
+        if(novel!==state.activeNovelId)return;
+        kindSel.value=kind; drawSources(); sourceSel.value=res.path;
       }catch(error){toast(error.message,'err');}
     }});
     return h('div',{class:'settings-import-fields'},input,
@@ -846,7 +889,7 @@ function importPanel(defaultKind, opts) {
   }
 
   return h('details', { class: 'card' },
-    h('summary', null, i18n.t('records.import_panel_title', { title: opts.title || i18n.t('common.import'), path: state.paths.import || 'workspace/import' })),
+    h('summary', null, i18n.t('records.import_panel_title', { title: opts.title || i18n.t('common.import'), path: state.paths.import || '' })),
     h('div', { class: 'field', style: { marginTop: '10px' } },
       kindSel,
       sourceSel),
@@ -864,7 +907,9 @@ function exportButtons(coll) {
       title: i18n.t('records.export_json_title'),
       onclick: async () => {
         try {
+          await flushPendingSaves();
           const res = await api('/api/export', { method: 'POST', body: { collection: coll, format: 'json' } });
+          await refreshWorkspaceFiles();
           toast(i18n.t('common.exported_to', { path: res.rel }), 'ok');
         } catch (e) { toast(i18n.t('common.export_failed_reason', { reason: e.message }), 'err'); }
       }
@@ -873,7 +918,9 @@ function exportButtons(coll) {
       text: i18n.t('records.export_txt'),
       onclick: async () => {
         try {
+          await flushPendingSaves();
           const res = await api('/api/export', { method: 'POST', body: { collection: coll, format: 'txt' } });
+          await refreshWorkspaceFiles();
           toast(i18n.t('common.exported_to', { path: res.rel }), 'ok');
         } catch (e) { toast(i18n.t('common.export_failed_reason', { reason: e.message }), 'err'); }
       }
@@ -1014,12 +1061,13 @@ function aiSettingGenDialog(def) {
     const files = (state.sources || []).filter(s => /\.(txt|md)$/i.test(String(s.path || '')));
     clear(fileSel);
     if (!files.length) {
-      fileSel.appendChild(h('option', { value: '', text: i18n.t('setting_gen.no_text_files', { path: state.paths.import || 'workspace/import' }) }));
+      fileSel.appendChild(h('option', { value: '', text: i18n.t('setting_gen.no_text_files', { path: state.paths.import || '' }) }));
     } else {
       files.forEach(s => fileSel.appendChild(h('option', { value: s.path, text: s.path })));
     }
   };
   drawSources();
+  refreshWorkspaceFiles().then(drawSources).catch(error => toast(error.message,'err'));
   const readBtn = h('button', { text: i18n.t('setting_gen.file_read') });
   readBtn.onclick = async () => {
     if (!fileSel.value) { toast(i18n.t('records.choose_file_first'), 'err'); return; }

@@ -56,3 +56,20 @@ httpd.serve_forever()
 | `POST` | `/api/ai/setting-gen/undo` | 撤销最近一次生成：只删除本批新增且未被修改的记录，返回 `removed`/`kept`；无可撤销批次（含切换小说后）返回 `400`。撤销状态只保留在内存，刷新或重启后不保证可撤销。 |
 
 约束：未配置 API Key、接口不可用、超时、模型输出无法解析、输入为空或超长、没有可写入的设定条目，均返回本地化错误；任何失败都不产生半批数据。系统提示词固定在服务端（`novelhelper.setting_gen`），不通过任何接口读取或返回。
+
+## v2611.1 文件与工作站请求
+
+| 方法 | 路径 | 请求及响应 |
+|---|---|---|
+| GET | `/api/workspace/files` | 无请求体。返回 `{ok, active_novel_id, sources, io, exports, import_dir, export_dir, text_dir}`；io 为稿件工作区清单，exports 为导出目录清单，sources 为当前导入源。刷新不会替换集合。 |
+| POST | `/api/io/save` | 新文件推荐 `{directory:"import"|"text", filename:"sample.txt", content:"...", novel_id:"nv_..."}`；兼容 `{path,content,encoding}`。返回 `{ok,path,io,sources}`，path 为后续读取/导入应使用的服务端路径。覆盖已有文件保留 `.bak`。 |
+| POST | `/api/io/export` | 默认工作区导出使用 `{directory:"export",filename,content,novel_id}`，同名自动编号。外部指定路径使用 `{path,content,encoding}`；已存在时返回 `{ok:true,exists:true,path}` 且不写入，用户确认后用 `overwrite:true` 重试；成功返回 `{ok,path,size}`。 |
+| POST | `/api/export` | 原 `{collection,format,filename?}` 不变，同名自动编号，返回 `{ok,path,rel}`。filename 只能是文件名，禁止越界路径。 |
+| GET | `/api/file?path=...` | 使用服务端返回的文件路径读取；当前活动小说不能读取另一本小说的工作区文件。外部文件读取保持兼容。 |
+| POST | `/api/import` | 原 kind/source/target 不变，可附 novel_id 检测迟到上传；md 格式同时接收 txt。空文本返回新增 0 条；写入前快照、失败回滚。 |
+
+新文件 filename 不接受斜杠、反斜杠、冒号或 `.`/`..`。novel_id 与当前小说不符、参数无效返回 400，跨小说/越界返回 403，读取不存在文件返回 404，I/O 故障沿用错误响应。客户端显示路径可用绝对目录，但不得拼接该目录构造新文件请求。
+
+示例：先 POST `/api/io/save`，请求体 `{"directory":"import","filename":"notes.TXT","content":"世界背景","novel_id":"nv_example"}`；随后使用响应 path POST `/api/import`，请求体 `{"kind":"md","target":"other","source":"<响应 path>"}`。
+
+`POST /api/workstation/run` 保持原接口：本次模型通过 `override:{model:"..."}` 覆盖，跟随模式则传空对象。限定字数发送 `selection:{length_mode:"limited",target_chars:1234,strict_length:true}`；不限发送 `selection:{length_mode:"unlimited",strict_length:false}`，省略 target_chars，服务端不回填默认目标字数。旧请求不含 length_mode 时仍沿用既有配置回填和 strict_length 语义。

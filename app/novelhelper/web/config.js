@@ -72,7 +72,7 @@ function settingMetadataEditor(main, entry, settings) {
         try{
           await saveNow('schema');
           const res=await api('/api/io/export',{method:'POST',body:{
-            path:(state.paths.export || 'workspace/export')+'/schema_'+entry.coll+'.json',content:JSON.stringify(template,null,2)
+            directory:'export',novel_id:state.activeNovelId,filename:'schema_'+entry.coll+'.json',content:JSON.stringify(template,null,2)
           }});
           toast(i18n.t('common.exported_to',{path:res.path}),'ok');
         }catch(error){toast(error.message,'err');}
@@ -1020,6 +1020,7 @@ function refreshRestoreButton() {
 
 async function refreshConfigMeta() {
   try {
+    await refreshWorkspaceFiles();
     const result = await apiCall('/api/settings/config');
     const isGlobal = state.level === 'home';
     state.db = state.db || {};

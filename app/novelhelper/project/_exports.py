@@ -22,7 +22,9 @@ import json
 from pathlib import Path
 
 from .. import elements as el
+from ..localization import t
 from ..store import io_out
+from ._paths import write_numbered
 
 
 def clean_json(coll: str, db: dict) -> dict:
@@ -148,7 +150,7 @@ def export_text(coll: str, db: dict) -> str:
         "other": ctx.render_other,
     }.get(coll)
     if not renderer:
-        return ""
+        renderer = ctx.render_other
     lines = []
     for rec in (db.get(coll) or {}).get("items") or []:
         lines.append(renderer(rec))
@@ -158,14 +160,20 @@ def export_text(coll: str, db: dict) -> str:
 
 def save_json(coll: str, db: dict, filename: str = "") -> Path:
     io_out().mkdir(parents=True, exist_ok=True)
+    if filename and (filename in (".", "..") or any(c in filename for c in ("/", "\\", ":"))):
+        raise PermissionError(t("errors.workspace_filename"))
     target = io_out() / (filename or f"{coll}.json")
+    if target.parent.resolve() != io_out().resolve() or target.name in (".", ".."):
+        raise PermissionError(t("errors.workspace_filename"))
     payload = json.dumps(clean_json(coll, db), ensure_ascii=False, indent=2)
-    target.write_text(payload + "\n", encoding="utf-8")
-    return target
+    return write_numbered(target, payload + "\n")
 
 
 def save_txt(coll: str, db: dict, filename: str = "") -> Path:
     io_out().mkdir(parents=True, exist_ok=True)
+    if filename and (filename in (".", "..") or any(c in filename for c in ("/", "\\", ":"))):
+        raise PermissionError(t("errors.workspace_filename"))
     target = io_out() / (filename or f"{coll}.txt")
-    target.write_text(export_text(coll, db).strip() + "\n", encoding="utf-8")
-    return target
+    if target.parent.resolve() != io_out().resolve():
+        raise PermissionError(t("errors.workspace_filename"))
+    return write_numbered(target, export_text(coll, db).strip() + "\n")

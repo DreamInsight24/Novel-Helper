@@ -1102,3 +1102,11 @@ API Key 改为只读取应用配置、不再回退环境变量（见 CHANGELOG S
 | `welcome.key_placeholder` | API Key（可稍后填写） | API key (can be entered later) | [x] |
 
 约束：隐藏系统提示词（`setting_gen.SYSTEM_PROMPT` / `setting_gen.REPAIR_PROMPT`）不进入翻译表、不出现在界面与日志；目录中的栏目名/用途随当前小说数据（schema/sections）取词，属用户数据不翻译。
+
+## v2611.1 设定体验文案
+
+新增中英一致的 `records.manage_tags`、`tag_delete_confirm`、`remove_tag`、`add_tag`、`supplement`、`create_hint`、`overwrite_confirm`；`workstation.model`、`follow_mode`、`limited`、`unlimited`、`invalid_target`；`errors.workspace_changed`、`workspace_directory`、`workspace_filename`、`import_extension`。占位符覆盖 name/path。
+
+移除 `workstation.context_hint`、`workstation.prompt_help`、`workstation.strict`，目标字数以限定/不限分段展示。更新 `sections.manage_help` / `sections.guidance` 说明新默认栏目及独立显隐。数据默认值和用户内容继续保留原文；动态控件复用 `h()` 内的 `i18n.apply()`，标签重绘后补 apply。
+
+回归覆盖 `scripts/test_localization.py`、`scripts/test_i18n.cjs`、`scripts/test_setting_io.py` 与 `scripts/test_setting_experience_ui.cjs`；验证目录和截图按要求不保留在仓库中。

@@ -17,7 +17,7 @@
 | 功能 | 前端入口 | 后端/逻辑 | 数据/资源 |
 |---|---|---|---|
 | 首页与作品库 | `web/core.js`: `viewHome`、`showCreateNovel`、`editNovel`、`confirmDeleteNovel`、`switchNovel`、`loadNovelList` | `server/_api.py`: `/api/novels*`；`store/_novels.py`: `create_novel`、`list_novels`、`open_novel`、`delete_novel` | `data/config.json`（`active_novel_id`）、`data/novels/<id>/novel.json` |
-| 设定列表与编辑器 | `web/records.js`: `viewRecords`、`recordEditor`、`newRecord`、`showRecordCreate`、`elementTree`、`applyPreset` | `server/_api.py`: `/api/collections/<name>`；`store/_repository.py`: `load`/`save`/`_clean_records`；`elements.py` | `data/novels/<id>/<coll>.json`（characters/factions/items/other/section_*） |
+| 设定列表与编辑器 | `web/records.js`: `viewRecords`、`recordEditor`、`newRecord`、`elementTree`、`applyPreset` | `server/_api.py`: `/api/collections/<name>`；`store/_repository.py`: `load`/`save`/`_clean_records`；`elements.py` | `data/novels/<id>/<coll>.json`（characters/factions/items/other/section_*） |
 | 元素模板 | `web/config.js`: `viewElements`；`web/records.js`: `applyPreset` | `elements.py`: `from_preset`、`apply_preset`、`normalize`；`store/_defaults.py`: `default_schema` | `data/novels/<id>/schema.json` |
 | 栏目（分区）管理 | `web/config.js`: `viewSections`、`settingMetadataEditor`、`reorderSettingIds` | `store/_defaults.py`: `default_sections`；`store/_layout.py`: `migrate_active_layout`、`_restore_sections` | `data/novels/<id>/sections.json` |
 | 分类与标签 | `web/records.js`: `manageRecordCategories`、`renameRecordCategory`、`recordTags`、`recordCategoryNames` | `store/_repository.py`: `_clean_records`（写入时清理） | 集合 JSON 内 `categories` / `tags` 字段 |
@@ -33,7 +33,7 @@
 | 记忆 | `web/views.js`: `viewMemories`、`compressMemories` | `project/_parsers.py`: `import_memories`；`tool_prompts.py`: `prompt('compress')`；`server/_generation.py`: `_ai_run` | `data/novels/<id>/memories.json` |
 | 世界地图 | `web/views.js`: `viewWorld`、`newBoard`、`boardCells` | `context.py`: `render_worldmap`；`project/_parsers.py`: `parse_worldmap` | `data/novels/<id>/worldmap.json` |
 | 人物背包/装备 | `web/views.js`: `viewInventory` | `context.py`: `render_equipment`、`loadout` | `characters.json`、`items.json` |
-| 导入 | `web/records.js`: `importPanel`；`web/config.js`: `showSettingImport` | `server/_records.py`: `_import`；`project/_imports.py`: `records_from_md`、`import_json`、`merge_records`、`validate_import_records`、`import_worldmap_json`；`project/_parsers.py` | `workspace/novels/<id>/import` |
+| 导入 | `web/records.js`: `importPanel`；`web/core.js`: `refreshWorkspaceFiles`；`web/config.js`: `showSettingImport` | `server/_records.py`: `_import`；`project/_imports.py`: `records_from_md`、`import_json`、`merge_records`、`validate_import_records`、`import_worldmap_json`；`project/_parsers.py` | `workspace/novels/<id>/import` |
 | 导出 | `web/records.js`: `exportButtons`；`web/manuscript.js`: `exportAs` | `server/_api.py`: `/api/export`；`project/_exports.py`: `clean_json`、`export_text`、`save_json`、`save_txt` | `workspace/novels/<id>/export` |
 | 设置（全局/小说） | `web/config.js`: `viewAI`、`refreshConfigMeta`、`restoreNovelConfig`、`novelHasOverrides` | `server/_api.py`: `/api/settings/config`、`/api/settings/language`；`store/_novels.py`: `effective_config`、`save_novel_config` | `data/config.json`、`data/novels/<id>/config.json` |
 | 语言与翻译 | `web/i18n/i18n.js`、`web/i18n/bootstrap.js`；`web/config.js`: `showOnboarding` | `localization/_runtime.py`: `initialize`、`t`、`get_translations`、`language_context`；`server/_language.py` | `app/resources/localization/zh-CN.yml`、`en-US.yml` |
@@ -117,7 +117,7 @@
 | 文件 | 关键符号 |
 |---|---|
 | `core.js` | `api()`、`h()`、`modal()`、`confirmDialog()`、`askDialog()`、`state`、`go()`、`renderMain()`、`renderNav()`、`settingEntries()`、`defFor()`、`COLLECTIONS`、`touch()`/`saveNow()`（防抖保存）、`refreshFiles()`、`viewHome()`、`showCreateNovel()`、`switchNovel()` |
-| `records.js` | `viewRecords()`、`recordEditor()`、`newRecord()`、`showRecordCreate()`、`elementTree()`、`applyPreset()`、`manageRecordCategories()`、`renameRecordCategory()`、`recordTags()`、`importPanel()`、`exportButtons()`、`moveBar()`/`moveDialog()`、`aiSettingGenDialog()`、`showAiSettingGenResult()` |
+| `records.js` | `viewRecords()`、`recordEditor()`、`newRecord()`、`elementTree()`、`applyPreset()`、`manageRecordCategories()`、`renameRecordCategory()`、`recordTags()`、`importPanel()`、`exportButtons()`、`moveBar()`/`moveDialog()`、`aiSettingGenDialog()`、`showAiSettingGenResult()` |
 | `relations.js` | `relationCatalog()`、`relationEdges()`、`relationVisibleGraph()`、`relationLayout()`、`relationGraph()`、`relationEditor()`、`relationDialog()`、`relationSave()`、`openRelationRecord()` |
 | `views.js` | `viewInventory()`、`viewWorld()`、`viewMemories()`、`compressMemories()`、`viewChapters()`、`previewFile()` |
 | `config.js` | `viewAI()`（设置页）、`viewModes()`、`addModeDialog()`、`viewSections()`、`viewElements()`、`settingMetadataEditor()`、`currentModels()`、`refreshConfigMeta()`、`restoreNovelConfig()`、`showOnboarding()`、`showSettingImport()` |
@@ -210,3 +210,14 @@ log/                               # 日志（配置 paths.log_dir）
 - 不改对外契约：URL 路由、集合字段语义、导入导出格式、公共函数签名默认不动，除非需求明确要求。
 - 数据变更必须可回滚：写集合走 `store.save()`，不要直接改 JSON 文件。
 - 前端改动后跑 `node --check`；文案改动跑 i18n 校验。
+
+## v2611.1 设定体验定位
+
+| 功能 | 实现 | 回归 |
+|---|---|---|
+| 直接新建、完整模板 | `web/records.js`: `viewRecords`, `newRecord`, `applyPreset` | `scripts/test_record_forms.cjs`, `scripts/test_setting_experience_ui.cjs` |
+| 分类及标签 | `web/records.js`: `manageRecordCategories`, `renameRecordCategory`, `recordTagEditor`, `manageRecordTags`, `renameRecordTag` | 同上，含分类删除保留条目与标签合并 |
+| 新小说默认栏目、独立显示 | `store/_defaults.py`: `default_sections`；`web/core.js`: `settingEntries` | `scripts/test_setting_io.py`, `scripts/test_layout_migration.py`, `scripts/test_settings_ui.cjs` |
+| 文件刷新及路径 | `server/_api.py`: `_workspace_file`, `/api/workspace/files`；`web/core.js`: `refreshWorkspaceFiles` | `scripts/test_setting_io.py` |
+| 导入事务、原子覆盖与编号导出 | `server/_records.py`: `_import`, `_import_apply`；`project/_paths.py`: `write_text`, `write_numbered`；`project/_exports.py`: `save_json`, `save_txt` | `scripts/test_setting_io.py` |
+| 请求模型与限定/不限字数 | `web/workstation.js`: `wsState`, `wsSelection`, `viewWorkstation`, `runWorkstation`；`context.py`: `_target_chars` | `scripts/test_setting_experience_ui.cjs`, `scripts/test_setting_io.py` |

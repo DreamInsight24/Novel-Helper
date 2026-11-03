@@ -27,6 +27,24 @@ from .. import elements as el, logger, project, store
 class _RecordMixin:
     def _import(self):
         body = self._body()
+        source = self._workspace_file({"path": body.get("source") or "", **({"novel_id": body["novel_id"]} if "novel_id" in body else {})})
+        body["source"] = project.rel_str(source)
+        # Verify that the source is readable before taking a collection snapshot.
+        project.read_text(source)
+        target = body.get("target") or "other"
+        if not store.known_collection(target):
+            raise ValueError(t("errors.unknown_import_target", name=target))
+        affected = list(dict.fromkeys([target, "other", "meta", "worldmap", "memories", "factions", "relations"]))
+        snapshots = {name: store.load(name) for name in affected}
+        store.backup_all()
+        try:
+            self._import_apply(body)
+        except Exception:
+            for name, data in snapshots.items():
+                store.save(name, data)
+            raise
+
+    def _import_apply(self, body):
         kind = body.get("kind") or "md"
         source = body.get("source") or ""
         target = body.get("target") or "other"

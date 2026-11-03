@@ -27,8 +27,15 @@ from ._repository import _path
 
 def backup_all() -> Path:
     """把 data/ 下的 JSON 快照到导出目录 backup_<ts>/。"""
-    target = io_out() / f"backup_{stamp()}"
-    target.mkdir(parents=True, exist_ok=True)
+    base = io_out() / f"backup_{stamp()}"
+    index = 0
+    while True:
+        target = base if index == 0 else base.with_name(f"{base.name}_{index}")
+        try:
+            target.mkdir(parents=True, exist_ok=False)
+            break
+        except FileExistsError:
+            index += 1
     for name in load_all_names():
         path = _path(name)
         if path.exists():
