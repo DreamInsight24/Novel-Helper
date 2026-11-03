@@ -73,3 +73,27 @@ httpd.serve_forever()
 示例：先 POST `/api/io/save`，请求体 `{"directory":"import","filename":"notes.TXT","content":"世界背景","novel_id":"nv_example"}`；随后使用响应 path POST `/api/import`，请求体 `{"kind":"md","target":"other","source":"<响应 path>"}`。
 
 `POST /api/workstation/run` 保持原接口：本次模型通过 `override:{model:"..."}` 覆盖，跟随模式则传空对象。限定字数发送 `selection:{length_mode:"limited",target_chars:1234,strict_length:true}`；不限发送 `selection:{length_mode:"unlimited",strict_length:false}`，省略 target_chars，服务端不回填默认目标字数。旧请求不含 length_mode 时仍沿用既有配置回填和 strict_length 语义。
+
+## 关系网保存与告警
+
+`POST /api/collections/relations` 请求仍为 `{data:{items:[...],initialized:true}}`，可附 novel_id 防止迟到请求写入新小说。无效边（引用缺失、自环、空类型、非对象）丢弃，重复边合并，其余有效边正常保存。响应增加 `{data:<规范化关系>,factions:<成员投影>,discarded:<丢弃数>}`；saved 字段保留。格式不为对象/items 列表时返回 400。
+
+写入前生成该小说 `relation_backups/<唯一标识>/relations.json` 与 factions.json 快照，任一步失败回滚原始文件。`GET /api/state` 增加 relation_discarded，报告读取并清理旧坏关联的数量，前端显示双语告警。关系引用、方向及势力成员投影语义保持兼容。
+
+## 全局角色卡 API
+
+这些接口不要求活动小说。卡片不属于 `/api/collections/*`，不参与 AI 拼装。
+
+| 方法 | 路径 | 请求与响应 |
+|---|---|---|
+| GET | `/api/cards` | 返回 `{ok:true,items:[card,...]}`，首次缺失时幂等初始化为空。 |
+| POST | `/api/cards` | 新建传 `{name,gender?,role?,age?,tags?,summary?,notes?}`；更新另传 id，未传字段保留。返回 `{ok,card,items}`。id/created/updated 由服务端管理，image 不能通过此接口任意指定。 |
+| POST | `/api/cards/delete` | `{id}`，返回 `{ok,items}`；只删除全局卡片，不影响小说人物档案。 |
+| POST | `/api/cards/image` | `{id,data_url}`，id 必须已存在；只允许 PNG/JPEG/WebP 且解码后不超过 2 MB，校验图片头，随机命名后写入全局图片目录。返回 `{ok,card,items}`。 |
+| GET | `/api/cards/images/<文件名>` | 返回对应图片二进制及 image/png、image/jpeg 或 image/webp；只接受服务端生成的文件名，缺失或非法名称返回 404。 |
+
+card 包含 id/name/gender/role/age/tags/summary/notes/image/created/updated；age 为可描述的字符串，tags 为去重字符串列表。name 必填，基本字段最多 200 字符，简介/备注最多 100000 字符，标签最多 100 个。参数无效或 id 不存在返回双语 400；I/O 故障沿用 500 响应。image 只存文件名，无图为 ""，前端使用 `/card-default.svg`，读取失败同样回退。
+
+最小示例：POST `/api/cards` 发送 `{"name":"Mira","role":"Cartographer","tags":["oc"]}`；使用返回 card.id 更新文字或上传图片，再以 GET `/api/cards` 获取全局列表。数据固定为 DATA_DIR/cards.json，图片为 DATA_DIR/card_images/，与小说 ID 无关。
+
+每次修改前在 DATA_DIR/card_backups/ 保存旧 JSON；JSON 原子替换失败时旧文件保持完整，图片上传若后续保存失败则删除新文件。历史图片保留供快照恢复；回滚时关闭应用，把备份 JSON 复制回 cards.json 即可，不能用小说导入接口恢复全局角色卡。

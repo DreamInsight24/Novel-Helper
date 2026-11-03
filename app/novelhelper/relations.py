@@ -21,6 +21,7 @@
 from __future__ import annotations
 
 import hashlib
+from .localization import t
 
 RECORDS = ('characters', 'factions', 'items', 'other', 'memories')
 
@@ -43,7 +44,7 @@ def memberships(db: dict) -> list:
     edges = []
     for faction in (db.get('factions') or {}).get('items', []):
         for member in faction.get('members') or []:
-            rid = member if isinstance(member, str) else member.get('id')
+            rid = member if isinstance(member, str) else member.get('id') if isinstance(member, dict) else None
             if not rid or not faction.get('id'):
                 continue
             edges.append({'source': {'collection': 'characters', 'id': rid},
@@ -60,9 +61,9 @@ def is_membership(edge: dict) -> bool:
             and edge.get('target', {}).get('collection') == 'factions')
 
 
-def normalize(data: dict, db: dict, *, strict: bool = False) -> dict:
+def normalize(data: dict, db: dict, *, strict: bool = False, warnings: list | None = None) -> dict:
     if not isinstance(data, dict) or not isinstance(data.get('items', []), list):
-        raise ValueError('关联数据必须包含 items 列表')
+        raise ValueError(t('relations.invalid_data'))
     pool = catalog(db)
     result, seen, ids = [], set(), set()
     raw = list(data.get('items') or [])
@@ -70,23 +71,28 @@ def normalize(data: dict, db: dict, *, strict: bool = False) -> dict:
         raw += memberships(db)
     for edge in raw:
         if not isinstance(edge, dict):
+            if warnings is not None: warnings.append('invalid_edge')
             if strict:
-                raise ValueError('无效的关联')
+                raise ValueError(t('relations.invalid_data'))
             continue
         source, target = edge.get('source'), edge.get('target')
         if not isinstance(source, dict) or not isinstance(target, dict):
+            if warnings is not None: warnings.append('invalid_ref')
             if strict:
-                raise ValueError('关联需要有效的起点与终点')
+                raise ValueError(t('relations.invalid_data'))
             continue
         a, b = ref_key(source), ref_key(target)
         if not all(isinstance(value, str) and value for value in (*a, *b)):
+            if warnings is not None: warnings.append('invalid_ref')
             if strict:
-                raise ValueError('关联引用必须包含栏目名和条目 ID')
+                raise ValueError(t('relations.invalid_data'))
             continue
-        kind = str(edge.get('type') or '').strip()[:80]
+        kind = edge.get('type')
+        kind = kind.strip()[:80] if isinstance(kind, str) else ''
         if a not in pool or b not in pool or a == b or not kind:
+            if warnings is not None: warnings.append('invalid_target')
             if strict:
-                raise ValueError('关联条目不存在、指向自身或关系名称为空')
+                raise ValueError(t('relations.invalid_data'))
             continue
         directed = edge.get('directed', True) is not False
         if not directed and b < a:

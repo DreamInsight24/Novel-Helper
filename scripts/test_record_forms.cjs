@@ -33,3 +33,29 @@ const source=fs.readFileSync(path.join(__dirname,'../app/novelhelper/web/records
 const view=source.slice(source.indexOf('function viewRecords('),source.indexOf('function recordRelations('));
 assert.ok(!view.includes('showRecordCreate(def,'),'New uses inline creation');
 console.log('PASS: template initialization and independence, category deletion, tag merge/removal, direct creation and memberships');
+
+// Group ordering and temporary undo retain the original structure and values.
+run(`touch=()=>{};state.view='characters';state.activeNovelId='novel-a';
+ globalThis.groupRec={id:'groups',elements:[
+ {key:'A',children:[{key:'Nested',children:[{key:'Detail',value:'Keep me',on:false}]}]},
+ {key:'B',children:[{key:'Age',value:22}]},{key:'C',value:'Third'}]};
+ globalThis.groupA=groupRec.elements[0],groupB=groupRec.elements[1],groupC=groupRec.elements[2];
+ moveRecordGroup(groupRec,groupA,groupC,true);globalThis.beforeDelete=JSON.stringify(groupRec.elements);
+ removeRecordGroup('characters',groupRec,groupB,true);removeRecordGroup('characters',groupRec,groupC,false);`);
+assert.equal(run('groupRec.elements.map(node=>node.key).join(",")'),'A');
+assert.equal(run("removedRecordGroups('characters',groupRec).length"),2);
+assert.equal(run("restoreRecordGroup('characters',groupRec)"),true);
+assert.equal(run("restoreRecordGroup('characters',groupRec)"),true);
+assert.equal(run('JSON.stringify(groupRec.elements)'),run('beforeDelete'),'Undo restores nested content, flags, typed values and ordering');
+assert.equal(run('recordEditSession().openGroups.get(groupRec.elements[0])'),true,'Expanded state is restored');
+run(`removeRecordGroup('characters',groupRec,groupA);groupRec.elements.push({key:'A',value:'New'});`);
+assert.equal(run("restoreRecordGroup('characters',groupRec)"),false,'A duplicate group cannot silently overwrite recovered data');
+assert.equal(run("removedRecordGroups('characters',groupRec).length"),1);
+run(`groupRec.elements.pop();restoreRecordGroup('characters',groupRec);
+ removeRecordGroup('characters',groupRec,groupRec.elements[0]);state.ui.recordTabs={'characters:groups':'relations'};`);
+assert.equal(run("removedRecordGroups('characters',groupRec).length"),1,'Changing tabs keeps the undo session');
+run(`state.view='items';recordEditSession();state.view='characters';`);
+assert.equal(run("removedRecordGroups('characters',groupRec).length"),0,'Leaving the settings page ends temporary recovery');
+run(`removeRecordGroup('characters',groupRec,groupRec.elements[0]);state.activeNovelId='novel-b';`);
+assert.equal(run("removedRecordGroups('characters',groupRec).length"),0,'Recovery never crosses novels');
+console.log('PASS: group reorder, full undo, duplicate protection, tab preservation and page/novel scope');

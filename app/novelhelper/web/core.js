@@ -607,6 +607,7 @@ function renderNav() {
              h('span', { text: item.label })),
           count === null ? null : h('span', { class: 'count', text: String(count) })));
       });
+      if(!collapsed)settingNav.appendChild(h('button',{class:'nav-item nav-setting-item'+(state.view==='relations'?' active':''),text:i18n.t('relations.network'),onclick:()=>go('relations')}));
       nav.appendChild(settingNav);
       continue;
     }
@@ -684,6 +685,7 @@ function viewHome(main) {
       h('h2', { text: i18n.t('novels.empty_title') }),
       h('p', { text: i18n.t('novels.empty_desc') }),
       h('button', { class: 'primary', text: i18n.t('novels.create'), onclick: showCreateNovel })));
+    viewCharacterCards(main);
     return;
   }
   const tools = h('div', { class: 'novel-toolbar' });
@@ -724,6 +726,7 @@ function viewHome(main) {
     });
   }
   renderCards();
+  viewCharacterCards(main);
 }
 
 function showCreateNovel() {
@@ -840,6 +843,8 @@ function go(view) {
 }
 
 function renderMain() {
+  const recordSession=state.ui.recordEditSession;
+  if(recordSession && (recordSession.view!==state.view || recordSession.novel!==(state.activeNovelId || '')))delete state.ui.recordEditSession;
   const main = document.getElementById('main');
   const keepTop = main.scrollTop;
   main.classList.toggle('writer-main', state.view === 'writer');
@@ -851,6 +856,7 @@ function renderMain() {
   const map = {
     home: viewHome,
     writer: viewWorkstation, chapters: viewChapters, text: viewManuscript,
+    relations: viewRelations,
     inventory: viewInventory, memories: viewMemories, world: viewWorld,
     elements: viewElements, sections: viewSections, modes: viewModes, settings: viewAI
   };
@@ -927,6 +933,7 @@ async function refreshWorkspaceFiles() {
 
 async function refreshFiles() {
   const r = await api('/api/state');
+  if(r.relation_discarded)toast(i18n.t('relations.discarded',{count:r.relation_discarded}),'err');
   setDb(r.collections);
   state.sources = r.sources;
   state.chapters = r.chapters;

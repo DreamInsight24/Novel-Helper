@@ -45,19 +45,15 @@ function viewInventory(main) {
   const ui = state.ui.inventory;
   if (!findById('characters', ui.sel)) ui.sel = chars[0].id;
 
-  const row = h('div', { class: 'row' });
-  const left = h('div', { class: 'col', style: { flex: '0 0 260px' } });
-  const right = h('div', { class: 'col' });
-  row.appendChild(left); row.appendChild(right);
-  main.appendChild(row);
-
-  const drawLeft = () => {
+  const row=h('div',{class:'card record-workspace'});
+  const left=h('div',{class:'record-picker'}),right=h('div',{class:'record-editor-column'});
+  row.append(left,right);main.appendChild(row);
+  const drawLeft=()=>{
+    const keep=left.querySelector('.record-strip')?.scrollLeft || ui.stripScroll || 0;
     clear(left);
-    left.appendChild(h('div', { class: 'card' },
-      h('div', { class: 'list scroll' }, chars.map(c => h('div', {
-        class: 'list-item' + (ui.sel === c.id ? ' active' : ''),
-        onclick: () => { ui.sel = c.id; drawLeft(); drawRight(); }
-      }, h('div', { class: 'name', text: recordName(c) }))))));
+    const strip=recordStrip({onscroll:event=>{ui.stripScroll=event.target.scrollLeft;}});
+    chars.forEach(rec=>strip.appendChild(recordStripButton(rec,ui.sel===rec.id,()=>{ui.sel=rec.id;drawLeft();drawRight();})));
+    left.appendChild(strip);strip.scrollLeft=keep;revealRecordStripSelection(strip,ui.sel);
   };
 
   const drawRight = () => {
@@ -287,11 +283,9 @@ function viewWorld(main) {
 
 
 
-  const row = h('div', { class: 'row' });
-  const left = h('div', { class: 'col', style: { flex: '1 1 620px' } });
-  const right = h('div', { class: 'col' });
-  row.appendChild(left); row.appendChild(right);
-  main.appendChild(row);
+  const row=h('div',{class:'world-workspace'});
+  const left=h('div',{class:'world-map-board'}),right=h('div',{class:'card record-workspace world-region-workspace'});
+  row.append(left,right);main.appendChild(row);
 
   /** 选中某个区域并重绘（面包屑按 parent 链推出来，不依赖浏览历史）。 */
   const open = id => { ui.sel = id; drawGrid(); drawRegion(); };
@@ -619,10 +613,15 @@ function viewWorld(main) {
   };
 
   const drawRegion = () => {
+    const keep=right.querySelector('.record-strip')?.scrollLeft || ui.stripScroll || 0;
     clear(right);
+    const picker=h('div',{class:'record-picker'}),strip=recordStrip({onscroll:event=>{ui.stripScroll=event.target.scrollLeft;}});
+    Object.values(world.regions).forEach(rec=>strip.appendChild(recordStripButton(rec,ui.sel===rec.id,()=>open(rec.id))));
+    picker.appendChild(strip);right.appendChild(picker);strip.scrollLeft=keep;revealRecordStripSelection(strip,ui.sel);
+    const content=h('div',{class:'record-editor-column'});right.appendChild(content);
     const region = world.regions[ui.sel];
     if (!region) {
-      right.appendChild(h('div', { class: 'card muted', text: i18n.t('worldmap.pick_cell') }));
+      content.appendChild(h('div', { class: 'card muted', text: i18n.t('worldmap.pick_cell') }));
       return;
     }
     region.elements = region.elements || [];
@@ -644,7 +643,11 @@ function viewWorld(main) {
     card.appendChild(h('button',{class:'mini',text:i18n.t('relations.graph'),onclick:()=>openRelationRecord({collection:'worldmap',id:region.id})}));
 
     card.appendChild(h('div', { class: 'field' }, h('label', { text: i18n.t('worldmap.region_name_label') }),
-      h('input', { type: 'text', value: region.name || '', oninput: e => { region.name = e.target.value; touch('worldmap'); drawGrid(); } })));
+      h('input', { type: 'text', value: region.name || '', oninput: e => {
+        region.name=e.target.value;touch('worldmap');drawGrid();
+        const option=Array.from(strip.querySelectorAll('.record-strip-option')).find(button=>button.dataset.recordId===region.id);
+        if(option)option.querySelector('.name').textContent=recordName(region);
+      } })));
     card.appendChild(h('div', { class: 'field' }, h('label', { text: i18n.t('worldmap.summary_label') }),
       h('input', { type: 'text', value: region.summary || '', oninput: e => { region.summary = e.target.value; touch('worldmap'); } })));
 
@@ -653,9 +656,13 @@ function viewWorld(main) {
       h('label', { text: i18n.t('worldmap.elements_label'), style: { flex: '1' } }),
       h('button', {
         class: 'mini', text: i18n.t('worldmap.apply_other_template'),
-        onclick: () => { const added = applyPreset(region.elements, presetsOf('other')); touch('worldmap'); drawRegion(); toast(added ? i18n.t('records.template_added', { count: added }) : i18n.t('worldmap.nothing_to_add'), 'ok'); }
+        onclick: () => { const added = applyPreset(region.elements, presetsOf('other').filter(node=>!removedRecordGroups('worldmap',region).some(entry=>entry.node.key===node.key))); touch('worldmap'); drawRegion(); toast(added ? i18n.t('records.template_added', { count: added }) : i18n.t('worldmap.nothing_to_add'), 'ok'); }
       })));
-    card.appendChild(elementTree(region.elements, 'worldmap', { onChange: () => { } }));
+    card.appendChild(recordGroupsEditor('worldmap',region,()=>{},drawRegion));
+    card.appendChild(h('button',{class:'mini',text:i18n.t('records.edit_structure'),onclick:()=>{
+      const dialog=modal(i18n.t('records.edit_structure'),elementTree(region.elements,'worldmap',{onChange:()=>{}}),[
+        h('button',{text:i18n.t('common.close'),onclick:()=>dialog.close()})],drawRegion);
+    }}));
 
     card.appendChild(h('div', { class: 'field', style: { marginTop: '10px' } }, h('label', { text: i18n.t('worldmap.details_label') }),
       h('textarea', { rows: 6, value: region.details || '', oninput: e => { region.details = e.target.value; touch('worldmap'); autoGrow(e.target); } })));
@@ -719,7 +726,7 @@ function viewWorld(main) {
             });
         }
       })));
-    right.appendChild(card);
+    content.appendChild(card);
   };
 
   drawGrid();

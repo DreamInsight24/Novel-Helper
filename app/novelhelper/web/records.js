@@ -501,6 +501,143 @@ function newRecord(def) {
   return rec;
 }
 
+/** Temporary undo is scoped to the current novel and settings page, never serialized. */
+function recordEditSession() {
+  const view=state.view, novel=state.activeNovelId || '';
+  let session=state.ui.recordEditSession;
+  if(!session || session.view!==view || session.novel!==novel)
+    session=state.ui.recordEditSession={view,novel,trash:[],openGroups:new WeakMap()};
+  return session;
+}
+function removedRecordGroups(coll, rec) {
+  return recordEditSession().trash.filter(entry=>entry.coll===coll && entry.recordId===rec.id);
+}
+function removeRecordGroup(coll, rec, node, open=false) {
+  const index=rec.elements.indexOf(node);if(index<0)return false;
+  recordEditSession().trash.push({coll,recordId:rec.id,index,node:JSON.parse(JSON.stringify(node)),open});
+  rec.elements.splice(index,1);touch(coll);return true;
+}
+function restoreRecordGroup(coll, rec) {
+  const session=recordEditSession();
+  let index=session.trash.length-1;
+  while(index>=0 && (session.trash[index].coll!==coll || session.trash[index].recordId!==rec.id))index--;
+  if(index<0)return false;
+  const entry=session.trash[index];
+  if(rec.elements.some(node=>String(node.key || '').trim()===String(entry.node.key || '').trim()))return false;
+  rec.elements.splice(Math.min(entry.index,rec.elements.length),0,entry.node);
+  session.openGroups.set(entry.node,entry.open);session.trash.splice(index,1);touch(coll);return true;
+}
+function moveRecordGroup(rec, node, target, after=false) {
+  if(node===target)return false;
+  const from=rec.elements.indexOf(node),to=rec.elements.indexOf(target);
+  if(from<0 || to<0)return false;
+  rec.elements.splice(from,1);
+  rec.elements.splice(rec.elements.indexOf(target)+(after?1:0),0,node);return true;
+}
+function recordGroupsEditor(coll, rec, onListChange, onEditorChange) {
+  const session=recordEditSession(),box=h('div',{class:'record-groups-editor'});
+  const changed=()=>{onListChange();onEditorChange();};
+  const removed=removedRecordGroups(coll,rec);
+  if(removed.length){
+    const restore=all=>{
+      do{
+        if(!restoreRecordGroup(coll,rec)){toast(i18n.t('records.restore_group_conflict'),'err');break;}
+      }while(all && removedRecordGroups(coll,rec).length);
+      changed();
+    };
+    box.appendChild(h('div',{class:'record-group-recovery',role:'status'},
+      h('span',{text:i18n.t('records.removed_groups',{count:removed.length})}),
+      h('div',{class:'inline'},h('button',{class:'mini',text:i18n.t('records.restore_group'),onclick:()=>restore(false)}),
+        h('button',{class:'mini',text:i18n.t('records.restore_groups'),onclick:()=>restore(true)}))));
+  }
+  let dragging=null;
+  const clearMarks=()=>box.querySelectorAll('.group-drop-before,.group-drop-after,.group-dragging').forEach(el=>el.classList.remove('group-drop-before','group-drop-after','group-dragging'));
+  const renderFields=(nodes,parent='')=>h('div',{class:'record-fields'},nodes.filter(node=>node.on!==false).map(node=>{
+    const label=parent?parent+' · '+node.key:node.key;
+    if(node.children)return renderFields(node.children,label);
+    return h('div',{class:'field'},h('label',{text:label}),h('textarea',{rows:Math.min(5,valueRows(node.value)),value:node.value || '',
+      'aria-label':label,oninput:event=>{node.value=event.target.value;touch(coll);autoGrow(event.target);}}));
+  }));
+  rec.elements.filter(node=>node.on!==false).forEach(node=>{
+    const defaultOpen=!node.children || state.ui.recordNewRecord===coll+':'+rec.id || countFilled(node.children)>0 || state.ui.recordNewGroup===coll+':'+rec.id+':'+node.key;
+    const group=h('details',{class:'record-field-group record-element-group',
+      open:session.openGroups.has(node)?session.openGroups.get(node):defaultOpen,
+      'data-group-key':node.key,ontoggle:event=>session.openGroups.set(node,event.currentTarget.open),
+      ondragover:event=>{
+        if(!dragging || dragging===node)return;
+        event.preventDefault();clearMarks();
+        const header=group.querySelector('summary').getBoundingClientRect();
+        group.classList.add(event.clientY>header.top+header.height/2?'group-drop-after':'group-drop-before');
+      },
+      ondrop:event=>{
+        if(!dragging)return;
+        event.preventDefault();event.stopPropagation();
+        const header=group.querySelector('summary').getBoundingClientRect();
+        if(moveRecordGroup(rec,dragging,node,event.clientY>header.top+header.height/2)){touch(coll);dragging=null;changed();}
+        clearMarks();
+      }});
+    const drag=h('button',{type:'button',class:'record-group-drag',draggable:'true',text:'⠿',
+      title:i18n.t('records.reorder_group_hint'),'aria-label':i18n.t('records.reorder_group',{name:node.key}),
+      onclick:event=>{event.preventDefault();event.stopPropagation();},
+      ondragstart:event=>{
+        dragging=node;event.stopPropagation();group.classList.add('group-dragging');
+        event.dataTransfer.effectAllowed='move';event.dataTransfer.setData('application/x-novelhelper-setting-group',node.key);
+      },ondragend:()=>{dragging=null;clearMarks();},
+      onkeydown:event=>{
+        if(!event.altKey || !['ArrowUp','ArrowDown'].includes(event.key))return;
+        event.preventDefault();event.stopPropagation();
+        const visible=rec.elements.filter(item=>item.on!==false),index=visible.indexOf(node),target=visible[index+(event.key==='ArrowUp'?-1:1)];
+        if(target && moveRecordGroup(rec,node,target,event.key==='ArrowDown')){
+          touch(coll);changed();
+          const editor=document.querySelector('.record-groups-editor');
+          Array.from(editor?.querySelectorAll('.record-element-group') || []).find(el=>el.dataset.groupKey===node.key)?.querySelector('.record-group-drag')?.focus({preventScroll:true});
+        }
+      }});
+    group.appendChild(h('summary',{class:'record-group-header'},drag,h('span',{class:'record-group-title',text:node.key}),
+      h('button',{type:'button',class:'ghost mini danger record-group-delete',text:i18n.t('common.delete'),
+        'aria-label':i18n.t('records.delete_group',{name:node.key}),onclick:event=>{
+          event.preventDefault();event.stopPropagation();
+          if(removeRecordGroup(coll,rec,node,group.open))changed();
+        }})));
+    if(node.children)group.appendChild(renderFields(node.children));
+    else group.appendChild(h('div',{class:'field'},h('textarea',{rows:Math.min(5,valueRows(node.value)),value:node.value || '',
+      'aria-label':node.key,oninput:event=>{node.value=event.target.value;touch(coll);autoGrow(event.target);}})));
+    box.appendChild(group);
+  });
+  i18n.apply(box);return box;
+}
+function recordStripButton(rec, selected, choose) {
+  return h('button',{type:'button',class:'record-strip-option'+(selected?' active':''),'aria-pressed':String(selected),'data-record-id':rec.id,
+    onclick:()=>choose(rec),onkeydown:event=>{
+      if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
+      event.preventDefault();
+      const workspace=event.currentTarget.closest('.record-workspace');
+      const buttons=Array.from(event.currentTarget.closest('.record-strip').querySelectorAll('.record-strip-option'));
+      const index=buttons.indexOf(event.currentTarget),next=event.key==='Home'?0:event.key==='End'?buttons.length-1:index+(event.key==='ArrowLeft'?-1:1);
+      if(buttons[next]){
+        const id=buttons[next].dataset.recordId;buttons[next].click();
+        const target=Array.from(workspace?.querySelectorAll('.record-strip-option') || []).find(el=>el.dataset.recordId===id);
+        target?.focus({preventScroll:true});target?.scrollIntoView({block:'nearest',inline:'nearest'});
+      }
+    }},h('span',{class:'name',text:recordName(rec)}));
+}
+function revealRecordStripSelection(strip, id) {
+  const button=Array.from(strip.querySelectorAll('.record-strip-option')).find(el=>el.dataset.recordId===id);
+  if(!button)return;
+  const viewport=strip.getBoundingClientRect(),bounds=button.getBoundingClientRect();
+  if(bounds.left<viewport.left)strip.scrollLeft+=bounds.left-viewport.left;
+  else if(bounds.right>viewport.right)strip.scrollLeft+=bounds.right-viewport.right;
+}
+function recordStrip(props={}) {
+  const strip=h('div',{class:'record-strip','aria-label':i18n.t('records.entry_strip'),...props});
+  strip.addEventListener('wheel',event=>{
+    if(event.ctrlKey || Math.abs(event.deltaX)>=Math.abs(event.deltaY) || strip.scrollWidth<=strip.clientWidth)return;
+    const previous=strip.scrollLeft;strip.scrollLeft+=event.deltaY;
+    if(strip.scrollLeft!==previous)event.preventDefault();
+  },{passive:false});
+  return strip;
+}
+
 function viewRecords(main, key) {
   const def = defFor(key);
   if (!def) { main.appendChild(h('div', { class: 'card muted', text: i18n.t('errors.unknown_collection', { name: key }) })); return; }
@@ -525,7 +662,7 @@ function viewRecords(main, key) {
         onclick:() => {
           const rec = newRecord(def);
           if (def.hasCategory && ui.category != null) rec.category = ui.category;
-          bucket.items.unshift(rec); ui.sel=rec.id; ui.q=''; ui.tag='';
+          bucket.items.unshift(rec); ui.sel=rec.id; ui.q=''; ui.tag=''; ui.stripScroll=0;
           state.ui.recordTabs = state.ui.recordTabs || {}; state.ui.recordTabs[def.coll+':'+rec.id]='content';
           state.ui.recordNewRecord=def.coll+':'+rec.id;
           touch(def.coll); renderNav(); renderMain();
@@ -533,15 +670,15 @@ function viewRecords(main, key) {
         }}))));
   if (key === 'other') main.appendChild(moveBar(def.coll, key));
 
-  const row = h('div', { class: 'row' });
-  const listBox = h('div', { class: 'col record-list-column' });
-  const editBox = h('div', { class: 'col record-editor-column' });
+  const row = h('div', { class: 'card record-workspace' });
+  const listBox = h('div', { class: 'record-picker-host' });
+  const editBox = h('div', { class: 'record-editor-column' });
   row.appendChild(listBox); row.appendChild(editBox);
   main.appendChild(row);
 
   // 列表容器只建一次：重绘时复用同一个滚动容器，选中时只切高亮不重建，
   // 这样点条目不会再跳回顶部。
-  const listScroll = h('div', { class: 'list scroll' });
+  const listScroll = recordStrip({onscroll:event=>{ui.stripScroll=event.target.scrollLeft;}});
   const rowEls = new Map();
   const countLine = h('div', { class: 'small muted', style: { marginBottom: '6px' } });
 
@@ -555,7 +692,7 @@ function viewRecords(main, key) {
         })
         : i18n.t('records.total', {count: bucket.items.length});
   };
-  const setActive = id => rowEls.forEach((el, rid) => el.classList.toggle('active', rid === id));
+  const setActive = id => rowEls.forEach((el, rid) => {el.classList.toggle('active',rid===id);el.setAttribute('aria-pressed',String(rid===id));});
 
   const refreshFilters = () => {
     const categorySelect=listBox.querySelector('select[data-record-filter="category"]');
@@ -577,40 +714,32 @@ function viewRecords(main, key) {
   };
   const drawList = () => {
     refreshFilters();
-    const keepTop = listScroll.scrollTop;
+    const keepLeft = ui.stripScroll || listScroll.scrollLeft;
     rowEls.clear();
     const q = ui.q.toLowerCase();
     const items = bucket.items.filter(r => matchesRecordFilter(r, q, ui.category, ui.tag));
     clear(listScroll);
     items.forEach(rec => {
-      const rowEl = h('div', {
-        class: 'list-item' + (ui.sel === rec.id ? ' active' : ''),
-        onclick: () => { ui.sel = rec.id; setActive(rec.id); drawEditor(); }
-      });
-      if (key === 'other') {
-        rowEl.appendChild(h('input', {
-          type: 'checkbox', checked: state.sel[key].has(rec.id),
-          onclick: e => {
-            e.stopPropagation();
-            if (e.target.checked) state.sel[key].add(rec.id); else state.sel[key].delete(rec.id);
-            updateCount();
-          }
-        }));
-      }
-      rowEl.appendChild(h('div', { class: 'name', text: recordName(rec) }));
+      const rowEl=recordStripButton(rec,ui.sel===rec.id,()=>{ui.sel=rec.id;setActive(rec.id);drawEditor();});
+      const item=h('div',{class:'record-strip-item'});
+      if(key==='other')item.appendChild(h('input',{type:'checkbox',checked:state.sel[key].has(rec.id),
+        'aria-label':i18n.t('records.select_for_move',{name:recordName(rec)}),onchange:event=>{
+          if(event.target.checked)state.sel[key].add(rec.id);else state.sel[key].delete(rec.id);updateCount();
+        }}));
+      item.appendChild(rowEl);
       const filled = countFilled(rec.elements);
       const tags = recordTags(rec);
       const meta = [rec.category, tags.length ? tags.join(' / ') : '', filled ? i18n.t('records.filled_suffix', { count: filled }) : ''].filter(Boolean).join(' · ');
-      rowEl.appendChild(h('div', { class: 'meta', text: meta }));
+      if(meta)rowEl.appendChild(h('span', { class: 'meta', text: meta }));
       rowEls.set(rec.id, rowEl);
-      listScroll.appendChild(rowEl);
+      listScroll.appendChild(item);
     });
     if (!items.length) {
       listScroll.appendChild(h('div', { class: 'muted small', style: { padding: '10px' } }, i18n.t('records.no_match')));
       listScroll.appendChild(h('div', {class:'muted small', text:i18n.t('records.create_hint')}));
     }
     updateCount();
-    listScroll.scrollTop = keepTop;
+    listScroll.scrollLeft = keepLeft;
   };
 
   const drawEditor = () => {
@@ -623,16 +752,16 @@ function viewRecords(main, key) {
   const chooseVisible = () => {
     const visible = bucket.items.filter(rec => matchesRecordFilter(rec, ui.q, ui.category, ui.tag));
     if (!visible.some(rec => rec.id === ui.sel)) ui.sel = visible[0]?.id || null;
-    drawList(); drawEditor();
+    drawList(); drawEditor();revealRecordStripSelection(listScroll,ui.sel);
   };
   const search = h('input', { type: 'text', placeholder: i18n.t('common.search'),
     'aria-label': i18n.t('common.search'), value: ui.q,
     oninput: e => { ui.q = e.target.value; chooseVisible(); } });
-  const listCard = h('div', { class: 'card' }, h('div', { class: 'field' }, search));
+  const listCard=h('div',{class:'record-picker'}),tools=h('div',{class:'record-picker-tools'},h('div',{class:'field record-picker-search'},search));
   if (def.hasCategory) {
     const names = recordCategoryNames(bucket);
     if (ui.category && !names.includes(ui.category)) ui.category = null;
-    listCard.appendChild(h('div', { class: 'field' },
+    tools.appendChild(h('div', { class: 'field' },
       h('label', { text: i18n.t('common.category') }),
       h('select', { value: JSON.stringify(ui.category ?? null),
         onchange: e => { ui.category = JSON.parse(e.target.value); chooseVisible(); },
@@ -645,7 +774,7 @@ function viewRecords(main, key) {
   if (def.hasTags) {
     const tags = [...new Set(bucket.items.flatMap(recordTags))].sort((a, b) => a.localeCompare(b));
     if (ui.tag && !tags.includes(ui.tag)) ui.tag = '';
-    listCard.appendChild(h('div', { class: 'field' },
+    tools.appendChild(h('div', { class: 'field' },
       h('label', { text: i18n.t('records.filter_tag') }),
       h('select', {
         'data-record-filter':'tag', 'aria-label': i18n.t('records.filter_tag'),
@@ -653,7 +782,8 @@ function viewRecords(main, key) {
       }, [['', i18n.t('records.all_tags')], ...tags.map(tag => [tag, tag])].map(([value, label]) =>
         h('option', { value, text: label, selected: value === ui.tag })))));
   }
-  listCard.append(countLine, listScroll);
+  tools.appendChild(countLine);
+  listCard.append(tools,listScroll);
   listBox.appendChild(listCard);
   chooseVisible();
 }
@@ -732,18 +862,9 @@ function recordEditor(def, rec, onListChange, onEditorChange) {
         h('select', {'aria-label':i18n.t('records.slot_label'), onchange:e=>{rec.slot=e.target.value;touch(coll);}},
           [''].concat(slots).map(value=>h('option',{value,selected:(rec.slot || '')===value,text:value || i18n.t('records.slot_none')})))));
     }
-    const renderFields = (nodes, parent='') => h('div',{class:'record-fields'},nodes.filter(node=>node.on!==false).map(node=>{
-      const label=parent ? parent+' · '+node.key : node.key;
-      if(node.children) return renderFields(node.children,label);
-      return h('div',{class:'field'},h('label',{text:label}),h('textarea',{rows:Math.min(5,valueRows(node.value)),value:node.value || '',
-        'aria-label':label,oninput:e=>{node.value=e.target.value;touch(coll);autoGrow(e.target);}}));
-    }));
-    rec.elements.filter(node=>node.on!==false).forEach((node,index)=>{
-      if(node.children) body.appendChild(h('details',{class:'record-field-group',open:state.ui.recordNewRecord===tabKey || countFilled(node.children)>0 || state.ui.recordNewGroup===coll+':'+rec.id+':'+node.key},h('summary',{text:node.key}),renderFields(node.children)));
-      else body.appendChild(renderFields([node]));
-    });
+    body.appendChild(recordGroupsEditor(coll,rec,onListChange,onEditorChange));
     body.appendChild(h('button',{class:'mini',text:i18n.t('records.add_group'),onclick:()=>{
-      const options=(presetsOf(coll)||[]).filter(node=>!rec.elements.some(existing=>existing.key===node.key));
+      const options=(presetsOf(coll)||[]).filter(node=>!rec.elements.some(existing=>existing.key===node.key) && !removedRecordGroups(coll,rec).some(entry=>entry.node.key===node.key));
       if(!options.length){toast(i18n.t('records.no_more_groups'));return;}
       pickDialog(i18n.t('records.add_group'),options.map((node,index)=>({value:index,label:node.key})),index=>{
         applyPreset(rec.elements,[options[index]]);state.ui.recordNewGroup=coll+':'+rec.id+':'+options[index].key;touch(coll);onEditorChange();

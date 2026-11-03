@@ -24,7 +24,7 @@ from .. import APP_VERSION
 import re
 from pathlib import Path
 
-from .. import ai, context, history, logger, project, prompts as prompts_mod, providers, store
+from .. import ai, context, history, logger, project, prompts as prompts_mod, providers, store, relations, cards
 from ..ports import PortConfigError, normalize_server_config
 from ._helpers import _api_ready, _surface_error
 from ._language import first_run, save_language
@@ -109,6 +109,31 @@ class _ApiMixin:
             logger.log_event("CONFIG", "language", language=saved)
             self._json({"ok": True, "language": saved,
                         "current": localization.get_language()})
+            return
+        if path == '/api/cards' and method == 'GET':
+            self._json({'ok': True, **cards.list_cards()})
+            return
+        if path == '/api/cards' and method == 'POST':
+            card = cards.save_card(self._body())
+            self._json({'ok': True, 'card': card, **cards.list_cards()})
+            return
+        if path == '/api/cards/delete' and method == 'POST':
+            body = self._body()
+            if not isinstance(body, dict):
+                raise ValueError(t('cards.invalid_data'))
+            cards.delete_card(body.get('id') or '')
+            self._json({'ok': True, **cards.list_cards()})
+            return
+        if path == '/api/cards/image' and method == 'POST':
+            body = self._body()
+            if not isinstance(body, dict):
+                raise ValueError(t('cards.invalid_data'))
+            card = cards.save_image(body.get('id') or '', body.get('data_url') or '')
+            self._json({'ok': True, 'card': card, **cards.list_cards()})
+            return
+        if path.startswith('/api/cards/images/') and method == 'GET':
+            target, content_type = cards.image_file(path[len('/api/cards/images/'):])
+            self._send(200, target.read_bytes(), content_type)
             return
         if method == "GET" and path == "/api/novels":
             self._json({"ok": True, "active_novel_id": store.active_novel_id(),
@@ -196,11 +221,16 @@ class _ApiMixin:
                             "efforts": list(providers.EFFORTS),
                             "api_ready": _api_ready(store.current_config())})
                 return
+            raw_relations = store.load('relations')
+            collections = store.load_all()
+            relation_warnings = []
+            relations.normalize(raw_relations, collections, warnings=relation_warnings)
             self._json({
                 "ok": True,
+                "relation_discarded": len(relation_warnings),
                 "active_novel_id": novel_id,
                 "novel": store.read_novel(novel_id),
-                "collections": store.load_all(),
+                "collections": collections,
                 "sources": project.import_sources(),
                 "chapters": project.list_chapters(),
                 "io": project.list_text(),
@@ -251,6 +281,15 @@ class _ApiMixin:
             data = body.get("data")
             if name == "config" and isinstance(data, dict):
                 data = _preserve_language_fields(data)
+            if name == 'relations':
+                if body.get('novel_id') is not None and body['novel_id'] != store.active_novel_id():
+                    raise ValueError(t('errors.workspace_changed'))
+                discarded = []
+                data = relations.normalize(data, store.load_all(), warnings=discarded)
+                saved = store.save(name, data)
+                self._json({'ok': True, 'saved': str(saved), 'data': store.load('relations'),
+                            'factions': store.load('factions'), 'discarded': len(discarded)})
+                return
             saved = store.save(name, data)
             logger.log_event("DATA", "save", collection=name, path=str(saved))
             self._json({"ok": True, "saved": str(saved)})
