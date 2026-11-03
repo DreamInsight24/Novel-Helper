@@ -1000,6 +1000,8 @@ function viewAI(main) {
         href: 'https://github.com/DreamInsight24/Novel-Helper/blob/main/LICENSE',
         target: '_blank', rel: 'noopener noreferrer', text: 'LICENSE'
       }))));
+  // 原来每个视图底部重复一行；集中到「关于」里出现一次。
+  about.appendChild(h('div', { class: 'legal-note', text: i18n.t('common.data_content') }));
   main.appendChild(about);
 }
 
@@ -1097,9 +1099,26 @@ function showOnboarding(force) {
       if (!cfg.initial_language) cfg.initial_language = applied;
       if (configured) saveProviderProfile(cfg, cfg.api.provider);
       await saveNow('config');
+      // 小说级保存只写与全局不同的键，onboarding/language 若与全局相同就会丢，
+      // 刷新后引导会再次弹出；这里补写一次全局。
+      if (state.level === 'novel') {
+        try {
+          const ref = await apiCall('/api/settings/config');
+          await apiCall('/api/settings/config', { method: 'POST', body: {
+            scope: 'global',
+            config: { ...(ref.global || {}), onboarding: cfg.onboarding, language: cfg.language,
+                      initial_language: cfg.initial_language || (ref.global || {}).initial_language }
+          } });
+        } catch (e) { /* 全局补写失败不阻塞本次引导 */ }
+      }
       if (dialog) dialog.close();
-      // 语言与内置预设按整页刷新统一生效。
-      location.reload();
+      // 就地生效：重新拉一次状态并重绘，不再整页刷新（刷新会丢滚动位置、闪一下）。
+      try { await i18n.load(applied); } catch (e) { /* 语言表已加载过，忽略 */ }
+      i18n.apply(document.body);
+      try { await refreshFiles(); } catch (e) { /* 状态刷新失败仍保留当前界面 */ }
+      renderNav(); renderMain();
+      status(i18n.t('common.ready'), 'ok');
+      if (!configured) toast(i18n.t('welcome.skipped'), 'ok');
     } catch (e) {
       finishing = false;
       toast(i18n.t('common.save_failed_reason', { reason: e.message }), 'err');

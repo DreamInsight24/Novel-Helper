@@ -59,7 +59,7 @@ common.debug_badge: DEBUG 模式
 common.debug_banner: DEBUG 模式 · 当前数据、输出与日志与正式版本隔离
 common.default_content: 示例 / 默认内容（保留原文）
 common.delete: 删除
-common.delete_confirm: 确定删除「{name}」？
+common.delete_confirm: 删除「{name}」？
 common.delete_failed_reason: 删除失败：{reason}
 common.deleted: 已删除。
 common.disabled_name: '{name}（已停用）'
@@ -831,6 +831,7 @@ modes.target_chars_process_hint: 稿件处理模式不拼装目标字数；如�
 modes.target_chars_write_hint: 字数设置只对写稿模式生效；稿件处理模式不拼装目标字数。
 modes.temp_label: temperature（可留空）
 modes.thinking_option: 发送 thinking 参数（仅部分接口支持）
+nav.cards: 角色卡
 nav.chapters: 章节与导出
 nav.characters: 人物档案
 nav.elements: 元素模板
@@ -1461,7 +1462,7 @@ relations.radial_hint: "仅显示当前条目的直接关联。双击其他条�
 cards.title: "角色卡"
 cards.description: "独立收藏你的 OC，跨小说保存。"
 cards.add: "添加角色卡"
-cards.detail: "角色卡详情"
+cards.edit: "编辑角色卡"
 cards.search: "搜索姓名、身份或标签"
 cards.sort: "角色卡排序"
 cards.sort_updated: "最近编辑"
@@ -1500,3 +1501,26 @@ records.restore_group: "恢复上一个"
 records.restore_groups: "恢复全部"
 records.restore_group_conflict: "已存在同名分组，请先改名或移除后再恢复。"
 records.select_for_move: "选择“{name}”用于搬运"
+
+# ── 交互优化：键盘可达、可撤销删除、生成可停止 ──
+common.command_title: "快速跳转"
+common.command_placeholder: "跳转到页面或设定条目…"
+common.command_empty: "没有匹配的页面或条目。"
+common.undo: "撤销"
+common.delete_named: "删除“{name}”"
+records.search_label: "搜索条目"
+records.search_placeholder: "名称、分类或正文内容"
+records.strip_prev: "向前滚动条目"
+records.strip_next: "向后滚动条目"
+records.clear_filters: "清除筛选"
+records.no_match_query: "没有匹配“{query}”的条目。"
+records.delete_title: "删除条目"
+records.deleted_toast: "已删除“{name}”"
+workstation.stop: "停止生成"
+workstation.stopped: "已停止生成"
+workstation.stopped_hint: "已停止等待，本次结果不会保存。"
+workstation.composer_hint: "Enter 换行 · Ctrl+Enter 生成 · Ctrl+K 快速跳转"
+workstation.example_1: "写一段雨夜码头的开场，镜头跟着一封信"
+workstation.example_2: "用三个细节写沈砚的紧张，不要直接说她害怕"
+workstation.example_3: "把上一段改成对话推进，保留环境描写"
+errors.generation_cancelled: "生成已停止，本次结果未保存。"

@@ -867,6 +867,7 @@ modes.target_chars_write_hint: Word count settings only apply to writing modes; 
   a target word count.
 modes.temp_label: temperature (optional)
 modes.thinking_option: Send thinking parameter (supported by some APIs only)
+nav.cards: Character cards
 nav.chapters: Chapters & Export
 nav.characters: Characters
 nav.elements: Element Templates
@@ -1538,7 +1539,7 @@ relations.radial_hint: "Only direct links are shown. Double-click another record
 cards.title: "Character cards"
 cards.description: "A global home for your original characters, across novels."
 cards.add: "Add character card"
-cards.detail: "Character card details"
+cards.edit: "Edit character card"
 cards.search: "Search name, role or tags"
 cards.sort: "Sort character cards"
 cards.sort_updated: "Recently updated"
@@ -1577,3 +1578,26 @@ records.restore_group: "Restore last"
 records.restore_groups: "Restore all"
 records.restore_group_conflict: "A group with this name already exists. Rename or remove it before restoring."
 records.select_for_move: "Select “{name}” to move"
+
+# ── Interaction pass: keyboard access, undoable delete, cancellable generation ──
+common.command_title: "Quick jump"
+common.command_placeholder: "Jump to a page or setting record…"
+common.command_empty: "No matching page or record."
+common.undo: "Undo"
+common.delete_named: "Delete “{name}”"
+records.search_label: "Search records"
+records.search_placeholder: "Name, category or content"
+records.strip_prev: "Scroll records backward"
+records.strip_next: "Scroll records forward"
+records.clear_filters: "Clear filters"
+records.no_match_query: "No records match “{query}”."
+records.delete_title: "Delete record"
+records.deleted_toast: "Deleted “{name}”"
+workstation.stop: "Stop generating"
+workstation.stopped: "Generation stopped"
+workstation.stopped_hint: "Stopped waiting; this result will not be saved."
+workstation.composer_hint: "Enter for a new line · Ctrl+Enter to generate · Ctrl+K to quick jump"
+workstation.example_1: "Open on a rainy dock at night, the camera following a letter"
+workstation.example_2: "Show Shen Yan's tension through three details without saying she is afraid"
+workstation.example_3: "Rewrite the previous paragraph as dialogue while keeping the setting"
+errors.generation_cancelled: "Generation stopped; this result was not saved."

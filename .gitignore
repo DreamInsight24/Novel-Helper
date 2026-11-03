@@ -19,5 +19,8 @@ dist/
 .DS_Store
 Thumbs.db
 
+# 界面评审临时目录（截图、样例数据、审计脚本）
+.uicheck/
+
 # 面向小组
 docs/requirements2gm/

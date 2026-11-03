@@ -230,7 +230,7 @@ function elementTree(nodes, coll, opts) {
           touch(coll);
           draw();
           if (opts.onChange) opts.onChange();
-          });
+          },{confirmLabel:i18n.t('common.delete_named',{name:item.key || ''}),danger:true});
         }
       }));
       box.appendChild(row);
@@ -314,7 +314,7 @@ function elementTree(nodes, coll, opts) {
           const container = containerOf(nodes, p);
           if (container) container.splice(p[p.length - 1], 1);
           touch(coll); draw(); if (opts.onChange) opts.onChange();
-          });
+          },{confirmLabel:i18n.t('common.delete_named',{name:item.key || ''}),danger:true});
         }
       }));
       line.appendChild(tools);
@@ -411,7 +411,7 @@ function manageRecordTags(coll, onChange) {
         }}),h('button',{class:'danger',text:i18n.t('common.delete'),onclick:()=>confirmDialog(
           i18n.t('common.delete'),i18n.t('records.tag_delete_confirm',{name:tag}),()=>{
             renameRecordTag(bucket,tag,'');touch(coll);onChange();manageRecordTags(coll,onChange);
-          })})));
+          },{confirmLabel:i18n.t('common.delete_named',{name:tag}),danger:true})})));
     });
     i18n.apply(body);
   };
@@ -464,7 +464,7 @@ function manageRecordCategories(coll, onChange) {
           confirmDialog(i18n.t('common.delete'), i18n.t('records.category_delete_confirm', { name }), () => {
             renameRecordCategory(bucket, name, ''); touch(coll); onChange();
             manageRecordCategories(coll, onChange);
-          });
+          }, { confirmLabel: i18n.t('common.delete_named', { name }), danger: true });
         }})));
     });
     const input = h('input', { type: 'text', placeholder: i18n.t('records.new_category_prompt'),
@@ -638,6 +638,11 @@ function recordStrip(props={}) {
   return strip;
 }
 
+// 一次性的窗口尺寸监听：横栏箭头显隐跟着可见宽度走，避免每次渲染重复绑定。
+if (typeof window !== 'undefined' && window && typeof window.addEventListener === 'function') {
+  window.addEventListener('resize', () => { if (typeof state !== 'undefined') state.ui?.stripChrome?.(); });
+}
+
 function viewRecords(main, key) {
   const def = defFor(key);
   if (!def) { main.appendChild(h('div', { class: 'card muted', text: i18n.t('errors.unknown_collection', { name: key }) })); return; }
@@ -651,6 +656,16 @@ function viewRecords(main, key) {
   if (!bucket.items.some(r => r.id === ui.sel)) ui.sel = bucket.items.length ? bucket.items[0].id : null;
   state.sel[key] = state.sel[key] || new Set();
 
+  // 新建流程抽成一个函数：页头、筛选空态复用同一套逻辑。
+  const createRecord = () => {
+    const rec = newRecord(def);
+    if (def.hasCategory && ui.category != null) rec.category = ui.category;
+    bucket.items.unshift(rec); ui.sel=rec.id; ui.q=''; ui.tag=''; ui.stripScroll=0;
+    state.ui.recordTabs = state.ui.recordTabs || {}; state.ui.recordTabs[def.coll+':'+rec.id]='content';
+    state.ui.recordNewRecord=def.coll+':'+rec.id;
+    touch(def.coll); renderNav(); renderMain();
+    requestAnimationFrame(() => { const input=main.querySelector('.record-name-input'); input?.focus(); input?.select(); });
+  };
   main.appendChild(pageHead(settingLabel(key, def.label), '',
     h('div', { class: 'inline' },
       guidanceButton(i18n.t('records.help_title'), i18n.t('records.edit_guidance')),
@@ -658,16 +673,7 @@ function viewRecords(main, key) {
       aiSettingGenButton(def),
       def.hasCategory ? h('button', {text:i18n.t('records.manage_categories'), onclick:() => manageRecordCategories(def.coll, renderMain)}) : null,
       def.hasTags ? h('button', {text:i18n.t('records.manage_tags'), onclick:() => manageRecordTags(def.coll, renderMain)}) : null,
-      h('button', {class:'primary', text:i18n.t('records.new', {singular:def.singular}),
-        onclick:() => {
-          const rec = newRecord(def);
-          if (def.hasCategory && ui.category != null) rec.category = ui.category;
-          bucket.items.unshift(rec); ui.sel=rec.id; ui.q=''; ui.tag=''; ui.stripScroll=0;
-          state.ui.recordTabs = state.ui.recordTabs || {}; state.ui.recordTabs[def.coll+':'+rec.id]='content';
-          state.ui.recordNewRecord=def.coll+':'+rec.id;
-          touch(def.coll); renderNav(); renderMain();
-          requestAnimationFrame(() => { const input=main.querySelector('.record-name-input'); input?.focus(); input?.select(); });
-        }}))));
+      h('button', {class:'primary', text:i18n.t('records.new', {singular:def.singular}), onclick: createRecord}))));
   if (key === 'other') main.appendChild(moveBar(def.coll, key));
 
   const row = h('div', { class: 'card record-workspace' });
@@ -678,9 +684,46 @@ function viewRecords(main, key) {
 
   // 列表容器只建一次：重绘时复用同一个滚动容器，选中时只切高亮不重建，
   // 这样点条目不会再跳回顶部。
-  const listScroll = recordStrip({onscroll:event=>{ui.stripScroll=event.target.scrollLeft;}});
+  const listScroll = recordStrip({onscroll:event=>{ui.stripScroll=event.target.scrollLeft;updateStripChrome();}});
   const rowEls = new Map();
   const countLine = h('div', { class: 'small muted', style: { marginBottom: '6px' } });
+  // 横栏一屏放不下时给出左右按钮 + 两端渐隐，否则用户不知道后面还有条目。
+  const stripWrap = h('div', { class: 'record-strip-wrap' });
+  const stripArrow = dir => h('button', {
+    class: 'record-strip-arrow ' + (dir < 0 ? 'prev' : 'next'),
+    text: dir < 0 ? '‹' : '›', tabindex: '-1',
+    'aria-label': i18n.t(dir < 0 ? 'records.strip_prev' : 'records.strip_next'),
+    onclick: () => listScroll.scrollBy({
+      left: dir * Math.max(180, Math.round(listScroll.clientWidth * 0.8)),
+      behavior: 'smooth'
+    })
+  });
+  function updateStripChrome() {
+    const max = listScroll.scrollWidth - listScroll.clientWidth;
+    const scrollable = max > 4;
+    stripWrap.classList.toggle('scrollable', scrollable);
+    stripWrap.classList.toggle('more-start', scrollable && listScroll.scrollLeft > 4);
+    stripWrap.classList.toggle('more-end', scrollable && listScroll.scrollLeft < max - 4);
+    const prev = stripWrap.querySelector('.record-strip-arrow.prev');
+    const next = stripWrap.querySelector('.record-strip-arrow.next');
+    if (prev) prev.disabled = listScroll.scrollLeft <= 4;
+    if (next) next.disabled = listScroll.scrollLeft >= max - 4;
+  }
+  const stripPrev = stripArrow(-1), stripNext = stripArrow(1);
+  stripWrap.append(stripPrev, listScroll, stripNext);
+  // 横栏键盘导航：左右移动焦点，Home/End 跳首尾；选中仍由 Enter/空格触发。
+  listScroll.addEventListener('keydown', event => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    const buttons = Array.from(listScroll.querySelectorAll('.record-strip-option'));
+    const index = buttons.indexOf(document.activeElement);
+    if (index < 0) return;
+    event.preventDefault();
+    const next = event.key === 'Home' ? 0
+      : event.key === 'End' ? buttons.length - 1
+      : Math.min(buttons.length - 1, Math.max(0, index + (event.key === 'ArrowRight' ? 1 : -1)));
+    buttons[next].focus();
+  });
+  state.ui.stripChrome = updateStripChrome; // 供一次性 resize 监听复用，避免每次渲染重复绑定
 
   const updateCount = () => {
     countLine.textContent = key === 'other' && state.sel[key] && state.sel[key].size
@@ -715,6 +758,8 @@ function viewRecords(main, key) {
   const drawList = () => {
     refreshFilters();
     const keepLeft = ui.stripScroll || listScroll.scrollLeft;
+    // 重绘会把按钮全部重建：焦点在横栏里的话要还回去，否则键盘用户每选一次就丢焦点。
+    const hadFocus = listScroll.contains(document.activeElement);
     rowEls.clear();
     const q = ui.q.toLowerCase();
     const items = bucket.items.filter(r => matchesRecordFilter(r, q, ui.category, ui.tag));
@@ -735,11 +780,27 @@ function viewRecords(main, key) {
       listScroll.appendChild(item);
     });
     if (!items.length) {
-      listScroll.appendChild(h('div', { class: 'muted small', style: { padding: '10px' } }, i18n.t('records.no_match')));
-      listScroll.appendChild(h('div', {class:'muted small', text:i18n.t('records.create_hint')}));
+      // 空态必须给出下一步：筛选条件可清，完全没条目就新建。
+      const filtered = !!(ui.q || ui.category != null || ui.tag);
+      const box = h('div', { class: 'record-strip-empty' },
+        h('div', { class: 'muted small', text: filtered
+          ? i18n.t('records.no_match_query', { query: ui.q || ui.tag || ui.category || '' })
+          : i18n.t('records.no_match') }),
+        h('button', {
+          class: 'mini', text: filtered ? i18n.t('records.clear_filters') : i18n.t('records.new', { singular: def.singular }),
+          onclick: () => {
+            if (!filtered) { createRecord(); return; }
+            ui.q = ''; ui.category = null; ui.tag = '';
+            if (search.value !== '') search.value = '';
+            chooseVisible();
+          }
+        }));
+      listScroll.appendChild(box);
     }
     updateCount();
     listScroll.scrollLeft = keepLeft;
+    updateStripChrome();
+    if (hadFocus) rowEls.get(ui.sel)?.focus({ preventScroll: true });
   };
 
   const drawEditor = () => {
@@ -754,10 +815,12 @@ function viewRecords(main, key) {
     if (!visible.some(rec => rec.id === ui.sel)) ui.sel = visible[0]?.id || null;
     drawList(); drawEditor();revealRecordStripSelection(listScroll,ui.sel);
   };
-  const search = h('input', { type: 'text', placeholder: i18n.t('common.search'),
-    'aria-label': i18n.t('common.search'), value: ui.q,
+  const search = h('input', { type: 'text', placeholder: i18n.t('records.search_placeholder'),
+    'aria-label': i18n.t('records.search_label'), value: ui.q,
     oninput: e => { ui.q = e.target.value; chooseVisible(); } });
-  const listCard=h('div',{class:'record-picker'}),tools=h('div',{class:'record-picker-tools'},h('div',{class:'field record-picker-search'},search));
+  const listCard=h('div',{class:'record-picker'}),
+    tools=h('div',{class:'record-picker-tools'},
+      h('div',{class:'field record-picker-search'},h('label',{text:i18n.t('records.search_label')}),search));
   if (def.hasCategory) {
     const names = recordCategoryNames(bucket);
     if (ui.category && !names.includes(ui.category)) ui.category = null;
@@ -783,7 +846,7 @@ function viewRecords(main, key) {
         h('option', { value, text: label, selected: value === ui.tag })))));
   }
   tools.appendChild(countLine);
-  listCard.append(tools,listScroll);
+  listCard.append(tools,stripWrap);
   listBox.appendChild(listCard);
   chooseVisible();
 }
@@ -839,9 +902,26 @@ function recordEditor(def, rec, onListChange, onEditorChange) {
           h('button',{text:i18n.t('common.close'),onclick:()=>{dialog.close();onListChange();onEditorChange();}})]);
       }}),
       h('button', {text:i18n.t('records.move'),onclick:()=>moveDialog(coll,[rec.id],()=>{onListChange();onEditorChange();})}),
-      h('button', {class:'danger',text:i18n.t('common.delete'),onclick:()=>confirmDialog(i18n.t('common.delete'),i18n.t('common.delete_confirm',{name:recordName(rec)}),()=>{
-        state.db[coll].items=state.db[coll].items.filter(item=>item.id!==rec.id);touch(coll);onListChange();onEditorChange();
-      })})));
+      h('button', {class:'danger',text:i18n.t('common.delete'),onclick:()=>confirmDialog(
+        i18n.t('records.delete_title'),
+        i18n.t('common.delete_confirm',{name:recordName(rec)}),
+        ()=>{
+          const bucket=state.db[coll];
+          const index=bucket.items.findIndex(item=>item.id===rec.id);
+          bucket.items=bucket.items.filter(item=>item.id!==rec.id);
+          touch(coll);onListChange();onEditorChange();
+          // 删除可撤销：误删一条设定不该让用户去翻备份。
+          toast(i18n.t('records.deleted_toast',{name:recordName(rec)}),'ok',{
+            duration:7000,
+            action:{label:i18n.t('common.undo'),onClick:()=>{
+              bucket.items.splice(Math.max(0,index),0,rec);
+              const ui=state.ui[coll]; if(ui)ui.sel=rec.id;
+              touch(coll);onListChange();onEditorChange();
+            }}
+          });
+        },
+        {confirmLabel:i18n.t('common.delete_named',{name:recordName(rec)}),danger:true}
+      )})));
   } else {
     body.appendChild(field(i18n.t('records.summary'),'summary'));
     if (def.tagLabel) body.appendChild(field(def.tagLabel,'tag'));

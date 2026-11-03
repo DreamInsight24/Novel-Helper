@@ -28,7 +28,7 @@ from .. import ai, context, history, logger, project, prompts as prompts_mod, pr
 from ..ports import PortConfigError, normalize_server_config
 from ._helpers import _api_ready, _surface_error
 from ._language import first_run, save_language
-from ._state import _RUN_STATE
+from ._state import _RUN_STATE, cancel_run
 
 
 def _preserve_language_fields(data: dict) -> dict:
@@ -255,6 +255,13 @@ class _ApiMixin:
 
         if path == "/api/workstation/modes" and method == "GET":
             self._json({"ok": True, "modes": store.load("modes").get("items") or []})
+            return
+
+        if path == "/api/workstation/cancel" and method == "POST":
+            # 让前端"停止生成"能立刻重新发起：标记结果作废并放开生成槽位。
+            cancelled = cancel_run()
+            logger.log_event("AI", "cancel_run", cancelled=cancelled)
+            self._json({"ok": True, "cancelled": cancelled})
             return
 
         if path == "/api/history" and method == "GET":
