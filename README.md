@@ -274,6 +274,8 @@ $check.ExitCode
 
 如果运行时报 `Could not create temporary directory!`，说明 EXE 所在目录的 ACL 不允许 PyInstaller 创建临时解包目录；把 EXE 复制到普通可写目录（如 `D:\Temp`）后重试即可，构建本身没有问题。
 
+如果运行时弹出“无法加载 pywebview 桌面组件。请重新安装依赖（pip install -r app/requirements.txt）”，说明构建时所用的 Python 没有安装 pywebview，EXE 里根本没有桌面组件。这与把 EXE 复制到哪个目录无关：单文件 EXE 的依赖在临时解包目录里，位置不影响导入。请确认 `pyinstaller` 来自 `.venv`（`where.exe pyinstaller` 应指向 `.venv\Scripts\`，而不是全局 Python），然后用 `.venv\Scripts\python.exe -m PyInstaller --clean --noconfirm NovelHelper.spec` 重新构建。现在 spec 会在缺少 pywebview/pythonnet 时直接中止构建并提示，不再静默产出坏 EXE。
+
 ### GitHub Actions 自动构建
 
 `.github/workflows/build-windows.yml` 会在以下时机自动构建：

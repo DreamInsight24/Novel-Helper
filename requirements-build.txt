@@ -1,1 +1,5 @@
+# 构建 Windows EXE 所需的全部依赖：运行依赖（PyYAML、pywebview/pythonnet、openai）
+# 加上 PyInstaller。干净机器上只需执行：
+#   pip install -r requirements-build.txt
+-r app/requirements.txt
 pyinstaller>=6.11,<7
