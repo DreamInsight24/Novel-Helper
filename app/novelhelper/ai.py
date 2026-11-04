@@ -52,6 +52,10 @@ class AIError(RuntimeError):
     pass
 
 
+class StreamStopped(Exception):
+    """Raised inside a stream when the caller asked to stop waiting for more text."""
+
+
 def _api_settings(config: dict) -> dict:
     api = (config or {}).get("api") or {}
     provider = providers.provider_for_config(config)
@@ -238,6 +242,114 @@ def chat_settings(config: dict, settings: dict, messages: list) -> dict:
         usage = raw.get("usage") or {}
         model_name = raw.get("model") or model_name
 
+    return {
+        "text": text,
+        "model": model_name,
+        "effort": settings.get("effort", ""),
+        "elapsed": round(time.time() - started, 2),
+        "usage": usage,
+        "transport": transport,
+        "provider": api["provider_id"],
+    }
+
+
+def _delta_text(chunk: dict) -> str:
+    """从一条流式事件里取出正文增量；思考内容不算正文。"""
+    text = ""
+    for choice in chunk.get("choices") or []:
+        delta = choice.get("delta") or choice.get("message") or {}
+        piece = delta.get("content")
+        if isinstance(piece, list):
+            piece = "".join(part.get("text", "") for part in piece if isinstance(part, dict))
+        if piece:
+            text += str(piece)
+    return text
+
+
+def chat_stream(config: dict, settings: dict, messages: list, on_delta, should_stop=None) -> dict:
+    """
+    流式调用：每收到一段正文就回调 on_delta(text)。
+
+    上游支持 SSE 时逐段回调；不支持时退回一次性返回（仍回调一次，前端照常显示）。
+    should_stop() 返回 True 时立刻抛 StreamStopped，不再等待剩余内容。
+    """
+    api = _api_settings(config)
+    _ensure_key(api)
+    settings = dict(settings or {})
+    if not settings.get("model"):
+        settings["model"] = providers.default_model(config)
+    if not settings.get("model"):
+        raise AIError(t('errors.no_model'))
+    body = _payload(settings, messages, api)
+    body["stream"] = True
+    url = providers.endpoint(api["base_url"], "chat/completions")
+    data = json.dumps(body, ensure_ascii=False).encode("utf-8")
+    headers = {"Content-Type": "application/json", "Accept": "text/event-stream"}
+    if api.get("api_key"):
+        headers["Authorization"] = f"Bearer {api['api_key']}"
+    req = urllib.request.Request(url, data=data, method="POST", headers=headers)
+    started = time.time()
+    usage: dict = {}
+    model_name = body["model"]
+    pieces: list[str] = []
+    transport = "urllib-stream"
+
+    def stop_requested() -> bool:
+        return bool(should_stop and should_stop())
+
+    try:
+        with urllib.request.urlopen(req, timeout=api["timeout"]) as resp:
+            ctype = (resp.headers.get("Content-Type") or "").lower()
+            if "event-stream" not in ctype:
+                # 有些兼容接口忽略 stream 参数：整包返回时一次交给前端。
+                raw = resp.read().decode("utf-8", errors="replace")
+                try:
+                    payload = json.loads(raw)
+                except json.JSONDecodeError as exc:
+                    raise AIError(t('errors.not_json', detail=raw[:600])) from exc
+                text = _extract_content(payload)
+                usage = payload.get("usage") or usage
+                model_name = payload.get("model") or model_name
+                transport = "urllib"
+                if stop_requested():
+                    raise StreamStopped()
+                pieces.append(text)
+                on_delta(text)
+            else:
+                for raw in resp:
+                    if stop_requested():
+                        raise StreamStopped()
+                    line = raw.decode("utf-8", errors="replace").strip()
+                    if not line or line.startswith(":") or not line.startswith("data:"):
+                        continue
+                    payload = line[5:].strip()
+                    if payload == "[DONE]":
+                        break
+                    try:
+                        event = json.loads(payload)
+                    except json.JSONDecodeError:
+                        continue
+                    if event.get("usage"):
+                        usage = event["usage"]
+                    if event.get("model"):
+                        model_name = event["model"]
+                    piece = _delta_text(event)
+                    if piece:
+                        pieces.append(piece)
+                        on_delta(piece)
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")[:1200]
+        raise AIError(f"HTTP {exc.code}: {detail}") from exc
+    except StreamStopped:
+        raise
+    except AIError:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise AIError(f"{type(exc).__name__}: {exc}") from exc
+
+    text = "".join(pieces).strip()
+    if not text:
+        raise AIError(t('errors.empty_response'))
     return {
         "text": text,
         "model": model_name,

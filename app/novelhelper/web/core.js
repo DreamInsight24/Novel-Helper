@@ -632,7 +632,6 @@ const NOVEL_NAV = [
   { history: true },
   { group: i18n.t('nav.group_writing'), groupKey: 'writing' },
   { id: 'writer', label: i18n.t('nav.writer') },
-  { id: 'chapters', label: i18n.t('nav.chapters') },
   { id: 'text', label: i18n.t('nav.text') },
   { settings: true },
   { group: i18n.t('nav.group_memory'), groupKey: 'memory' },
@@ -730,13 +729,18 @@ function renderNav() {
     }
     const count = entry.coll ? collItems(entry.coll).length : '';
     const active = state.view === entry.id;
+    // 工作站选项卡右边一个会动的点：切到别的页面也知道还在生成。
+    const generating = entry.id === 'writer' && !!state.ui.generating;
     nav.appendChild(h('button', {
-      class: 'nav-item' + (active ? ' active' : ''),
+      class: 'nav-item' + (active ? ' active' : '') + (generating ? ' nav-item-generating' : ''),
       'data-view': entry.id,
       'aria-current': active ? 'page' : null,
+      'aria-busy': generating ? 'true' : null,
+      title: generating ? i18n.t('workstation.generating') : null,
       onclick: () => entry.id === 'settings' ? openSettings() : go(entry.id)
     },
       h('span', { text: entry.label }),
+      generating ? h('span', { class: 'nav-generating', 'aria-hidden': 'true' }) : null,
       count !== '' ? h('span', { class: 'count', text: String(count) }) : null));
   }
   nav.scrollTop = keepTop;
@@ -953,7 +957,7 @@ function renderMain() {
   const map = {
     home: viewHome,
     cards: viewCharacterCards,
-    writer: viewWorkstation, chapters: viewChapters, text: viewManuscript,
+    writer: viewWorkstation, text: viewManuscript,
     relations: viewRelations,
     inventory: viewInventory, memories: viewMemories, world: viewWorld,
     elements: viewElements, sections: viewSections, modes: viewModes, settings: viewAI

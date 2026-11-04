@@ -24,12 +24,12 @@
 | 关系网与关联 | `web/relations.js`: `relationCatalog`、`relationEdges`、`relationVisibleGraph`、`relationLayout`、`relationGraph`、`relationEditor`、`viewRelations` | `relations.py`: `catalog`、`memberships`、`normalize`、`sync_memberships`；`store/_repository.py`: `save('relations')` | `data/novels/<id>/relations.json` |
 | 创建/编辑关联 | `web/relations.js`: `relationDialog`、`relationSave`、`openRelationRecord` | `store/_repository.py`: `save('relations')`（坏边丢弃、快照与事务回滚）；`relations.normalize` | 同上 |
 | AI 上下文拼装 | — | `context.py`: `build_user_message`、`assemble_mode`、`render_record_selection`、`render_character/faction/item/other/memory/worldmap`、`render_record_relations` | 内存组装，不落盘 |
-| AI 工作站（写稿） | `web/workstation.js`: `viewWorkstation`、`runWorkstation`、`previewWorkstation`、`saveOutputDialog`、`sendOutputToText` | `server/_generation.py`: `_workstation_run`；`ai.py`: `chat_settings`；`history.py`: `append_turn`、`context_messages` | `data/novels/<id>/history.json`、`conversations/<id>.json` |
+| AI 工作站（写稿） | `web/workstation.js`: `viewWorkstation`、`runWorkstation`、`streamWorkstation`、`agentStreaming`、`openModePicker`、`wsModelMenu`、`stopWorkstation`、`openManuscriptChapter` | `server/_generation.py`: `_run_workstation`、`_workstation_stream`（ndjson：start/delta/done/error）；`ai.py`: `chat_stream`、`chat_settings`；`history.py`: `append_turn`、`context_messages` | `data/novels/<id>/history.json`、`conversations/<id>.json` |
 | AI 设定生成 | `web/records.js`: `aiSettingGenDialog`、`showAiSettingGenResult`、`aiSettingGenButton` | `setting_gen.py`: `extract_records`、`validate_batch`、`write_batch`、`undo_last_batch`、`map_fields`；`server/_generation.py`: `_ai_setting_gen`、`_ai_setting_gen_undo` | 目标集合 JSON |
 | 模式管理 | `web/config.js`: `viewModes`、`addModeDialog`、`modeModelOptions`、`modeKindLabel` | `prompts.py`: `DEFAULT_MODES`、`default_modes`；`ai.py`: `mode_settings` | `data/novels/<id>/modes.json` |
 | 模型与提供商 | `web/config.js`: `currentModels`、`providerById`、`apiCfg`、`defaultModelName`、`effortChoices` | `providers.py`: `PROVIDERS`、`provider_models`、`default_model`、`endpoint`；`ai.py`: `list_models`、`ping` | `data/config.json` 的 `api` 段 |
-| 稿件处理 | `web/manuscript.js`: `viewManuscript`、`exportAs`、`browseOpen` | `project/_outputs.py`: `write_output`、`write_plan`、`write_txt_from_md`；`project/_text.py`: `apply_text_op`、`md_to_txt` | `workspace/novels/<id>/output`、`text` |
-| 章节 | `web/views.js`: `viewChapters`、`previewFile` | `project/_outputs.py`: `write_chapter`、`list_chapters`；`server/_api.py`: `/api/chapters`、`/api/output` | `workspace/novels/<id>/output` |
+| 稿件处理 | `web/manuscript.js`: `viewManuscript`、`chapterBar`、`loadChapter`、`exportAs`、`browseOpen` | `project/_outputs.py`: `write_output`、`write_plan`、`write_txt_from_md`；`project/_text.py`: `apply_text_op`、`md_to_txt` | `workspace/novels/<id>/output`、`text` |
+| 章节 | `web/manuscript.js`: `chapterBar`（可收起章节栏）、`previewFile` | `project/_outputs.py`: `write_chapter`、`write_auto_chapter`、`next_chapter_number`、`list_chapters`；`server/_api.py`: `/api/chapters`、`/api/output` | `workspace/novels/<id>/output`；来源对话记在 `state.json` 的 `workstation.chapters` |
 | 记忆 | `web/views.js`: `viewMemories`、`compressMemories` | `project/_parsers.py`: `import_memories`；`tool_prompts.py`: `prompt('compress')`；`server/_generation.py`: `_ai_run` | `data/novels/<id>/memories.json` |
 | 世界地图 | `web/views.js`: `viewWorld`、`newBoard`、`boardCells` | `context.py`: `render_worldmap`；`project/_parsers.py`: `parse_worldmap` | `data/novels/<id>/worldmap.json` |
 | 人物背包/装备 | `web/views.js`: `viewInventory` | `context.py`: `render_equipment`、`loadout` | `characters.json`、`items.json` |
@@ -92,7 +92,7 @@
 | `_imports.py` | `records_from_md()`、`import_json()`、`merge_records()`、`validate_import_records()`、`import_worldmap_json()` |
 | `_parsers.py` | `split_sections()`、`import_memories()`、`parse_worldmap()`、`parse_name_tag()`、`strip_code_fence()` |
 | `_exports.py` | `clean_json()`、`export_text()`、`save_json()`、`save_txt()` |
-| `_outputs.py` | `write_output()`、`write_chapter()`、`write_plan()`、`write_txt_from_md()`、`list_chapters()` |
+| `_outputs.py` | `write_output()`、`write_chapter()`、`write_auto_chapter()`、`next_chapter_number()`、`write_plan()`、`write_txt_from_md()`、`list_chapters()` |
 | `_text.py` | `md_to_txt()`、`apply_text_op()`、`text_stats()`、`clean_blank_lines()`、`split_parts()` |
 | `_browse.py` | `import_sources()`、`list_io()`、`list_text()`、`browse()`、`write_external()` |
 
@@ -119,10 +119,10 @@
 | `core.js` | `api()`、`h()`、`svgIcon()`、`modal()`、`confirmDialog()`、`askDialog()`、`toast()`、`status()`、`state`、`go()`、`renderMain()`、`renderNav()`、`commandEntries()`、`openCommandPalette()`（Ctrl+K）、`settingEntries()`、`defFor()`、`COLLECTIONS`、`touch()`/`saveNow()`（防抖保存）、`refreshFiles()`、`viewHome()`、`showCreateNovel()`、`switchNovel()` |
 | `records.js` | `viewRecords()`、`createRecord()`、`recordEditor()`、`newRecord()`、`elementTree()`、`applyPreset()`、`recordStrip()`、`manageRecordCategories()`、`renameRecordCategory()`、`recordTags()`、`importPanel()`、`exportButtons()`、`moveBar()`/`moveDialog()`、`aiSettingGenDialog()`、`showAiSettingGenResult()` |
 | `relations.js` | `relationCatalog()`、`relationEdges()`、`relationVisibleGraph()`、`relationLayout()`、`relationGraph()`、`relationEditor()`、`relationDialog()`、`relationSave()`、`openRelationRecord()` |
-| `views.js` | `viewInventory()`、`viewWorld()`、`viewMemories()`、`compressMemories()`、`viewChapters()`、`previewFile()` |
+| `views.js` | `viewInventory()`、`viewWorld()`、`viewMemories()`、`compressMemories()`、`previewFile()` |
 | `config.js` | `viewAI()`（设置页）、`viewModes()`、`addModeDialog()`、`viewSections()`、`viewElements()`、`settingMetadataEditor()`、`currentModels()`、`refreshConfigMeta()`、`restoreNovelConfig()`、`showOnboarding()`、`showSettingImport()` |
-| `workstation.js` | `viewWorkstation()`、`runWorkstation()`、`stopWorkstation()`、`previewWorkstation()`、`newConversation()`、`loadCurrentSession()`、`pollBusyState()`、`boot()`、`refreshWorkstationHistory()`、`switchWorkstationSession()`、`saveOutputDialog()`、`sendOutputToText()` |
-| `manuscript.js` | `viewManuscript()`、`exportAs()`、`browseOpen()`、`processModes()` |
+| `workstation.js` | `viewWorkstation()`、`runWorkstation()`、`streamWorkstation()`、`paintStreaming()`、`openModePicker()`、`wsModelMenu()`、`stopWorkstation()`、`openManuscriptChapter()`、`previewWorkstation()`、`newConversation()`、`loadCurrentSession()`、`pollBusyState()`、`boot()`、`refreshWorkstationHistory()`、`switchWorkstationSession()`、`saveOutputDialog()`、`sendOutputToText()` |
+| `manuscript.js` | `viewManuscript()`、`chapterBar()`、`loadChapter()`、`exportAs()`、`browseOpen()`、`processModes()` |
 | `i18n/i18n.js` | `i18n.t()`、`i18n.apply()`、`i18n.load()` |
 | `i18n/bootstrap.js` | 翻译表加载完成后按顺序加载 `core/records/relations/cards/views/config/workstation/manuscript`，再 `boot()` |
 | `index.html` | 外壳：`#sidebar`、`#nav`、`#main`、`#overlay-root`、`#toast-root` |
@@ -152,7 +152,8 @@
 | `/api/ai/ping` | POST | `_api.py` → `ai.ping` | 接口连通性 |
 | `/api/ai/run` | POST | `_generation.py:_ai_run` | 内置工具（摘要/压缩/润色/修复） |
 | `/api/ai/setting-gen`、`/undo` | POST | `_generation.py` → `setting_gen` | AI 设定生成 / 撤销 |
-| `/api/workstation/run` | POST | `_generation.py:_workstation_run` | AI 工作站生成 |
+| `/api/workstation/run` | POST | `_generation.py:_workstation_run` → `_run_workstation` | AI 工作站生成（等整段返回） |
+| `/api/workstation/stream` | POST | `_generation.py:_workstation_stream` | 流式生成：`application/x-ndjson`，帧为 `start` / `delta` / `done`（payload 同 `/run`）/ `error` |
 | `/api/workstation/cancel` | POST | `_api.py` → `_state.cancel_run` | 停止生成：标记结果作废并放开生成锁 |
 | `/api/workstation/status`、`/modes` | GET | `_api.py` | 生成状态 / 模式列表 |
 | `/api/history`、`/api/history/<id>` | GET/DELETE | `_api.py` → `history` | 会话列表 / 读取 / 删除 |
@@ -185,7 +186,7 @@ log/                               # 日志（配置 paths.log_dir）
 - 基线：`python -X utf8 -B scripts/smoke_test.py`、`python -X utf8 -B app/selftest.py`、`python -X utf8 -B scripts/check_dependencies.py`
 - 前端语法：`node --check app/novelhelper/web/<file>.js`
 - 国际化：`node scripts/test_i18n.cjs`、`python scripts/test_localization.py`
-- 模块测试：`scripts/test_relations.py`、`test_relations_ui.cjs`、`test_settings_ui.cjs`、`test_record_forms.cjs`、`test_setting_gen.py`、`test_setting_gen_ui.cjs`、`test_workstation_ui.cjs`、`test_workstation_details.cjs`、`test_manuscript_ui.cjs`、`test_memories_ui.cjs`、`test_layout_migration.py`、`test_language_settings.py`、`test_desktop.py`、`test_run_cancel.py`
+- 模块测试：`scripts/test_relations.py`、`test_relations_ui.cjs`、`test_settings_ui.cjs`、`test_record_forms.cjs`、`test_setting_gen.py`、`test_setting_gen_ui.cjs`、`test_workstation_ui.cjs`、`test_workstation_details.cjs`、`test_workstation_stream.py`、`test_manuscript_ui.cjs`、`test_memories_ui.cjs`、`test_layout_migration.py`、`test_language_settings.py`、`test_desktop.py`、`test_run_cancel.py`
 - 打包：`scripts/exe_smoke_test.py`；Windows 工作流 `.github/workflows/build-windows.yml`
 
 ## 8. 常见改动定位示例
@@ -240,3 +241,14 @@ log/                               # 日志（配置 paths.log_dir）
 - `web/records.js`: `recordStrip` / `recordStripButton` 是常规设定、背包和地图区域的顶部选择器；`recordGroupsEditor` 提供拖动、键盘排序及右侧删除；`moveRecordGroup`、`removeRecordGroup`、`restoreRecordGroup` 保存完整节点与顺序，`recordEditSession` / `removedRecordGroups` 管理仅本页可用的恢复记录。
 - `web/core.js::renderMain` 在小说或视图变化时清理临时恢复；`web/views.js::viewInventory/viewWorld` 保留背包和地图原有数据操作，并复用选择器/地图信息分组编辑。
 - 自动测试：`scripts/test_record_forms.cjs` 验证数据与恢复范围，`scripts/test_record_layout_ui.cjs` 用临时作品库验证全部常规栏目、真实拖动、键盘操作、筛选、多选、恢复/退出/刷新以及背包和地图。截图生成在系统临时目录，不写项目 validation 目录。
+
+## 工作站流式生成与章节落盘定位
+
+| 功能 | 实现 | 回归 |
+|---|---|---|
+| 流式返回（start/delta/done/error） | `server/_generation.py`: `_workstation_stream`、`_stream_*`；`ai.py`: `chat_stream`（SSE，非 SSE 上游退回整包） | `scripts/test_workstation_stream.py` |
+| 前端逐字渲染、生成中不锁界面 | `web/workstation.js`: `streamWorkstation`、`paintStreaming`、`agentStreaming`、`state.ui.generating`；`web/core.js::renderNav` 生成指示点 | `scripts/test_workstation_ui.cjs` |
+| 完整写作落成新章节 | `server/_generation.py`: `_wants_chapter`、`_chapter_title`；`project/_outputs.py`: `write_auto_chapter`、`next_chapter_number` | `scripts/test_workstation_stream.py` |
+| 章节栏与「来自对话」 | `web/manuscript.js`: `chapterBar`、`loadChapter`；来源索引 `state.json` 的 `workstation.chapters` | `scripts/test_manuscript_ui.cjs`、`scripts/test_workstation_stream.py` |
+| 基础提示词 + 模式任务提示词 | `prompts.py`: `AGENT_BASE_PROMPT`、`base_prompt`；`context.py::assemble_mode` | `app/selftest.py`、`scripts/test_language_settings.py` |
+| 模式选择弹窗、模型在输入栏右侧 | `web/workstation.js`: `openModePicker`、`wsModelMenu`；`web/config.js`: `currentModels`（设置页只维护模型清单） | `scripts/test_settings_ui.cjs` |

@@ -26,7 +26,15 @@ from ._imports import (
     records_from_md,
     validate_import_records,
 )
-from ._outputs import list_chapters, write_chapter, write_output, write_plan, write_txt_from_md
+from ._outputs import (
+    list_chapters,
+    next_chapter_number,
+    write_auto_chapter,
+    write_chapter,
+    write_output,
+    write_plan,
+    write_txt_from_md,
+)
 from ._parsers import (
     HEADING_RE,
     import_memories,
@@ -71,6 +79,8 @@ __all__ = [
     "save_json",
     "save_txt",
     "write_chapter",
+    "write_auto_chapter",
+    "next_chapter_number",
     "write_output",
     "write_plan",
     "strip_output_header",

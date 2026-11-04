@@ -91,6 +91,8 @@ settings:
 
 内置工作模式与新增模式的系统提示词提供中英两份（`defaults.mode.*_prompt`），按当前语言取词，并随首次语言保存一起冻结到 `data/modes.json`；提示词不再包含 Markdown 标题标记。
 
+所有生成共用的 Agent 基础提示词同样提供中英两份（`defaults.agent.base_prompt`），由 `prompts.base_prompt()` 按当前语言取词，在 `context.assemble_mode` 里拼到模式提示词之前；它不在设置界面里编辑，翻译表缺词时回退 `prompts.AGENT_BASE_PROMPT` 的中文原文。
+
 `GET /api/i18n/<lang_id>` 返回：
 
 ```json

@@ -88,20 +88,25 @@ const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
     await page.getByRole('button',{name:'限定字数',exact:true}).click();
     await page.locator('.agent-target-menu input').fill('1234');
     await page.locator('.agent-target summary').click();
-    await page.locator('.agent-model').selectOption('deepseek-v4-pro');
+    await page.locator('.agent-model summary').click();
+    await page.locator('.agent-model-item', {hasText: 'deepseek-v4-pro'}).click();
     await page.locator('.agent-prompt').fill('Acceptance request');
     let sent;
-    await page.route('**/api/workstation/run',async route=>{sent=route.request().postDataJSON();await route.fulfill({status:400,contentType:'application/json',body:JSON.stringify({ok:false,error:'Acceptance request captured'})});});
+    await page.route('**/api/workstation/stream', async route => {
+      sent = route.request().postDataJSON();
+      await route.fulfill({status:200,contentType:'application/x-ndjson; charset=utf-8',
+        body: JSON.stringify({type:'error',error:'Acceptance request captured',status:400})+'\n'});
+    });
     await page.getByRole('button',{name:'开始生成',exact:true}).click();
     await page.waitForFunction(()=>document.querySelector('[role=alert]'));
     assert.equal(sent.override.model,'deepseek-v4-pro');assert.equal(sent.selection.target_chars,1234);assert.equal(sent.selection.strict_length,true);
     await page.locator('.agent-target summary').click();await page.getByRole('button',{name:'不限字数',exact:true}).click();await page.locator('.agent-target summary').click();
-    const unlimitedRequest=page.waitForRequest('**/api/workstation/run');
+    const unlimitedRequest=page.waitForRequest('**/api/workstation/stream');
     await page.getByRole('button',{name:'开始生成',exact:true}).click();await unlimitedRequest;
-    await page.waitForFunction(()=>!state.ui.busy);
+    await page.waitForFunction(()=>!state.ui.generating);
     assert.equal('target_chars' in sent.selection,false);assert.equal(sent.selection.length_mode,'unlimited');
-    await page.unroute('**/api/workstation/run');
-    await page.evaluate(()=>{state.ui.wsError='';state.ui.busy=false;state.db.state.workstation.prompt='';renderMain();});
+    await page.unroute('**/api/workstation/stream');
+    await page.evaluate(()=>{state.ui.wsError='';state.ui.generating=null;state.db.state.workstation.prompt='';renderMain();});
     for(const lang of ['zh-CN','en-US']){
       await page.evaluate(()=>flushPendingSaves());
       await page.goto(base+'/?lang='+lang);

@@ -63,6 +63,24 @@ def write_chapter(content: str, name: str) -> Path:
             number += 1
 
 
+def next_chapter_number() -> int:
+    """下一个章节序号：读取输出目录里已有章节的编号前缀，从 1 开始。"""
+    import re
+
+    highest = 0
+    for entry in list_chapters():
+        match = re.match(r"^(\d+)", entry.get("name") or "")
+        if match:
+            highest = max(highest, int(match.group(1)))
+    return highest + 1
+
+
+def write_auto_chapter(content: str, title: str = "") -> Path:
+    """把一次完整写作的结果落成新章节：`003-章节名.txt`。"""
+    name = " ".join(str(title or "").split())[:40] or f"chapter_{stamp()}"
+    return write_chapter(content, f"{next_chapter_number():03d}-{name}")
+
+
 def write_plan(content: str, chapter: str = "") -> Path:
     """写作计划，按新规矩用 .txt。"""
     target_dir = plan_dir()

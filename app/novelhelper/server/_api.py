@@ -479,6 +479,10 @@ class _ApiMixin:
             self._workstation_run()
             return
 
+        if path == "/api/workstation/stream" and method == "POST":
+            self._workstation_stream()
+            return
+
         if path == "/api/history/current" and method == "POST":
             body = self._body()
             session = history.set_current(body.get("id") or "")

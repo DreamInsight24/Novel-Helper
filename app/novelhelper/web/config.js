@@ -299,15 +299,7 @@ function effortChoices() {
     : ['none', 'low', 'medium', 'high', 'max'];
 }
 
-function modeModelOptions(mode) {
-  const models = currentModels();
-  const options = [{ value: '', label: defaultModelName() ? i18n.t('modes.follow_default', {name: defaultModelName()}) : i18n.t('modes.follow_default_empty') }];
-  models.forEach(m => options.push({ value: m, label: m }));
-  if (mode.model && !models.includes(mode.model)) {
-    options.push({ value: mode.model, label: i18n.t('modes.not_in_list', { model: mode.model }) });
-  }
-  return options;
-}
+// 模型不在配置里选：统一在 AI 工作站的输入栏右侧（见 workstation.js wsModelMenu）。
 
 const MODE_KINDS = [
   { id: 'write', label: i18n.t('modes.kind_write'), desc: i18n.t('modes.kind_write_desc') },
@@ -334,24 +326,10 @@ function viewModes(main) {
   }
 
   const models = currentModels();
-  const stale = modes.filter(m => m.model && models.length && !models.includes(m.model));
 
   main.appendChild(pageHead(i18n.t('nav.modes'),
     i18n.t('modes.page_desc'),
     h('div', { class: 'inline' },
-      h('button', {
-        text: i18n.t('modes.sync_button'),
-        title: i18n.t('modes.sync_title'),
-        onclick: () => {
-          const api = apiCfg();
-          modes.forEach(m => {
-            m.model = '';
-            m.effort = api.default_effort || 'medium';
-          });
-          touch('modes'); renderMain();
-          toast(i18n.t('modes.synced'), 'ok');
-        }
-      }),
       h('button', {
         class: 'primary', text: i18n.t('modes.add_kind', { kind: modeKindLabel(ui.kind) }),
         onclick: () => addModeDialog(ui.kind)
@@ -370,15 +348,6 @@ function viewModes(main) {
     }, kind.label, h('span', { class: 'count', text: String(modes.filter(m => modeKind(m) === kind.id).length) }))));
   main.appendChild(tabs);
 
-  if (stale.length) {
-    main.appendChild(h('div', { class: 'notice warn' },
-      h('span', { text: i18n.t('modes.stale_warning', { count: stale.length }) }),
-      h('button', { class: 'mini', text: i18n.t('modes.sync_one'), onclick: () => {
-        const api = apiCfg();
-        modes.forEach(m => { m.model = ''; m.effort = api.default_effort || 'medium'; });
-        touch('modes'); renderMain();
-      } })));
-  }
   if (!models.length) {
     main.appendChild(h('div', { class: 'notice warn',
       text: i18n.t('modes.no_models') }));
@@ -403,14 +372,14 @@ function viewModes(main) {
         onclick: () => addModeDialog(ui.kind)
       }));
     } else {
-      const list = h('div', { class: 'list' });
+      const list = h('div', { class: 'list mode-list' });
       visible.forEach(mode => {
         list.appendChild(h('div', {
           class: 'list-item' + (mode.id === ui.sel ? ' active' : ''),
           onclick: () => { ui.sel = mode.id; drawList(); drawEditor(); }
         },
           h('div', { class: 'name', text: mode.label || mode.id }),
-          h('div', { class: 'meta', text: (mode.model || i18n.t('settings.default_model_label')) + ' · ' + (mode.effort || 'medium') })));
+          h('div', { class: 'meta', text: mode.desc || modeKindLabel(modeKind(mode)) })));
       });
       card.appendChild(list);
     }
@@ -427,26 +396,6 @@ function viewModes(main) {
     const card = h('div', { class: 'card' });
     card.appendChild(h('h2', null, mode.label || mode.id,
       h('span', { class: 'hint', text: i18n.t('modes.autosave_hint') })));
-
-    // 模型与推理强度：放在模式编辑器顶部
-    const modelRow = h('div', { class: 'mode-settings-top' });
-    modelRow.appendChild(h('div', { class: 'field' },
-      h('label', { text: i18n.t('modes.model_label') }),
-      h('select', {
-        onchange: e => { mode.model = e.target.value; touch('modes'); drawList(); }
-      }, modeModelOptions(mode).map(opt => h('option', {
-        value: opt.value, text: opt.label, selected: opt.value === (mode.model || '')
-      })))));
-    modelRow.appendChild(h('div', { class: 'field' },
-      h('label', { text: i18n.t('modes.effort_label') }),
-      h('select', {
-        onchange: e => { mode.effort = e.target.value; touch('modes'); drawList(); }
-      }, effortChoices().map(value => h('option', {
-        value, text: value, selected: value === (mode.effort || 'medium')
-      })))));
-    card.appendChild(modelRow);
-    card.appendChild(h('div', { class: 'small muted', style: { marginBottom: '10px' } },
-      i18n.t('modes.model_hint')));
 
     card.appendChild(h('div', { class: 'field' },
       h('label', { text: i18n.t('modes.name_label') }),
@@ -475,6 +424,12 @@ function viewModes(main) {
     const advanced = h('details', { class: 'input-details' });
     advanced.appendChild(h('summary', null, i18n.t('modes.advanced')));
     advanced.appendChild(h('div', { class: 'inline' },
+      h('div', { class: 'field' }, h('label', { text: i18n.t('modes.effort_label') }),
+        h('select', {
+          onchange: e => { mode.effort = e.target.value; touch('modes'); }
+        }, effortChoices().map(value => h('option', {
+          value, text: value, selected: value === (mode.effort || 'medium')
+        })))),
       h('div', { class: 'field' }, h('label', { text: 'max_tokens' }),
         h('input', { type: 'number', value: mode.max_tokens || 32768, oninput: e => { mode.max_tokens = Number(e.target.value) || 32768; touch('modes'); } })),
       h('div', { class: 'field' }, h('label', { text: 'top_p' }),
@@ -505,14 +460,23 @@ function viewModes(main) {
         ? i18n.t('modes.target_chars_process_hint')
         : i18n.t('modes.target_chars_write_hint')));
 
-    card.appendChild(h('div', { class: 'field', style: { marginTop: '10px' } },
-      h('label', { text: i18n.t('modes.system_prompt_label') }),
-      h('div', {class: 'small muted', text: i18n.t('common.default_content')}),
-      h('textarea', {
-        rows: 22, value: mode.system_prompt || '',
-        oninput: e => { mode.system_prompt = e.target.value; touch('modes'); autoGrow(e.target); }
-      })));
-    card.appendChild(h('div', { class: 'small muted', text: i18n.t('modes.prompt_saved_hint') }));
+    // 基础提示词（Agent 指令）不在这里改；内置模式只展示它负责的那段任务。
+    if (mode.builtin) {
+      card.appendChild(h('div', { class: 'builtin-prompt-note' },
+        h('div', { class: 'small muted', text: i18n.t('modes.builtin_prompt_note') }),
+        h('details', { class: 'input-details' },
+          h('summary', { text: i18n.t('modes.builtin_prompt_view') }),
+          h('pre', { class: 'log', text: mode.system_prompt || '' }))));
+    } else {
+      card.appendChild(h('div', { class: 'field', style: { marginTop: '10px' } },
+        h('label', { text: i18n.t('modes.system_prompt_label') }),
+        h('div', {class: 'small muted', text: i18n.t('common.default_content')}),
+        h('textarea', {
+          rows: 22, value: mode.system_prompt || '',
+          oninput: e => { mode.system_prompt = e.target.value; touch('modes'); autoGrow(e.target); }
+        })));
+      card.appendChild(h('div', { class: 'small muted', text: i18n.t('modes.prompt_saved_hint') }));
+    }
 
     card.appendChild(h('div', { class: 'inline', style: { marginTop: '10px' } },
       h('button', {
@@ -795,6 +759,7 @@ function viewAI(main) {
       }
     }),
     h('span', { class: 'small muted', text: i18n.t('settings.models_endpoint_hint') })));
+  // 模型只在这里维护清单；本次用哪个模型由 AI 工作站输入栏右侧决定。
   modelCard.appendChild(h('div', { class: 'field' },
     h('label', { text: i18n.t('settings.models_label') }),
     h('textarea', {
@@ -809,21 +774,6 @@ function viewAI(main) {
       class: 'mini', text: i18n.t('settings.refresh_models'),
       onclick: () => renderMain()
     })));
-  modelCard.appendChild(h('div', { class: 'inline' },
-    h('div', { class: 'field', style: { flex: '1' } },
-      h('label', { text: i18n.t('settings.default_model_label') }),
-      h('select', {
-        onchange: e => { api.default_model = e.target.value; touch('config'); }
-      }, (models.length ? models : [api.default_model || '']).map(m => h('option', {
-        value: m, text: m || i18n.t('settings.no_model_option'), selected: m === api.default_model
-      })))),
-    h('div', { class: 'field' },
-      h('label', { text: i18n.t('settings.default_effort_label') }),
-      h('select', {
-        onchange: e => { api.default_effort = e.target.value; touch('config'); }
-      }, effortChoices().map(value => h('option', {
-        value, text: value, selected: value === (api.default_effort || 'medium')
-      }))))));
   modelCard.appendChild(h('div', { class: 'inline' },
     h('button', {
       class: 'primary', text: i18n.t('settings.save'),
@@ -1227,30 +1177,9 @@ function showOnboarding(force) {
           } finally { btn.disabled = false; }
         }
       })));
-    if (models.length) {
-      body.appendChild(h('div', { class: 'field' },
-        h('label', { text: i18n.t('settings.default_model_label') }),
-        h('select', {
-          onchange: e => { api.default_model = e.target.value; touch('config'); }
-        }, models.map(m => h('option', {
-          value: m, text: m, selected: m === api.default_model
-        })))));
-    } else {
-      body.appendChild(h('div', { class: 'field' },
-        h('label', { text: i18n.t('settings.model_name_label') }),
-        h('input', {
-          type: 'text', value: api.default_model || '',
-          placeholder: i18n.t('settings.model_name_placeholder'),
-          oninput: e => { api.default_model = e.target.value; touch('config'); }
-        })));
-    }
-    body.appendChild(h('div', { class: 'field' },
-      h('label', { text: i18n.t('settings.default_effort_label') }),
-      h('select', {
-        onchange: e => { api.default_effort = e.target.value; touch('config'); }
-      }, effortChoices().map(value => h('option', {
-        value, text: value, selected: value === (api.default_effort || 'medium')
-      })))));
+    // 模型清单在「模型设置」里维护；本次用哪个模型在 AI 工作站里选。
+    body.appendChild(h('div', { class: 'small muted', style: { marginBottom: '10px' },
+      text: i18n.t('welcome.model_note') }));
     body.appendChild(h('div', { class: 'notice' + (customUrl ? ' warn' : ''),
       text: customUrl
         ? i18n.t('welcome.custom_url_note')

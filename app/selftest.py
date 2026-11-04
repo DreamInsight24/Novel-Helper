@@ -266,7 +266,9 @@ def main() -> int:
     assembled = context.assemble_mode(db["config"], db, selection, outline_mode,
                                       work_prompt="先给一个场景框架。")
     check("工作站 system 使用工作模式提示词",
-          "框架写作" in assembled["system"] and "章节目标" in assembled["system"])
+          "框架写作" in assembled["system"] and "本节目标" in assembled["system"])
+    check("工作站 system 先拼 Agent 基础提示词",
+          assembled["system"].startswith(prompts_mod.base_prompt()))
     user = assembled["user"]
     check("工作站 user 包含已选设定与当前状态",
           all(x in user for x in ("林舟", "开场记忆", "临海城市", "傍晚，北门外", "写角色进城的第一幕")))

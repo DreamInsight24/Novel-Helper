@@ -29,7 +29,7 @@ from __future__ import annotations
 
 from typing import Any, Iterable
 
-from . import elements as el, localization, providers
+from . import elements as el, localization, prompts, providers
 
 
 # ─────────────────────────────────────────────
@@ -598,7 +598,11 @@ def assemble_mode(
     work_prompt: str = "",
     source_text: str = "",
 ) -> dict:
-    system = (mode.get("system_prompt") or "").strip() + providers.provider_note(config)
+    # system = Agent 基础提示词 + 模式自己的任务提示词 + 接口说明。
+    # 基础提示词是固定的（设置界面不提供编辑），模式只负责"这次做什么"。
+    task_prompt = (mode.get("system_prompt") or "").strip()
+    system = "\n\n".join(part for part in (prompts.base_prompt(), task_prompt) if part)
+    system += providers.provider_note(config)
     user = build_user_message(
         config, db, selection, mode=mode, work_prompt=work_prompt, source_text=source_text,
     )

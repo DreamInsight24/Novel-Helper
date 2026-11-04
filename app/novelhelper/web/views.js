@@ -898,45 +898,8 @@ function splitMdSections(text) {
 }
 
 // ═══════════════════════════════════════════
-// 章节与产出
+// 文件预览（章节栏与素材预览共用）
 // ═══════════════════════════════════════════
-function viewChapters(main) {
-  main.appendChild(pageHead(i18n.t('nav.chapters'), i18n.t('chapters.page_desc'),
-    h('button', { text: i18n.t('common.refresh'), onclick: async () => { await refreshFiles(); renderMain(); } })));
-  const card = h('div', { class: 'card' });
-  const table = h('table', { class: 'grid' });
-  table.appendChild(h('tr', null, ['file', 'dir', 'size', 'mtime', 'actions'].map(key => h('th', { text: i18n.t('chapters.col_' + key) }))));
-  for (const c of state.chapters) {
-    const actions = h('div', { class: 'inline', style: { justifyContent: 'center' } },
-      h('button', { class: 'mini', text: i18n.t('common.preview'), onclick: () => previewFile(c.path) }),
-      c.path.endsWith('.md') ? h('button', {
-        class: 'mini', text: i18n.t('chapters.to_txt'),
-        onclick: async () => {
-          try { const r = await api('/api/txt', { method: 'POST', body: { path: c.path } }); toast(i18n.t('chapters.generated', { path: r.path }), 'ok'); await refreshFiles(); }
-          catch (e) { toast(i18n.t('chapters.convert_failed_reason', { reason: e.message }), 'err'); }
-        }
-      }) : null,
-      h('button', {
-        class: 'mini', text: i18n.t('chapters.send_to_manuscript'),
-        onclick: async () => {
-          try {
-            const r = await api('/api/file?path=' + encodeURIComponent(c.path));
-            appendToTextPanel(r.content, false, { title: c.name, source: 'chapter' });
-            go('text');
-          } catch (e) { toast(i18n.t('common.read_failed_reason', { reason: e.message }), 'err'); }
-        }
-      }));
-    table.appendChild(h('tr', null,
-      h('td', { style: { textAlign: 'left' }, text: c.name }),
-      h('td', { class: 'muted small', text: c.dir }),
-      h('td', { text: (c.size / 1024).toFixed(1) + ' KB' }),
-      h('td', { class: 'small muted', text: c.mtime }),
-      h('td', null, actions)));
-  }
-  card.appendChild(table);
-  main.appendChild(card);
-}
-
 async function previewFile(rel) {
   try {
     const r = await api('/api/file?path=' + encodeURIComponent(rel));

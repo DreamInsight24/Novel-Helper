@@ -200,6 +200,73 @@ function viewManuscript(main) {
     if (ui.path && ui.dirty) await saveToFile(ui.path, ui.value, true);
   };
 
+  // ── 章节：完整写作的结果会自己出现在这里，也可以直接打开某一章 ──
+  const chapterBooks = () => (state.chapters || []).filter(chapter =>
+    /\.(md|txt)$/i.test(chapter.path || '') && !/(^|[\\/])plan[\\/]/.test(chapter.dir || ''));
+  const chapterOrigins = () => ((state.db.state || {}).workstation || {}).chapters || {};
+  const loadChapter = async (rel, name) => {
+    if (!rel || ui.path === rel) return;
+    const label = name || manuscriptShortName(rel);
+    if (ui.dirty) {
+      if (ui.path) await flushFile();
+      else if (!await manuscriptConfirm(i18n.t('manuscript.unsaved_clear'))) return;
+    }
+    try {
+      const r = await api('/api/file?path=' + encodeURIComponent(rel));
+      clearTimeout(draftTimer); clearTimeout(fileTimer);
+      ui.path = rel; ui.value = r.content; ui.dirty = false;
+      ui.undo = []; ui.redo = []; ui.selectionStart = 0; ui.selectionEnd = 0; ui.scrollTop = 0;
+      ui.aiResult = null;
+      writeDraft();
+      saveNow('state').catch(() => {});
+      renderMain();
+      toast(i18n.t('manuscript.chapter_opened', { name: label }), 'ok');
+    } catch (e) {
+      toast(i18n.t('common.load_failed_reason', { reason: e.message }), 'err');
+    }
+  };
+  const openChapterOrigin = sessionId => {
+    if (!sessionId) return;
+    switchWorkstationSession(sessionId).catch(() => {});
+  };
+  const chapterBar = () => {
+    const books = chapterBooks();
+    const origins = chapterOrigins();
+    const collapsed = state.ui.chapterBarCollapsed === true;
+    const bar = h('section', { class: 'chapter-bar', 'aria-label': i18n.t('manuscript.chapters_title') });
+    bar.appendChild(h('button', {
+      class: 'chapter-bar-head', 'aria-expanded': String(!collapsed),
+      onclick: () => { state.ui.chapterBarCollapsed = !collapsed; renderMain(); }
+    },
+      h('span', { class: 'chapter-bar-caret', 'aria-hidden': 'true', text: collapsed ? '▸' : '▾' }),
+      h('span', { class: 'chapter-bar-title', text: i18n.t('manuscript.chapters_title') }),
+      h('span', { class: 'small muted', text: i18n.t('manuscript.chapters_count', { count: books.length }) }),
+      ui.path ? h('span', { class: 'chapter-bar-current small', text: manuscriptShortName(ui.path) }) : null));
+    if (collapsed) return bar;
+    const list = h('div', { class: 'chapter-bar-list' });
+    if (!books.length) list.appendChild(h('div', { class: 'small muted chapter-bar-empty',
+      text: i18n.t('manuscript.chapter_empty') }));
+    books.forEach(chapter => {
+      const origin = origins[chapter.path] || null;
+      const chip = h('div', { class: 'chapter-chip' + (ui.path === chapter.path ? ' on' : '') });
+      chip.appendChild(h('button', {
+        class: 'chapter-chip-open', title: chapter.path,
+        onclick: () => loadChapter(chapter.path, chapter.name)
+      }, h('span', { class: 'chapter-chip-name', text: String(chapter.name || '').replace(/\.(md|txt)$/i, '') }),
+         h('span', { class: 'chapter-chip-size small muted', text: i18n.t('manuscript.chapter_size', { size: Math.max(1, Math.round((chapter.size || 0) / 1024)) }) })));
+      if (origin && origin.session_id) {
+        chip.appendChild(h('button', {
+          class: 'chapter-chip-ai', text: i18n.t('manuscript.chapter_ai'),
+          title: i18n.t('manuscript.chapter_ai_hint'),
+          onclick: () => openChapterOrigin(origin.session_id)
+        }));
+      }
+      list.appendChild(chip);
+    });
+    bar.appendChild(list);
+    return bar;
+  };
+
   const area = h('textarea', {
     rows: 18, class: 'notepad manuscript-area', placeholder: i18n.t('manuscript.composer_placeholder'),
     value: ui.value,
@@ -571,7 +638,7 @@ function viewManuscript(main) {
           h('div', { class: 'ai-mode-name', text: mode.label || mode.id }),
           h('div', { class: 'small muted', text: mode.desc || '' }),
           h('div', { class: 'small muted', style: { marginTop: '4px' } },
-            i18n.t('manuscript.meta_line', { model: mode.model || api.default_model || i18n.t('workstation.follow_default'), effort: mode.effort || api.default_effort || 'medium' })));
+            i18n.t('manuscript.meta_line', { model: mode.model || api.default_model || '—', effort: mode.effort || api.default_effort || 'medium' })));
       })));
     };
 
@@ -694,6 +761,7 @@ function viewManuscript(main) {
     h('div', {class:'inline'}, h('button', {text:i18n.t('manuscript.import_files'), title:'TXT / MD', onclick:() => fileInput.click()}),
       h('button', {text:i18n.t('manuscript.import_chapter'), onclick:pickChapter}))));
   main.appendChild(fileInput);
+  main.appendChild(chapterBar());
   const shelf = h('section', {class:'material-shelf', 'aria-label':i18n.t('manuscript.materials'),
     ondragover:e => { if (Array.from(e.dataTransfer.types).includes('Files')) { e.preventDefault(); shelf.classList.add('material-drop-active'); } },
     ondragleave:() => shelf.classList.remove('material-drop-active'),
@@ -827,6 +895,13 @@ function viewManuscript(main) {
 
   // 切到别的栏目时（go()）把草稿和文件都立刻落盘
   state.ui.leave = { view: 'text', fn: flushNow };
+
+  // 从 AI 工作站点「前往稿件处理」进来：直接打开那一章。
+  const pendingChapter = state.ui.pendingChapter;
+  if (pendingChapter && pendingChapter.novel === state.activeNovelId) {
+    state.ui.pendingChapter = null;
+    loadChapter(pendingChapter.rel, pendingChapter.name);
+  }
 }
 
 // ═══════════════════════════════════════════

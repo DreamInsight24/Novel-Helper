@@ -17,11 +17,50 @@
 
 from __future__ import annotations
 
+import json
+import time
+from pathlib import Path
+
 from ..localization import t
 
 from .. import ai, context, history, logger, project, prompts as prompts_mod, providers, setting_gen, store, tool_prompts
 from ._helpers import _compact_selection, _surface_error
 from ._state import _RUN_LOCK, _RUN_STATE, begin_run, finish_run, run_cancelled
+
+# 流式输出：每帧一行 JSON（ndjson），最后一帧是 done 或 error。
+_STREAM_FLUSH_CHARS = 96
+_STREAM_FLUSH_SECONDS = 0.06
+
+
+class _RunError(Exception):
+    """生成前的校验失败，需要在请求模型之前报给前端。"""
+
+    def __init__(self, message: str, status: int = 400):
+        super().__init__(message)
+        self.message = message
+        self.status = status
+
+
+def _chapter_title(prompt: str, text: str) -> str:
+    """新章节的名字：优先用户提示词，其次正文首个标题，最后回退。"""
+    for candidate in (prompt, _first_heading(text)):
+        clean = " ".join(str(candidate or "").split())
+        if clean:
+            return clean[:24]
+    return t('workstation.untitled_chapter')
+
+
+def _first_heading(text: str) -> str:
+    for line in str(text or "").splitlines():
+        strip = line.strip()
+        if strip.startswith("#"):
+            return strip.lstrip("#").strip()
+    return ""
+
+
+def _wants_chapter(mode: dict) -> bool:
+    """完整写作（写稿模式下拼装目标字数的模式）的结果直接成为新章节。"""
+    return context.mode_kind(mode) == "write" and bool(mode.get("use_target_chars"))
 
 
 class _GenerationMixin:
@@ -69,25 +108,110 @@ class _GenerationMixin:
 
     def _workstation_run(self):
         body = self._body()
+        try:
+            payload = self._run_workstation(body)
+        except _RunError as exc:
+            self._error(exc.message, status=exc.status)
+            return
+        self._json(payload)
+
+    def _workstation_stream(self):
+        """流式生成：先回 start，随后逐段 delta，最后 done（含与 /run 相同的 payload）。"""
+        body = self._body()
+        try:
+            self._stream_start()
+        except OSError:
+            # 客户端在拿到响应头之前就断开了：这次没有可写的连接，直接结束。
+            self._stream_open = False
+            return
+        try:
+            self._stream_write({"type": "start"})
+            payload = self._run_workstation(body, on_delta=self._stream_on_delta)
+            self._stream_write({"type": "done", "payload": payload})
+        except _RunError as exc:
+            self._stream_write({"type": "error", "error": exc.message, "status": exc.status})
+        except ai.AIError as exc:
+            logger.log_exception("AI", "stream failed", exc)
+            self._stream_write({"type": "error", "error": str(exc)})
+        except Exception as exc:  # noqa: BLE001 - 流已经发出去了，错误只能放进最后一帧
+            logger.log_exception("AI", "stream crashed", exc)
+            self._stream_write({"type": "error", "error": f"{type(exc).__name__}: {exc}"})
+        finally:
+            self._stream_end()
+
+    # ── 流式响应 ─────────────────────────────
+    def _stream_start(self) -> None:
+        self._last_status = 200
+        self._stream_open = True
+        self._delta_buffer = ""
+        self._delta_sent = 0.0
+        self.send_response(200)
+        self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Transfer-Encoding", "chunked")
+        self.end_headers()
+
+    def _stream_chunk(self, frame: dict) -> bool:
+        """写一帧；客户端已经断开时安静收场（停止生成会直接把连接掐掉）。"""
+        data = (json.dumps(frame, ensure_ascii=False) + "\n").encode("utf-8")
+        try:
+            self.wfile.write(b"%x\r\n" % len(data) + data + b"\r\n")
+            self.wfile.flush()
+            return True
+        except OSError:
+            self._stream_open = False
+            return False
+
+    def _stream_write(self, frame: dict) -> None:
+        if not getattr(self, "_stream_open", False):
+            return
+        self._flush_delta()
+        self._stream_chunk(frame)
+
+    def _flush_delta(self) -> None:
+        if not getattr(self, "_delta_buffer", ""):
+            return
+        text, self._delta_buffer = self._delta_buffer, ""
+        if self._stream_chunk({"type": "delta", "text": text}):
+            self._delta_sent = time.monotonic()
+
+    def _stream_on_delta(self, text: str) -> None:
+        if not getattr(self, "_stream_open", False):
+            return
+        self._delta_buffer += text
+        if len(self._delta_buffer) >= _STREAM_FLUSH_CHARS or \
+                time.monotonic() - self._delta_sent >= _STREAM_FLUSH_SECONDS:
+            self._flush_delta()
+
+    def _stream_end(self) -> None:
+        if not getattr(self, "_stream_open", False):
+            return
+        try:
+            self._flush_delta()
+            if getattr(self, "_stream_open", False):
+                self.wfile.write(b"0\r\n\r\n")
+                self.wfile.flush()
+        except OSError:
+            pass
+        finally:
+            self._stream_open = False
+
+    def _run_workstation(self, body: dict, on_delta=None) -> dict:
         mode_id = body.get("mode_id") or body.get("work_mode") or body.get("mode") or "draft"
         surface = (body.get("surface") or "workstation").strip()
         db = store.load_all()
         mode = context.find_mode(db, mode_id)
         if mode is None:
-            self._error(t('errors.mode_missing', id=mode_id))
-            return
+            raise _RunError(t('errors.mode_missing', id=mode_id))
         error = _surface_error(mode, surface)
         if error:
-            self._error(error)
-            return
+            raise _RunError(error)
         source_text = str(body.get("source_text") or "")
         if surface == "manuscript" and not source_text.strip():
-            self._error(t('errors.workspace_empty'))
-            return
+            raise _RunError(t('errors.workspace_empty'))
         token = begin_run(mode=mode_id, surface=surface, started=store.now_str())
         if token is None:
-            self._error(t('errors.generation_locked'), status=409)
-            return
+            raise _RunError(t('errors.generation_locked'), status=409)
         try:
             config = db.get("config") or store.current_config()
             selection = body.get("selection") or {}
@@ -117,15 +241,25 @@ class _GenerationMixin:
                 prompt_chars=len(user_prompt), source_chars=len(source_text),
                 user_message_chars=len(assembled["user"]),
                 prompt_excerpt=user_prompt[:240],
+                streaming=bool(on_delta),
             )
-            result = ai.chat_settings(config, settings, messages)
+            if on_delta is None:
+                result = ai.chat_settings(config, settings, messages)
+            else:
+                try:
+                    result = ai.chat_stream(config, settings, messages, on_delta,
+                                            should_stop=lambda: run_cancelled(token))
+                except ai.StreamStopped:
+                    logger.log_event("AI", "cancelled", surface=surface, mode=mode_id,
+                                     stream=True)
+                    return {"ok": False, "cancelled": True,
+                            "error": t('errors.generation_cancelled')}
             if run_cancelled(token):
                 # 用户已停止等待：结果丢弃，不写历史、不覆盖 state。
                 logger.log_event("AI", "cancelled", surface=surface, mode=mode_id,
                                  elapsed=result.get("elapsed"))
-                self._json({"ok": False, "cancelled": True,
-                            "error": t('errors.generation_cancelled')})
-                return
+                return {"ok": False, "cancelled": True,
+                        "error": t('errors.generation_cancelled')}
             result["text"] = prompts_mod.with_notice(result.get("text", ""))
             clean_text = prompts_mod.without_notice(result.get("text"))
             _RUN_STATE["transport"] = result.get("transport", "")
@@ -143,6 +277,7 @@ class _GenerationMixin:
             session_payload = None
             turn_payload = {}
             ai_result = None
+            chapter = None
 
             if surface == "workstation":
                 session_id = body.get("session_id") or history.current_session_id()
@@ -151,6 +286,13 @@ class _GenerationMixin:
                     session = history.create_session(
                         history.title_from_prompt(user_prompt, mode_id), mode_id)
                     session_id = session["id"]
+
+                # 完整写作的结果直接成为稿件处理里的一个新章节，并把来源对话记在
+                # 章节索引里，稿件处理就能显示「来自对话」并跳回这次对话。
+                if body.get("auto_chapter") is not False and _wants_chapter(mode) and clean_text.strip():
+                    target = project.write_auto_chapter(clean_text, _chapter_title(user_prompt, clean_text))
+                    chapter = {"rel": project.rel_str(target), "name": target.name,
+                               "title": Path(target.name).stem, "session_id": session_id}
 
                 saved = history.append_turn(
                     session_id,
@@ -170,6 +312,7 @@ class _GenerationMixin:
                         "system_chars": len(assembled["system"]),
                         "input_chars": len(assembled["user"]),
                         "output_chars": len(result.get("text") or ""),
+                        "chapter": chapter or {},
                     },
                 )
                 session_payload = history.session_for_client(saved, db)
@@ -193,6 +336,14 @@ class _GenerationMixin:
                         "selection": _compact_selection(selection),
                     })
                     ws.setdefault("drafts", {})[session_id] = ""
+                    if chapter:
+                        books = ws.setdefault("chapters", {})
+                        books[chapter["rel"]] = {
+                            "session_id": session_id,
+                            "turn_id": turn_payload.get("id") or "",
+                            "title": chapter["title"],
+                            "created": store.now_str(),
+                        }
                     state["updated"] = store.now_str()
                     store.save("state", state)
                 except Exception:
@@ -246,7 +397,9 @@ class _GenerationMixin:
             })
             if ai_result is not None:
                 payload["ai_result"] = ai_result
-            self._json(payload)
+            if chapter is not None:
+                payload["chapter"] = chapter
+            return payload
         except Exception as exc:
             logger.log_exception("AI", "workstation failed", exc, mode=mode_id, surface=surface)
             raise

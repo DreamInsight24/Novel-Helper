@@ -1122,3 +1122,15 @@ API Key 改为只读取应用配置、不再回退环境变量（见 CHANGELOG S
 ## 设定横栏与信息分组操作
 
 新增 `records.entry_strip`、reorder_group、reorder_group_hint、delete_group、removed_groups、restore_group、restore_groups、restore_group_conflict、select_for_move；中英包含一致的 name/count 占位符。拖动柄、删除、恢复和批量选择均有可读名称；分组名、条目名及字段值保留为用户数据。通过本地化检查及双语 1024/1440 浏览器截图验收。
+
+## 工作站流式输出与章节栏文案
+
+新增（中英同 key、占位符一致）：`workstation.mode_picker`、`mode_picker_hint`、`model_missing`、`model_missing_hint`、`open_settings`、`generating`、`done_chapter`（占位符 `{name}`）、`open_manuscript`、`to_materials`、`stream_broken`、`untitled_chapter`、`extra_chip`；`manuscript.chapters_title`、`chapters_count`（`{count}`）、`chapter_empty`、`chapter_opened`（`{name}`）、`chapter_ai`、`chapter_ai_hint`、`chapter_size`（`{size}`）；`modes.builtin_prompt_note`、`builtin_prompt_view`；`welcome.model_note`。
+
+移除：`workstation.follow_mode`、`follow_default`；`modes.follow_default`、`follow_default_empty`、`model_label`、`model_hint`、`not_in_list`、`stale_warning`、`sync_button`、`sync_one`、`sync_title`、`synced`；`settings.default_model_label`、`default_effort_label`、`model_name_label`、`model_name_placeholder`、`no_model_option`；`chapters.*`（章节与导出页已并入稿件处理）与 `nav.chapters`；`common.preview`。
+
+改写文案：`settings.models_section`（可用模型）、`settings.models_hint`、`workstation.page_desc`（生成期间只停用「开始生成」）、`modes.page_desc`、`modes.autosave_hint`。
+
+新增 `defaults.agent.base_prompt`：Agent 基础提示词，按当前语言取词并拼在每个模式的系统提示词之前；它属于默认提示词，按第 2 节豁免规则不随界面语言即时切换（生成时按当前语言取词，与 `defaults.mode.*_prompt` 一致）。内置模式的系统提示词仍按首启语言冻结进 `data/modes.json`。
+
+回归：`scripts/test_localization.py`、`scripts/test_i18n.cjs`、`app/selftest.py`、`scripts/test_workstation_stream.py`。

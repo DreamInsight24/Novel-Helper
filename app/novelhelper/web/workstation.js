@@ -192,12 +192,133 @@ function wsSummary() {
   return bits.join(' · ') || i18n.t('workstation.no_settings_selected');
 }
 
+function wsModelName(ws) {
+  const models = currentModels();
+  const selected = ws.selection.model || '';
+  if (selected && (!models.length || models.includes(selected))) return selected;
+  return defaultModelName() || models[0] || '';
+}
+
+/** 本次模型：和 DSH 一样放在「开始生成」旁边，不再去设置页里找。 */
+function wsModelMenu(ws) {
+  const models = currentModels();
+  const active = wsModelName(ws);
+  let details = null;
+  const menu = h('div', { class: 'agent-model-menu', role: 'menu' });
+  if (!models.length) {
+    menu.appendChild(h('div', { class: 'small muted', text: i18n.t('workstation.model_missing_hint') }));
+    menu.appendChild(h('button', {
+      class: 'mini', text: i18n.t('workstation.open_settings'),
+      onclick: () => { details.open = false; openSettings(); }
+    }));
+  } else {
+    models.forEach(model => menu.appendChild(h('button', {
+      class: 'agent-model-item' + (model === active ? ' on' : ''),
+      role: 'menuitemradio', 'aria-checked': String(model === active), text: model,
+      onclick: () => {
+        ws.selection.model = model;
+        touch('state', true);
+        details.open = false;
+        renderMain();
+      }
+    })));
+  }
+  details = h('details', { class: 'agent-model' },
+    h('summary', { title: i18n.t('workstation.model'), 'aria-label': i18n.t('workstation.model') },
+      h('span', { class: 'agent-model-name', text: active || i18n.t('workstation.model_missing') })),
+    menu);
+  return details;
+}
+
+/** 写作模式选择：窗口里带一行小字说明，比只看名字清楚。 */
+function openModePicker() {
+  const modes = workModes();
+  const ws = wsState();
+  let dialog = null;
+  const body = h('div', { class: 'mode-picker' },
+    modes.map(mode => h('button', {
+      class: 'mode-picker-row' + (mode.id === ws.mode ? ' on' : ''),
+      'aria-pressed': String(mode.id === ws.mode),
+      onclick: () => {
+        ws.mode = mode.id;
+        touch('state', true);
+        dialog.close();
+        renderMain();
+      }
+    },
+      h('span', { class: 'mode-picker-name', text: mode.label || mode.id }),
+      h('span', { class: 'mode-picker-desc small muted', text: mode.desc || '' }))));
+  dialog = modal(i18n.t('workstation.mode_picker'), body, [
+    h('button', { text: i18n.t('common.close'), onclick: () => dialog.close() })
+  ], null, { size: 'confirm' });
+  dialog.dlg.classList.add('mode-picker-dialog');
+}
+
+function wsTurnChapter(turn) {
+  const chapter = (turn.meta || {}).chapter;
+  return chapter && chapter.rel ? chapter : null;
+}
+
+function agentTurn(turn, index) {
+  const message = h('article', { class: 'agent-turn', dataset: { turn: turn.id || index } });
+  if (turn.user_prompt) message.appendChild(h('div', { class: 'agent-user', text: turn.user_prompt }));
+  message.appendChild(h('div', { class: 'agent-answer-head' }, modeBadge(turn.mode),
+    h('span', { class: 'small muted', text: i18n.t('workstation.char_count', { count: (turn.output || '').length }) })));
+  const body = h('div', { class: 'md agent-answer', html: md(turn.output || '') });
+  message.appendChild(body);
+  if ((turn.output || '').length > 5000) {
+    const collapsed = (state.ui.wsCollapsedTurns || {})[turn.id || index] === true;
+    body.classList.toggle('collapsed', collapsed);
+    const toggle = h('button', { class: 'mini agent-collapse', text: i18n.t(collapsed ? 'workstation.expand_result' : 'workstation.collapse_result'),
+      onclick: () => {
+        state.ui.wsCollapsedTurns = state.ui.wsCollapsedTurns || {};
+        const next = !body.classList.contains('collapsed');
+        state.ui.wsCollapsedTurns[turn.id || index] = next;
+        body.classList.toggle('collapsed', next);
+        toggle.textContent = i18n.t(next ? 'workstation.expand_result' : 'workstation.collapse_result');
+      }
+    });
+    message.appendChild(toggle);
+  }
+  const text = turn.output || '';
+  const chapter = wsTurnChapter(turn);
+  const actions = h('div', { class: 'output-actions agent-actions' });
+  // 完整写作的结果已经在稿件处理里成了新章节：这里只负责把人送过去。
+  if (chapter) {
+    actions.appendChild(h('button', { class: 'primary agent-open-chapter',
+      text: i18n.t('workstation.open_manuscript'), onclick: () => openManuscriptChapter(chapter) }));
+  } else {
+    actions.appendChild(h('button', { text: i18n.t('workstation.to_materials'), onclick: () => sendOutputToText(text) }));
+  }
+  actions.appendChild(h('button', { text: i18n.t('common.copy'), onclick: () => copyOutput(text) }));
+  actions.appendChild(h('button', { text: i18n.t('workstation.save_txt'), onclick: () => saveOutputDialog('txt', text) }));
+  actions.appendChild(h('details', { class: 'agent-more' }, h('summary', { text: i18n.t('workstation.more') }),
+    h('div', { class: 'agent-more-menu' },
+      h('button', { text: i18n.t('workstation.save_md'), onclick: () => saveOutputDialog('md', text) }),
+      h('button', { text: i18n.t('workstation.append_prompt'), onclick: () => appendOutput(text) }),
+      h('button', { text: i18n.t('workstation.view_raw'), onclick: () => showRawOutput(text) }))));
+  message.appendChild(actions);
+  return message;
+}
+
+/** 正在生成的那一轮：对话里直接逐字长出来，不再等整段返回。 */
+function agentStreaming(generating) {
+  const message = h('article', { class: 'agent-turn agent-streaming', 'aria-live': 'polite' });
+  if (generating.prompt) message.appendChild(h('div', { class: 'agent-user', text: generating.prompt }));
+  message.appendChild(h('div', { class: 'agent-answer-head' }, modeBadge(generating.mode),
+    h('span', { class: 'agent-stream-status small muted' },
+      h('span', { class: 'agent-dot', 'aria-hidden': 'true' }),
+      h('span', { text: i18n.t('workstation.generating') }))));
+  message.appendChild(h('div', { class: 'md agent-answer agent-stream-text', html: md(generating.text || '') }));
+  return message;
+}
+
 function viewWorkstation(main) {
   const ws = wsState();
-  const busy = !!state.ui.busy;
+  const generating = state.ui.generating || null;
   const session = state.ui.currentSession;
   const modes = workModes();
-  const mode = modes.find(m => m.id === ws.mode);
+  const mode = modes.find(m => m.id === ws.mode) || modes[0] || null;
   const shell = h('section', { class: 'agent-workstation' });
   shell.appendChild(h('header', { class: 'agent-head' },
     h('div', null, h('div', { class: 'small muted', text: i18n.t('nav.writer') }),
@@ -213,40 +334,9 @@ function viewWorkstation(main) {
   });
   const turns = session?.turns || [];
   const shown = turns.length ? turns : (ws.output ? [{ output: ws.output, mode: ws.last_mode }] : []);
-  shown.forEach((turn, index) => {
-    const message = h('article', { class: 'agent-turn', dataset: { turn: turn.id || index } });
-    if (turn.user_prompt) message.appendChild(h('div', { class: 'agent-user', text: turn.user_prompt }));
-    message.appendChild(h('div', { class: 'agent-answer-head' }, modeBadge(turn.mode),
-      h('span', { class: 'small muted', text: i18n.t('workstation.char_count', { count: (turn.output || '').length }) })));
-    const body = h('div', { class: 'md agent-answer', html: md(turn.output || '') });
-    message.appendChild(body);
-    if ((turn.output || '').length > 5000) {
-      const collapsed = (state.ui.wsCollapsedTurns || {})[turn.id || index] === true;
-      body.classList.toggle('collapsed', collapsed);
-      const toggle = h('button', { class: 'mini agent-collapse', text: i18n.t(collapsed ? 'workstation.expand_result' : 'workstation.collapse_result'),
-        onclick: () => {
-          state.ui.wsCollapsedTurns = state.ui.wsCollapsedTurns || {};
-          const next = !body.classList.contains('collapsed');
-          state.ui.wsCollapsedTurns[turn.id || index] = next;
-          body.classList.toggle('collapsed', next);
-          toggle.textContent = i18n.t(next ? 'workstation.expand_result' : 'workstation.collapse_result');
-        }
-      });
-      message.appendChild(toggle);
-    }
-    const text = turn.output || '';
-    message.appendChild(h('div', { class: 'output-actions agent-actions' },
-      h('button', { text: i18n.t('common.copy'), onclick: () => copyOutput(text) }),
-      h('button', { text: i18n.t('workstation.save_txt'), onclick: () => saveOutputDialog('txt', text) }),
-      h('button', { text: i18n.t('workstation.to_manuscript'), disabled: busy, onclick: () => sendOutputToText(text) }),
-      h('details', { class: 'agent-more' }, h('summary', { text: i18n.t('workstation.more') }),
-        h('div', { class: 'agent-more-menu' },
-          h('button', { text: i18n.t('workstation.save_md'), onclick: () => saveOutputDialog('md', text) }),
-          h('button', { text: i18n.t('workstation.append_prompt'), disabled: busy, onclick: () => appendOutput(text) }),
-          h('button', { text: i18n.t('workstation.view_raw'), onclick: () => showRawOutput(text) })))));
-    feed.appendChild(message);
-  });
-  if (!shown.length && !busy) feed.appendChild(h('div', { class: 'agent-empty' },
+  shown.forEach((turn, index) => feed.appendChild(agentTurn(turn, index)));
+  const streamingHere = !!generating && (generating.session || '') === (ws.current_session || '');
+  if (!shown.length && !streamingHere) feed.appendChild(h('div', { class: 'agent-empty' },
     h('div', { class: 'empty-icon' }, svgIcon(ICONS.pen)),
     h('h2', { text: i18n.t('workstation.welcome') }),
     h('p', { class: 'muted', text: i18n.t('workstation.welcome_hint') }),
@@ -258,20 +348,19 @@ function viewWorkstation(main) {
           onclick: () => { ws.prompt = text; wsRememberDraft(); renderMain(); }
         });
       }))));
-  if (busy) feed.appendChild(h('div', { class: 'agent-pending', role: 'status' },
-    h('div', { class: 'spinner' }), h('span', { text: i18n.t('common.generating') })));
+  if (streamingHere) feed.appendChild(agentStreaming(generating));
   if (state.ui.wsError) feed.appendChild(h('div', { class: 'notice warn', role: 'alert' },
     h('span', { text: state.ui.wsError }), h('button', { text: i18n.t('workstation.retry'), onclick: runWorkstation })));
   shell.appendChild(feed);
   const prompt = h('textarea', { class: 'agent-prompt', rows: 3, value: ws.prompt,
-    'aria-label': i18n.t('workstation.prompt_label'), placeholder: i18n.t('workstation.prompt_placeholder'), disabled: busy,
+    'aria-label': i18n.t('workstation.prompt_label'), placeholder: i18n.t('workstation.prompt_placeholder'),
     oninput: e => { ws.prompt = e.target.value; wsRememberDraft(); e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 180) + 'px'; },
     onkeydown: e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !e.isComposing) { e.preventDefault(); runWorkstation(); } }
   });
   const composer = h('div', { class: 'agent-composer' }, prompt);
   const target = h('details', {class:'agent-target'});
   const targetSummary=h('summary');target.appendChild(targetSummary);
-  const targetInput=h('input',{type:'number',min:1,step:1,disabled:busy,
+  const targetInput=h('input',{type:'number',min:1,step:1,
     value:ws.selection.target_chars ?? ((state.db.config || {}).writing || {}).target_chars ?? 8000,
     'aria-label':i18n.t('workstation.target_label'),
     oninput:e=>{ws.selection.target_chars=Number(e.target.value);touch('state',true);updateTarget();}});
@@ -284,35 +373,38 @@ function viewWorkstation(main) {
       const selected=index===(limited?0:1);button.classList.toggle('seg-on',selected);button.setAttribute('aria-pressed',String(selected));
     });
   };
-  ['limited','unlimited'].forEach(value=>choices.appendChild(h('button',{type:'button',disabled:busy,
+  ['limited','unlimited'].forEach(value=>choices.appendChild(h('button',{type:'button',
     text:i18n.t('workstation.'+value),onclick:()=>{
       ws.selection.length_mode=value;ws.selection.strict_length=value==='limited';touch('state',true);updateTarget();
     }})));
   target.appendChild(h('div',{class:'agent-target-menu'},choices,targetInput));updateTarget();
+
+  const modeButton = h('button', {
+    class: 'agent-mode', type: 'button', disabled: !modes.length,
+    title: mode?.desc || i18n.t('workstation.mode_picker_hint'),
+    'aria-haspopup': 'dialog',
+    onclick: openModePicker
+  }, h('span', { text: mode ? (mode.label || mode.id) : i18n.t('workstation.no_mode') }),
+     h('span', { class: 'agent-mode-caret', 'aria-hidden': 'true', text: '▾' }));
+
   composer.appendChild(h('div', { class: 'agent-controls' },
-    h('select', { class: 'agent-mode', 'aria-label': i18n.t('modes.kind_write'), disabled: !modes.length,
-      onchange: e => { ws.mode = e.target.value; touch('state', true); }
-    }, modes.map(item => h('option', { value: item.id, text: item.label, selected: ws.mode === item.id }))),
-    h('select',{class:'agent-model','aria-label':i18n.t('workstation.model'),
-      onchange:e=>{ws.selection.model=e.target.value;touch('state',true);}},
-      [h('option',{value:'',text:i18n.t('workstation.follow_mode'),selected:!ws.selection.model}),
-        ...currentModels().map(model=>h('option',{value:model,text:model,selected:ws.selection.model===model}))]),
+    modeButton,
     target,
-    h('button', { text: i18n.t('workstation.details'), disabled: busy, onclick: openWorkstationDetails }),
-    busy
-      // 生成中可以停下来：不锁死整个界面，也不让人干等。
+    h('button', { text: i18n.t('workstation.details'), onclick: openWorkstationDetails }),
+    wsModelMenu(ws),
+    generating
       ? h('button', { class: 'agent-send agent-stop', text: i18n.t('workstation.stop'), onclick: stopWorkstation })
       : h('button', { class: 'primary agent-send', text: i18n.t('workstation.start'),
           title: 'Ctrl+Enter', disabled: !mode, onclick: runWorkstation })));
+  // 输入栏下方只留一行：左边是本次带入的设定，右边是快捷键。
+  const footRow = h('div', { class: 'agent-foot-row' },
+    h('span', { class: 'agent-summary small muted', text: wsSummary() }),
+    h('span', { class: 'agent-hint small muted', text: i18n.t('workstation.composer_hint') }));
   if ((ws.extra || '').trim()) {
-    composer.appendChild(h('div', { class: 'agent-extra-hint small muted' },
-      h('span', { text: i18n.t('workstation.extra_saved_hint') }),
-      h('button', { class: 'ghost mini', text: i18n.t('workstation.details'),
-        onclick: openWorkstationDetails })));
+    footRow.insertBefore(h('button', { class: 'mini agent-extra-chip', text: i18n.t('workstation.extra_chip'),
+      title: i18n.t('workstation.extra_saved_hint'), onclick: openWorkstationDetails }), footRow.firstChild);
   }
-  composer.appendChild(h('div', { class: 'agent-summary small muted', text: wsSummary() }));
-  // 快捷键写在这里而不是 title 里：不用悬停也能发现。
-  composer.appendChild(h('div', { class: 'agent-shortcut small muted', text: i18n.t('workstation.composer_hint') }));
+  composer.appendChild(footRow);
   if (!modes.length) composer.appendChild(h('button', { text: i18n.t('workstation.go_modes'), onclick: () => go('modes') }));
   shell.appendChild(h('div', { class: 'agent-compose-wrap' }, composer));
   main.appendChild(shell);
@@ -388,6 +480,11 @@ function openWorkstationDetails() {
 let runController = null;    // 当前生成请求的 AbortController
 let stopRequested = false;   // 是"用户主动停止"还是真的失败
 
+/** 正在生成的状态：只挡住「开始生成」，别的照常可用。 */
+function wsGenerating() {
+  return !!state.ui.generating;
+}
+
 /** 停止生成：先让后端放弃这次结果并放开生成锁，再断开本地等待。 */
 async function stopWorkstation() {
   if (!runController) return;
@@ -397,14 +494,76 @@ async function stopWorkstation() {
   runController.abort();
 }
 
+/**
+ * 流式请求：逐行读服务端发来的 ndjson（delta / done / error）。
+ * onDelta 收到增量时立刻画到对话里；返回与 /run 相同的最终结果。
+ */
+async function streamWorkstation(body, signal, onDelta) {
+  const res = await fetch('/api/workstation/stream', {
+    method: 'POST',
+    signal,
+    headers: { 'Content-Type': 'application/json', 'X-NovelHelper-Language': document.documentElement.lang },
+    body: JSON.stringify(body)
+  });
+  const type = res.headers.get('Content-Type') || '';
+  if (!res.ok || !res.body || type.indexOf('ndjson') < 0) {
+    const raw = await res.text().catch(() => '');
+    let message = 'HTTP ' + res.status;
+    try {
+      const data = JSON.parse(raw);
+      if (data && data.error) message = data.error;
+    } catch (e) { /* 非 JSON 时用状态码 */ }
+    throw new Error(message);
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '', result = null, failure = '';
+  for (;;) {
+    const chunk = await reader.read();
+    if (chunk.done) break;
+    buffer += decoder.decode(chunk.value, { stream: true });
+    let cut;
+    while ((cut = buffer.indexOf('\n')) >= 0) {
+      const line = buffer.slice(0, cut).trim();
+      buffer = buffer.slice(cut + 1);
+      if (!line) continue;
+      let frame;
+      try { frame = JSON.parse(line); } catch (e) { continue; }
+      if (frame.type === 'delta') onDelta(frame.text || '');
+      else if (frame.type === 'done') result = frame.payload;
+      else if (frame.type === 'error') failure = frame.error || i18n.t('workstation.failed');
+    }
+  }
+  if (result) return result;
+  throw new Error(failure || i18n.t('workstation.stream_broken'));
+}
+
+/** 边收边画：只更新流式那一轮，不重排整页；Markdown 按 10fps 重排一次。 */
+let streamPaintAt = 0;
+function paintStreaming(text) {
+  const node = document.querySelector('.agent-stream-text');
+  if (!node) return;
+  const now = Date.now();
+  if (now - streamPaintAt >= 100) {
+    streamPaintAt = now;
+    node.innerHTML = md(text);
+  }
+  const feed = node.closest('.agent-feed');
+  if (feed && feed.scrollHeight - feed.scrollTop - feed.clientHeight < 160) feed.scrollTop = feed.scrollHeight;
+}
+
 async function runWorkstation() {
-  if (state.ui.busy || state.ui.wsSwitching) return;
+  if (wsGenerating() || state.ui.busy || state.ui.wsSwitching) return;
   const ws = wsState();
   if (!ws.mode) { toast(i18n.t('workstation.no_mode_toast'), 'err'); return; }
   stopRequested = false;
   state.ui.wsError = '';
   wsRememberDraft();
-  state.ui.busy = true;
+  const novel = state.activeNovelId;
+  state.ui.generating = {
+    session: ws.current_session || '', prompt: ws.prompt, mode: ws.mode, text: '',
+    novel, started: Date.now()
+  };
   renderNav();
   state.ui.historySession = null;
   state.ui.historyTurn = null;
@@ -421,24 +580,26 @@ async function runWorkstation() {
       if(!Number.isInteger(value) || value<1)throw new Error(i18n.t('workstation.invalid_target'));
     }
     const selection = await wsLoadProjectFiles();
-    const res = await api('/api/workstation/run', {
-      method: 'POST',
-      signal: controller.signal,
-      body: {
-        surface: 'workstation',
-        mode_id: ws.mode,
-        override: ws.selection.model ? {model:ws.selection.model} : {},
-        prompt: ws.prompt,
-        work_prompt: ws.work_prompt,
-        selection,
-        session_id: ws.current_session || '',
-        config: state.db.config
-      }
+    const res = await streamWorkstation({
+      surface: 'workstation',
+      mode_id: ws.mode,
+      override: ws.selection.model ? {model:ws.selection.model} : {},
+      prompt: ws.prompt,
+      work_prompt: ws.work_prompt,
+      selection,
+      session_id: ws.current_session || '',
+      config: state.db.config
+    }, controller.signal, delta => {
+      const streaming = state.ui.generating;
+      if (!streaming) return;
+      streaming.text += delta;
+      if (novel === state.activeNovelId) paintStreaming(streaming.text);
     });
 
-    state.ui.busy = false;
+    if (res.cancelled) throw Object.assign(new Error(i18n.t('workstation.stopped_hint')), { stopped: true });
+    state.ui.generating = null;
     state.ui.lastMeta = res;
-    state.ui.currentSession = res.session || null;
+    if (novel === state.activeNovelId) state.ui.currentSession = res.session || null;
     const local = wsState();
     local.output = res.text || '';
     local.mode = res.mode_id || res.work_mode || local.mode;
@@ -449,8 +610,16 @@ async function runWorkstation() {
       (res.usage && res.usage.total_tokens ? ' | tokens ' + res.usage.total_tokens : '') +
       '\n' + (state.ui.log || '');
 
+    if (novel !== state.activeNovelId) {
+      // 生成途中换了小说：结果已经落在原来那本小说里，这里只收尾。
+      renderNav();
+      renderMain();
+      status(i18n.t('workstation.done'), 'ok');
+      return;
+    }
     try {
-      await saveNow('state');
+      // 先拉服务端刚写好的 state（含新章节索引），再回写本地草稿，
+      // 否则本地旧副本会把章节来源覆盖掉。
       await refreshFiles();
     } catch (e) {
       // 历史已由后端保存；刷新失败不影响本次显示。
@@ -462,16 +631,19 @@ async function runWorkstation() {
     next.current_session = res.session_id || next.current_session;
     next.prompt = '';
     wsRememberDraft();
+    saveNow('state').catch(() => {});
     await refreshWorkstationHistory();
-    state.ui.currentSession = res.session || state.ui.currentSession;
+    if (res.session) state.ui.currentSession = res.session;
     renderNav();
     renderMain();
     status(i18n.t('workstation.done'), 'ok');
-    toast(i18n.t('workstation.done_saved'), 'ok');
+    toast(res.chapter
+      ? i18n.t('workstation.done_chapter', { name: res.chapter.title || res.chapter.name })
+      : i18n.t('workstation.done_saved'), 'ok');
   } catch (e) {
-    const stopped = stopRequested || e?.name === 'AbortError' || !!controller.signal.aborted;
+    const stopped = stopRequested || e?.stopped || e?.name === 'AbortError' || !!controller.signal.aborted;
     stopRequested = false;
-    state.ui.busy = false;
+    state.ui.generating = null;
     if (!stopped) state.ui.wsError = e.message;
     renderNav();
     renderMain();
@@ -601,6 +773,14 @@ function sendOutputToText(text = currentOutput()) {
   go('text');
 }
 
+/** 完整写作已经落成新章节：直接把人送到稿件处理并打开那一章。 */
+function openManuscriptChapter(chapter) {
+  const rel = chapter && chapter.rel;
+  if (!rel) { go('text'); return; }
+  state.ui.pendingChapter = { novel: state.activeNovelId, rel, name: chapter.name || '' };
+  go('text');
+}
+
 // ─────────────────────────────────────────────
 // 对话历史
 // ─────────────────────────────────────────────
@@ -655,11 +835,15 @@ async function pollBusyState() {
   try {
     const s = await api('/api/workstation/status');
     if (s.busy) {
-      state.ui.busy = true;
-      renderMain();
+      // 别的窗口 / 标签页还在生成：跟着显示「正在生成」，但不锁界面。
+      if (!state.ui.generating) {
+        state.ui.generating = { session: wsState().current_session || '', prompt: '', mode: wsState().mode, text: '' };
+        renderNav();
+        renderMain();
+      }
       setTimeout(pollBusyState, 2500);
-    } else if (state.ui.busy) {
-      state.ui.busy = false;
+    } else if (state.ui.generating) {
+      state.ui.generating = null;
       await refreshFiles();
       await loadCurrentSession();
       renderNav();
@@ -699,7 +883,8 @@ async function refreshWorkstationHistory() {
 
 function renderWorkstationHistory(nav) {
   const collapsed = state.ui.navCollapsed.history !== false;
-  const busy = !!(state.ui.busy || state.ui.wsSwitching);
+  // 生成中也可以浏览、切换对话：只有保存类的动作需要等一等。
+  const busy = !!state.ui.wsSwitching;
   nav.appendChild(h('div', { class: 'nav-group nav-settings-head conversation-nav-head' },
     h('button', { class: 'nav-settings-toggle',
       'aria-expanded': String(!collapsed), 'aria-controls': 'conversation-nav',

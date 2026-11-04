@@ -74,6 +74,17 @@ httpd.serve_forever()
 
 `POST /api/workstation/run` 保持原接口：本次模型通过 `override:{model:"..."}` 覆盖，跟随模式则传空对象。限定字数发送 `selection:{length_mode:"limited",target_chars:1234,strict_length:true}`；不限发送 `selection:{length_mode:"unlimited",strict_length:false}`，省略 target_chars，服务端不回填默认目标字数。旧请求不含 length_mode 时仍沿用既有配置回填和 strict_length 语义。
 
+`POST /api/workstation/stream` 是同一套生成逻辑的流式版本，请求体与 `/run` 相同。响应 `Content-Type: application/x-ndjson; charset=utf-8`，用 chunked 逐行推送：
+
+| 帧 | 内容 |
+|---|---|
+| `{"type":"start"}` | 已受理，开始请求上游 |
+| `{"type":"delta","text":"..."}` | 正文增量；上游不支持 SSE 时整段作为一帧发出 |
+| `{"type":"done","payload":{...}}` | 与 `/run` 成功响应完全相同的对象，另含 `chapter:{rel,name,title,session_id}`（完整写作自动落成的章节） |
+| `{"type":"error","error":"...","status":400}` | 校验失败或调用失败；`status` 仅校验类错误提供 |
+
+完整写作（`kind=write` 且拼装目标字数的模式）在 `surface=workstation` 下会把结果写入 `workspace/novels/<id>/output/NNN-<标题>.txt`，并把来源对话记进 `state.json` 的 `workstation.chapters`，稿件处理据此显示「来自对话」。请求体传 `auto_chapter:false` 可关闭该行为。停止生成仍用 `POST /api/workstation/cancel`：被取消的那次流以 `done` 帧返回 `{ok:false,cancelled:true}`，不写历史、不生成章节。
+
 ## 关系网保存与告警
 
 `POST /api/collections/relations` 请求仍为 `{data:{items:[...],initialized:true}}`，可附 novel_id 防止迟到请求写入新小说。无效边（引用缺失、自环、空类型、非对象）丢弃，重复边合并，其余有效边正常保存。响应增加 `{data:<规范化关系>,factions:<成员投影>,discarded:<丢弃数>}`；saved 字段保留。格式不为对象/items 列表时返回 400。
