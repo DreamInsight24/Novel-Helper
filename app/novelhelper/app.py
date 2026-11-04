@@ -123,6 +123,25 @@ def _display_host(host: str) -> str:
     return host
 
 
+_SINGLE_INSTANCE: desktop.SingleInstance | None = None
+
+
+def _already_running(window_mode: bool) -> int:
+    """Stop a second launch that would share the same data directory."""
+    if window_mode and desktop.focus_existing_window():
+        print("[提示] NovelHelper 已在运行，已切换到现有窗口。")
+        return 0
+    message = (
+        f"NovelHelper 已在运行（数据目录：{store.DATA_DIR}）。\n"
+        "同一时间只允许一个实例，本次启动已退出。"
+    )
+    print(f"[提示] {message}")
+    if window_mode:
+        desktop.show_info_dialog("NovelHelper", message)
+        return 0
+    return 1
+
+
 def _stop_server(httpd, runtime: desktop.ServerRuntime | None = None) -> None:
     if runtime is not None:
         if not runtime.stop():
@@ -170,6 +189,11 @@ def main() -> int:
     if args.no_browser:
         print("[提示] --no-browser 已弃用，请使用 --no-window；本次按 --no-window 处理。")
     window_mode = not (args.no_window or args.no_browser)
+
+    global _SINGLE_INSTANCE
+    _SINGLE_INSTANCE = desktop.SingleInstance(str(store.DATA_DIR.resolve()))
+    if not _SINGLE_INSTANCE.acquire():
+        return _already_running(window_mode)
 
     try:
         store.ensure_dirs()

@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import base64
 import ctypes
+import hashlib
 import os
 import sys
 import threading
@@ -38,6 +39,8 @@ SPLASH_LOAD_TIMEOUT = 5.0
 SPLASH_FADE_SECONDS = 0.18
 SPLASH_BACKGROUND = "#0B1220"
 WEBVIEW2_URL = "https://go.microsoft.com/fwlink/p/?LinkId=2124703"
+_ERROR_ALREADY_EXISTS = 183
+_SW_RESTORE = 9
 
 _RESOURCE_DIR = (
     Path(getattr(sys, "_MEIPASS")) / "resources"
@@ -94,6 +97,88 @@ class ServerRuntime:
             self.thread.join(timeout)
             return not self.thread.is_alive()
         return True
+
+
+_KERNEL32: Any = None
+
+
+def _kernel32() -> Any:
+    """``kernel32`` with ctypes last-error capture, for ``CreateMutexW``."""
+    global _KERNEL32
+    if _KERNEL32 is None:
+        _KERNEL32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    return _KERNEL32
+
+
+class SingleInstance:
+    """Allow only one NovelHelper process per data directory.
+
+    The guard is a named kernel mutex, so a crashed process never leaves a
+    stale lock behind: Windows releases the handle when the process exits.
+    """
+
+    def __init__(self, key: str) -> None:
+        self._key = key
+        self._handle: int | None = None
+
+    def acquire(self) -> bool:
+        """Return ``True`` when this process may run, ``False`` if another does."""
+        if os.name != "nt":
+            return True
+        try:
+            kernel32 = _kernel32()
+            kernel32.CreateMutexW.argtypes = (
+                wintypes.LPVOID, wintypes.BOOL, wintypes.LPCWSTR)
+            kernel32.CreateMutexW.restype = wintypes.HANDLE
+            kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
+            kernel32.CloseHandle.restype = wintypes.BOOL
+            name = "Local\\NovelHelper-" + hashlib.sha256(
+                self._key.casefold().encode("utf-8")).hexdigest()[:32]
+            handle = kernel32.CreateMutexW(None, False, name)
+            if not handle:
+                return True  # a broken Win32 call must not block startup
+            if ctypes.get_last_error() == _ERROR_ALREADY_EXISTS:
+                kernel32.CloseHandle(handle)
+                return False
+            self._handle = handle
+            return True
+        except Exception:  # noqa: BLE001 - single-instance is best effort
+            return True
+
+    def release(self) -> None:
+        """Drop the mutex early; process exit does this automatically."""
+        if self._handle is None:
+            return
+        try:
+            _kernel32().CloseHandle(self._handle)
+        except Exception:  # noqa: BLE001 - the process is exiting anyway
+            pass
+        self._handle = None
+
+
+def focus_existing_window(title: str = WINDOW_TITLE, timeout: float = 2.0) -> bool:
+    """Bring a running window to the front, retrying briefly during startup."""
+    if os.name != "nt":
+        return False
+    try:
+        user32 = ctypes.windll.user32  # type: ignore[attr-defined]
+        user32.FindWindowW.argtypes = (wintypes.LPCWSTR, wintypes.LPCWSTR)
+        user32.FindWindowW.restype = wintypes.HWND
+    except Exception:  # noqa: BLE001 - window focus is optional
+        return False
+    deadline = time.monotonic() + max(0.0, float(timeout))
+    while True:
+        try:
+            hwnd = user32.FindWindowW(None, title)
+            if hwnd:
+                user32.ShowWindow(hwnd, _SW_RESTORE)
+                user32.SetForegroundWindow(hwnd)
+                return True
+        except Exception:  # noqa: BLE001 - window focus is optional
+            return False
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(0.1)
 
 
 def window_bounds(work_area: tuple[int, int, int, int]) -> WindowBounds:
@@ -293,5 +378,15 @@ def show_error_dialog(title: str, message: str) -> None:
         import ctypes
 
         ctypes.windll.user32.MessageBoxW(0, message, title, 0x10)  # type: ignore[attr-defined]
+    except Exception:  # noqa: BLE001 - console/log output remains available
+        pass
+
+
+def show_info_dialog(title: str, message: str) -> None:
+    """Best-effort native information dialog for double-click launches."""
+    if os.name != "nt":
+        return
+    try:
+        ctypes.windll.user32.MessageBoxW(0, message, title, 0x40)  # type: ignore[attr-defined]
     except Exception:  # noqa: BLE001 - console/log output remains available
         pass

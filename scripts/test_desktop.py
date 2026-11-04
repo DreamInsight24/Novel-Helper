@@ -290,6 +290,21 @@ def test_store_config_migration_and_global_scope() -> None:
     store.save("config", config)
 
 
+def test_single_instance_guard() -> None:
+    if os.name != "nt":
+        return
+    first = desktop.SingleInstance("novelhelper-test-guard")
+    second = desktop.SingleInstance("novelhelper-test-guard")
+    assert first.acquire() is True
+    assert second.acquire() is False
+    first.release()
+    assert second.acquire() is True
+    second.release()
+    third = desktop.SingleInstance("novelhelper-test-guard")
+    assert third.acquire() is True
+    third.release()
+
+
 def test_cli_failures() -> None:
     env = os.environ.copy()
     env.update({
@@ -349,6 +364,12 @@ def test_no_window_process() -> None:
         assert url, f"no startup URL; exit={proc.poll()}"
         with urllib.request.urlopen(url + "api/i18n", timeout=10) as resp:
             assert resp.status == 200
+        second = subprocess.run(
+            [sys.executable, "-X", "utf8", "-B", str(ROOT / "app" / "run.py"), "--no-window"],
+            cwd=str(ROOT), env=env, capture_output=True, text=True, timeout=30,
+        )
+        assert second.returncode == 1, second
+        assert "已在运行" in (second.stdout + second.stderr), second.stdout + second.stderr
     finally:
         proc.terminate()
         try:
@@ -364,10 +385,12 @@ def main() -> int:
     test_fixed_port_conflict_stops()
     test_window_bounds_and_splash_assets()
     test_window_contract_without_gui()
+    test_single_instance_guard()
     test_store_config_migration_and_global_scope()
     test_cli_failures()
     test_no_window_process()
-    print("PASS: port migration, precedence, conflicts, dynamic bind, window contract, and --no-window")
+    print("PASS: port migration, precedence, conflicts, dynamic bind, single instance, "
+          "window contract, and --no-window")
     return 0
 
 
