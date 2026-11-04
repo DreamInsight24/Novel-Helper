@@ -18,6 +18,8 @@
 
 """PyInstaller 构建配置：生成单文件 Windows 可执行程序。"""
 import importlib.util
+import os
+import re
 from pathlib import Path
 
 from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, copy_metadata
@@ -50,6 +52,74 @@ def _require_build_dependency(module: str) -> None:
 
 _require_build_dependency("webview")
 _require_build_dependency("pythonnet")
+
+
+def _exe_version() -> tuple[str, tuple[int, int, int, int]]:
+    """从 _version.py 读取版本号，保证 exe 版本资源与 --version、CI 校验一致。"""
+    text = (ROOT / "app" / "novelhelper" / "_version.py").read_text(encoding="utf-8")
+    match = re.search(r'^\s*__version__\s*=\s*"([^"]+)"', text, re.MULTILINE)
+    if not match:
+        raise SystemExit("无法从 app/novelhelper/_version.py 读取 __version__。")
+    raw = match.group(1).strip()
+    parts: list[int] = []
+    for piece in raw.split("."):
+        digits = re.match(r"\d+", piece)
+        if not digits:
+            break
+        parts.append(int(digits.group(0)))
+    if not parts or len(parts) > 4:
+        raise SystemExit(f"无法解析版本号：{raw}")
+    parts += [0] * (4 - len(parts))
+    return raw, tuple(parts[:4])
+
+
+def _windows_version_info():
+    """构造 Windows VERSIONINFO 资源，让 exe 属性页显示厂商、版本和说明。
+
+    PyInstaller 的 EXE(version=...) 既接受版本资源文本文件，也接受
+    VSVersionInfo 对象；这里直接从 _version.py 生成，避免版本号两处维护。
+    """
+    if os.name != "nt":
+        return None
+    from PyInstaller.utils.win32.versioninfo import (
+        FixedFileInfo,
+        StringFileInfo,
+        StringStruct,
+        StringTable,
+        VarFileInfo,
+        VarStruct,
+        VSVersionInfo,
+    )
+
+    version_text, (major, minor, patch, build) = _exe_version()
+    return VSVersionInfo(
+        ffi=FixedFileInfo(
+            filevers=(major, minor, patch, build),
+            prodvers=(major, minor, patch, build),
+            mask=0x3F,
+            flags=0x0,
+            OS=0x40004,
+            fileType=0x1,
+            subtype=0x0,
+            date=(0, 0),
+        ),
+        kids=[
+            StringFileInfo([
+                StringTable('040904B0', [
+                    StringStruct('CompanyName', 'DreamInsight24'),
+                    StringStruct('FileDescription', 'NovelHelper - AI Novel Workstation'),
+                    StringStruct('FileVersion', version_text),
+                    StringStruct('InternalName', 'NovelHelper'),
+                    StringStruct('LegalCopyright', 'Copyright (C) 2026 DreamInsight24 and NovelHelper contributors'),
+                    StringStruct('OriginalFilename', 'NovelHelper.exe'),
+                    StringStruct('ProductName', 'NovelHelper'),
+                    StringStruct('ProductVersion', version_text),
+                ]),
+            ]),
+            VarFileInfo([VarStruct('Translation', [1033, 1200])]),
+        ],
+    )
+
 
 datas = [
     (str(ROOT / "app" / "novelhelper" / "web"), "novelhelper/web"),
@@ -122,4 +192,5 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon=str(ROOT / "app" / "resources" / "NovelHelper.ico"),
+    version=_windows_version_info(),
 )
