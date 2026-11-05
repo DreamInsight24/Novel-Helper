@@ -582,9 +582,8 @@ def main() -> int:
         check("稿件处理不创建写稿会话",
               proc.get("session") is None and proc.get("session_id") == "")
         saved_proc = store.load("state")
-        check("稿件处理结果写入文本面板",
-              saved_proc["textPanel"]["aiResult"]["text"] == proc.get("clean_text")
-              and saved_proc["textPanel"]["aiResult"]["mode"] == "polish")
+        check("稿件处理结果不再写入文本面板（改由前端对话应用）",
+              "aiResult" not in (saved_proc.get("textPanel") or {}))
         check("稿件处理不覆盖工作站最近输出",
               saved_proc["workstation"]["output"] == ws_before)
         hist_after = get("/api/history")
@@ -655,7 +654,7 @@ def main() -> int:
             manuscript_js = resp.read().decode("utf-8")
         check("稿件处理前端静态资源可访问",
               "nav.text" in manuscript_js and "manuscript.ai_assist" in manuscript_js
-              and "manuscript.overwrite" in manuscript_js)
+              and "manuscript.ai_keep" in manuscript_js)
 
         deleted = delete("/api/history/" + hist["items"][0]["id"])
         check("DELETE /api/history/<id>", deleted.get("ok") is True)

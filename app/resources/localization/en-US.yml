@@ -454,6 +454,11 @@ defaults.tool.summarize_prompt: |-
 
   Write "None" on lines with no content. Output no explanation or extra text, and do not wrap it in a code fence.
 
+effort.high: High
+effort.low: Low
+effort.max: Max
+effort.medium: Medium
+effort.none: None
 elements.add_child: Add a child element under this one
 elements.add_top: + Top-level Element
 elements.applied_count: Added {count} elements in total
@@ -578,13 +583,6 @@ errors.novel_active_required: Open a novel first
 errors.novel_config_invalid: Novel configuration is invalid
 errors.novel_title_mismatch: Confirmation title does not match the novel title
 errors.novel_recycle_failed: The novel could not be moved to the system recycle bin; its data was kept
-manuscript.chapter_ai: From chat
-manuscript.chapter_ai_hint: Open the conversation that wrote this chapter
-manuscript.chapter_empty: No chapters yet. Full drafts land here automatically.
-manuscript.chapter_opened: "Opened chapter: {name}"
-manuscript.chapter_size: '{size} KB'
-manuscript.chapters_count: '{count} chapters'
-manuscript.chapters_title: Chapters
 modes.builtin_prompt_note: Built-in modes run on the fixed base prompt (agent behaviour plus this mode's task) and are not edited here. Add a mode when you need your own prompt.
 modes.builtin_prompt_view: View the built-in task prompt
 novels.home: Library
@@ -684,14 +682,55 @@ language.step_of: 'Step {step} of {total}'
 language.switch_failed_reason: 'Failed to switch language: {reason}'
 manuscript.access_failed_reason: 'Cannot access: {reason}'
 manuscript.ai_assist: AI Assist
-manuscript.ai_question: What should we do with the text?
-manuscript.ai_result_warning: The workspace still has an unapplied AI result; continuing will clear it.
-manuscript.ai_scope: Will process the entire workspace text, {count} chars. The result appears below the text; edit
-  it before deciding to overwrite, delete, or save elsewhere.
-manuscript.ai_title: AI Assist · Manuscript
+manuscript.ai_cancelled: This rewrite was stopped
+manuscript.ai_cancelled_hint: The text was not changed
+manuscript.ai_cancelled_toast: Stopped; the text was not changed.
+manuscript.ai_diff_added: Rewritten
+manuscript.ai_diff_removed: Original
+manuscript.ai_discarded: The unconfirmed AI rewrite was discarded.
+manuscript.ai_done: Rewrite ready
+manuscript.ai_edit_stats: Replaced {before} characters → {after} characters
+manuscript.ai_empty: No conversation yet. Tell the AI what to change and where; it writes directly into the text.
+manuscript.ai_empty_prompt: Describe the change first, e.g. "make this paragraph tenser".
+manuscript.ai_empty_result: The model returned no usable text.
+manuscript.ai_failed: Rewrite failed
+manuscript.ai_failed_reason: 'Rewrite failed: {reason}'
+manuscript.ai_hint: Enter for a new line · Ctrl+Enter to send
+manuscript.ai_keep: Keep
+manuscript.ai_kept: Kept
+manuscript.ai_kept_toast: Kept this change; the text will auto-save.
+manuscript.ai_mode_picker: Choose an action
+manuscript.ai_panel_subtitle: Chat-style edits · keep or revert
+manuscript.ai_panel_title: AI Assist
+manuscript.ai_pending_block: Keep or revert this rewrite before starting another.
+manuscript.ai_pending_hint: AI rewrite awaiting review
+manuscript.ai_pending_stats: Replaced {before} characters → {after} characters
+manuscript.ai_placeholder: e.g. make this paragraph tenser; remove repeated descriptions; switch to third person…
+manuscript.ai_prompt_label: Rewrite instructions
+manuscript.ai_ready: Rewrite ready for review
+manuscript.ai_revert: Revert
+manuscript.ai_reverted: Reverted
+manuscript.ai_reverted_hint: The text is back to before the change
+manuscript.ai_reverted_toast: Reverted to before the change.
+manuscript.ai_review_stale: This rewrite is no longer pending (the text changed or a newer rewrite started).
+manuscript.ai_scope_document: Whole text, {count} chars
+manuscript.ai_scope_selection: Selection, {count} chars
+manuscript.ai_send: Rewrite
+manuscript.ai_view_diff: View changes
+manuscript.ai_writing: Rewriting…
 manuscript.autosaved: Auto-saved {name}
 manuscript.autosaving: Auto-saving…
-manuscript.busy: AI is processing; please wait.
+manuscript.chapter_ai: From chat
+manuscript.chapter_ai_hint: Open the conversation that wrote this chapter
+manuscript.chapter_empty: No chapters yet. Full drafts land here automatically.
+manuscript.chapter_name: Chapter name
+manuscript.chapter_opened: 'Opened chapter: {name}'
+manuscript.chapter_saved: Saved to chapters
+manuscript.chapter_size: '{size} KB'
+manuscript.chapters_collapse: Collapse chapters
+manuscript.chapters_count: '{count} chapters'
+manuscript.chapters_expand: Expand chapters
+manuscript.chapters_title: Chapters
 manuscript.clean_cn_quotes: Chinese quotes → straight quotes
 manuscript.clean_fullwidth_space: Full-width space → half-width
 manuscript.clean_merge_breaks: Merge line breaks within paragraphs
@@ -700,90 +739,42 @@ manuscript.clean_remove_empty: Remove all empty lines
 manuscript.clean_tools: Text cleaning tools
 manuscript.clean_trim: Trim whitespace
 manuscript.clean_trim_indent: Remove leading indentation
-manuscript.cleared: Cleared; you'll pick a file name when saving
 manuscript.current_dir: Current directory
-manuscript.delete_result: Delete Result
-manuscript.delete_result_confirm: Delete this AI result? The workspace text is not affected.
 manuscript.dir_label: Target directory (click through, or edit the path directly)
-manuscript.dir_status: 'Directory: {dir} · Current: {file}'
 manuscript.draft_staged: Draft auto-staged (unnamed — click "Save" to make it a file)
+manuscript.editor_label: Manuscript editor
 manuscript.editor_placeholder: Write or paste your manuscript here…
-manuscript.empty_not_saved: Content is empty; not saved.
 manuscript.empty_unnamed: Empty (unnamed)
 manuscript.enc_gbk: GBK (needed by some Chinese sites)
 manuscript.enc_utf8: UTF-8 (recommended)
 manuscript.enc_utf8_bom: UTF-8 with BOM (some editors)
 manuscript.encoding: Encoding
-manuscript.export_memory: Export to Memory
-manuscript.export_title: '{base} · {date}'
 manuscript.export_txt: Export as txt
 manuscript.export_txt_btn: Save as / export txt…
 manuscript.exported_size: 'Exported: {path} ({size}KB)'
-manuscript.file_overwrite_confirm: '"{name}" already exists. Overwrite?'
 manuscript.filename_placeholder: filename.txt
 manuscript.find_replace: Find & Replace
-manuscript.find_replace_btn: Find and replace…
-manuscript.folder_title: Text folder
-manuscript.import_other_btn: Import from elsewhere…
-manuscript.import_output: Import from output (workspace/output/)
-manuscript.import_output_btn: Import from output…
-manuscript.imported: 'Imported: {path}'
 manuscript.lock_hint: The text and actions cannot be changed until completion.
 manuscript.lock_title: AI is processing
-manuscript.memory_content_label: Content (editable)
-manuscript.meta_elapsed: Time {elapsed}s
-manuscript.meta_line: Model {model} · Effort {effort}
-manuscript.meta_model: Model {model}
 manuscript.mode_fallback: AI processing
-manuscript.new_text: New text file
-manuscript.no_mode: No manuscript modes yet. Create one under Mode Management → Manuscript modes, e.g. "Polish &
-  Revise".
-manuscript.no_outputs: No outputs under workspace/output/ yet.
-manuscript.no_text_files: This directory has no text files yet.
+manuscript.no_mode: No manuscript modes yet. Create one under Mode Management → Manuscript modes, e.g. "Polish & Revise".
 manuscript.nothing_export: The workspace has no text to export.
 manuscript.nothing_process: The workspace has no text to process yet.
-manuscript.open_failed_reason: 'Open failed: {reason}'
 manuscript.open_file: Open text file
-manuscript.overwrite: Overwrite workspace
-manuscript.overwrite_confirm: Overwrite the workspace with this result? The original text will be replaced.
-manuscript.overwritten_draft: Workspace overwritten (it's an unnamed draft — remember to save).
-manuscript.overwritten_file: Workspace overwritten; the file will auto-save.
-manuscript.page_desc: 'A standalone large-text workspace: the toolbar above offers AI assist, the text folder, and
-  export to Memory. Content is auto-staged; once bound to a file, it auto-saves 1.5s after you stop typing.'
+manuscript.page_desc: 'The text is on the left and the AI chat on the right: the AI rewrites in place and marks the change; keep or revert it. Content is auto-staged, and once bound to a file it auto-saves 1.5s after you stop typing.'
 manuscript.pending_save: pending auto-save…
-manuscript.process_done: Processing complete
-manuscript.process_done_hint: Processing complete; the result is below the text and can be edited before applying.
-manuscript.process_failed: Processing failed
-manuscript.process_failed_reason: 'Processing failed: {reason}'
+manuscript.process_tools: Text tools
+manuscript.redo: Redo
 manuscript.replace_all: Replace all
-manuscript.req_hint: Optional; the mode's own instructions will be followed. The result appears below the text and
-  can be edited before applying.
-manuscript.req_label: Processing instructions (optional)
-manuscript.req_placeholder: e.g. Adjust only the pacing of paragraph 3; unify to third person; keep all dialogue
-  and plot.
-manuscript.result_deleted: AI result deleted.
-manuscript.result_empty: Result is empty; cannot overwrite.
-manuscript.result_empty_save: Result is empty; cannot save to Memory.
-manuscript.result_placeholder: The AI result appears here and can be edited directly.
-manuscript.result_stat: Original {before} chars → result {after} chars · editable before applying.
-manuscript.result_title: AI Result
-manuscript.result_warning: Generated by AI; verify before applying
-manuscript.save_prompt: File name to save in {folder}/
-manuscript.save_result_memory: Save result to Memory
-manuscript.save_to_memory: Save to Memory
 manuscript.saved_status: Saved {name}
-manuscript.saved_to_memory: Saved to Memories.
-manuscript.source_ai: Manuscript · AI result · {mode}
-manuscript.source_workspace: Manuscript · workspace
-manuscript.start: Start processing
+manuscript.selection_scope: Apply to selected text when available; otherwise the whole manuscript
 manuscript.stat_line: Chars {chars} · Han {han} · Lines {lines} · Paras {paras} · {save}
+manuscript.to_chapter: Save to chapters
 manuscript.too_big: Content too large; draft not staged (auto-save to file still works once bound)
-manuscript.try_another: ← Try another action
+manuscript.undo: Undo
 manuscript.unnamed_draft: (Unnamed draft)
 manuscript.unsaved_clear: Content not yet saved in "(Unnamed)" will be cleared. Continue?
-manuscript.unsaved_discard: Content not yet saved in "(Unnamed)" will be discarded. Continue?
 manuscript.up_level: ⬆ Up one level
-manuscript.workspace_title: Manuscript workspace
 memories.all_categories: All categories
 memories.category_label: Category
 memories.chapter_label: Chapter / time
@@ -1214,7 +1205,6 @@ workstation.system_label: system ({count} chars)
 workstation.target_default: Default {count} chars
 workstation.target_label: Target length this run
 workstation.to_manuscript: Send to Manuscript
-workstation.to_materials: Move to manuscript
 workstation.untitled_chapter: New chapter
 workstation.user_label: user ({count} chars)
 workstation.view_raw: View raw
@@ -1343,35 +1333,10 @@ workstation.rename_conversation: "Rename conversation"
 
 workstation.conversations: "Conversations"
 
-manuscript.material_added: "Added to this novel’s materials."
-manuscript.materials: "Materials"
-manuscript.materials_count: "Materials · {count}"
-manuscript.materials_hint: "Click to preview · Drag into the manuscript"
-manuscript.materials_empty: "Import files or send results from the AI workstation."
-manuscript.import_files: "Import files"
-manuscript.import_chapter: "Import from chapters"
-manuscript.process_tools: "Text tools"
-manuscript.selection_scope: "Apply to selected text when available; otherwise the whole manuscript"
-manuscript.editor_label: "Manuscript editor"
-manuscript.composer_placeholder: "Write here, or drag a material to the desired insertion point…"
-manuscript.insert_cursor: "Insert at cursor"
-manuscript.preview_material: "Preview: {title}"
-manuscript.remove_material: "Remove material card (keep manuscript and original file)"
-manuscript.remove_material_title: "Remove material: {title}"
-manuscript.source_sample: "Sample"
-manuscript.source_file: "Imported file"
-manuscript.material_source_ai: "AI workstation"
-manuscript.source_chapter: "Chapter"
-manuscript.undo: "Undo"
-manuscript.redo: "Redo"
-manuscript.file_too_large: "Keep each material under 8 MB."
-manuscript.text_files_only: "Import TXT or Markdown files."
-manuscript.sample_1_title: "Rain at the gate · Opening.txt"
-manuscript.sample_1_content: "The gate was closing when Lin Zhou stepped out of the rain.\n\nHe held the letter beneath his coat and looked toward the only light on the street. The guard saw the red seal and quietly stepped aside.\n\n“Stay away from the river tonight.”\n\nWhen Lin turned back, the gate was shut."
-manuscript.sample_2_title: "Lin Zhou · Character notes.md"
-manuscript.sample_2_content: "## Immediate goal\nFind a missing friend and deliver a letter three years late.\n\n## Inner conflict\nHe calls himself a messenger, but his silence may have caused the disappearance.\n\n## Scene clues\nA red seal, three familiar knocks, and the guestbook at the riverside inn."
-manuscript.sample_3_title: "Riverside inn · Scene.txt"
-manuscript.sample_3_content: "The hinges creaked. Everyone in the inn looked up.\n\nThe innkeeper polished an already clean cup, watching the empty alley behind Lin. Three slow knocks sounded upstairs.\n\nLin set his letter on the counter.\n\n“I’m looking for someone.”\n\n“So is everyone here,” said the innkeeper."
+workstation.append_to_manuscript: "Append to current manuscript"
+workstation.effort_label: "Reasoning effort"
+workstation.model_and_effort: "Model and reasoning effort"
+workstation.model_label: "Model"
 
 # Setting editor and centralized import
 records.help_title: "Setting help"
@@ -1417,28 +1382,6 @@ workstation.map_whole: "Include the full map and its regions."
 workstation.supplement: "Additional requirements (editable)"
 workstation.supplement_placeholder: "Add extra writing requirements, style or constraints. The checkboxes above decide which settings are included."
 workstation.no_settings_selected: "No settings selected"
-
-manuscript.to_chapter: "Save to chapters"
-
-manuscript.chapter_name: "Chapter name"
-
-manuscript.chapter_saved: "Saved to chapters"
-
-manuscript.new_folder: "New material folder"
-
-manuscript.all_materials: "All materials"
-
-manuscript.open_folder: "Open folder: {name}"
-
-manuscript.folder_count: "{count} materials"
-
-manuscript.move_material: "Move to folder"
-
-manuscript.move_material_title: "Move material: {title}"
-
-manuscript.folder_back: "Back"
-
-manuscript.folder_forward: "Forward"
 
 relations.search: "Search entries or categories"
 
@@ -1520,7 +1463,6 @@ records.add_tag: "Add tags"
 records.supplement: "Other / supplementary description"
 records.create_hint: "Use New in the upper right to add a record."
 records.overwrite_confirm: "This file exists. Overwrite it? A .bak backup will be kept: {path}"
-workstation.model: "Model for this request"
 workstation.limited: "Limit length"
 workstation.unlimited: "No length limit"
 workstation.invalid_target: "Target length must be a positive integer."

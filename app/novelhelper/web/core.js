@@ -61,6 +61,18 @@ function toast(msg, kind, opts) {
   if (!root) return null;
   opts = opts || {};
   const isError = kind === 'err';
+  // 输入栏贴着窗口底部时（AI 工作站 / 稿件处理的 AI 对话），提示条抬到它上方，
+  // 别把「开始生成 / 开始改写」盖住。
+  const composer = document.querySelector('.agent-compose-wrap, .manuscript-agent-compose');
+  let lift = 0;
+  if (composer && typeof composer.getBoundingClientRect === 'function') {
+    const rect = composer.getBoundingClientRect();
+    const viewport = window.innerHeight || 0;
+    if (rect.top < viewport && rect.bottom > viewport - 240) {
+      lift = Math.max(0, Math.round(viewport - rect.top + 12));
+    }
+  }
+  root.style.bottom = lift ? lift + 'px' : '';
   const node = h('div', { class: 'toast ' + (kind || ''), role: isError ? 'alert' : 'status' },
     h('span', { class: 'toast-text', text: msg }));
   let timer = null;
@@ -583,21 +595,31 @@ async function persistConfig() {
   await refreshWorkspaceFiles();
 }
 
-/** 工作站与章节转入的内容先进入当前小说的素材区。 */
-function appendToTextPanel(content, quiet, metadata = {}) {
+/** AI 工作站的内容直接追加到「稿件处理」当前正文末尾（文件与草稿照常自动保存）。 */
+function appendToTextPanel(content, quiet) {
   const text = String(content || '');
-  if (!text.trim()) return;
+  if (!text.trim()) return '';
   const saved = ((state.db.state = state.db.state || {}).textPanel = state.db.state.textPanel || {});
-  const source = {
-    id: newId('material'), title: metadata.title || text.split('\n').find(line => line.trim())?.replace(/^#+\s*/, '').slice(0, 50) || i18n.t('common.unnamed'),
-    content: text, source: metadata.source || 'ai', created: new Date().toISOString()
-  };
-  saved.materials = saved.materials || [];
-  saved.materials.push(source);
-  if (state.ui.text?.novelId === state.activeNovelId) state.ui.text.materials = saved.materials;
+  const ui = state.ui.text && state.ui.text.novelId === state.activeNovelId ? state.ui.text : null;
+  // 手上还有未确认的 AI 改写时先还原原文，避免追加后偏移对不上。
+  if (ui && ui.pending) {
+    const pending = ui.pending;
+    ui.value = ui.value.slice(0, pending.start) + pending.original + ui.value.slice(pending.end);
+    const message = (ui.chat || []).find(item => item.id === pending.messageId);
+    if (message && message.status === 'review') message.status = 'cancelled';
+    ui.pending = null;
+  }
+  const base = ui ? ui.value : (saved.value || '');
+  const merged = base.trim() ? base.replace(/\s+$/, '') + '\n\n' + text.trim() : text.trim();
+  if (ui) {
+    ui.value = merged; ui.dirty = true;
+    ui.selectionStart = merged.length; ui.selectionEnd = merged.length;
+  }
+  saved.value = merged;
+  saved.updated = new Date().toISOString();
   touch('state', true);
-  if (!quiet) toast(i18n.t('manuscript.material_added'), 'ok');
-  return source;
+  if (!quiet) toast(i18n.t('common.appended_to_workspace'), 'ok');
+  return merged;
 }
 
 // 浏览器端异常也写入本地日志，便于排查界面问题。

@@ -51,6 +51,7 @@ function wsState() {
       sel.target_chars=((state.db.config || {}).writing || {}).target_chars || 8000;
   }
   if(typeof currentModels==='function' && sel.model && !currentModels().includes(sel.model))sel.model='';
+  if(typeof effortChoices==='function' && sel.effort && !effortChoices().includes(sel.effort))sel.effort='';
   sel.include = sel.include || {
     characters: true, memory: true, world: true, factions: false, worldmap: false, state: true
   };
@@ -199,35 +200,68 @@ function wsModelName(ws) {
   return defaultModelName() || models[0] || '';
 }
 
-/** 本次模型：和 DSH 一样放在「开始生成」旁边，不再去设置页里找。 */
-function wsModelMenu(ws) {
+function effortLabel(value) {
+  const key = 'effort.' + value;
+  const text = i18n.t(key);
+  return text === key ? String(value || '') : text;
+}
+
+/**
+ * 模型 + 推理强度：和 DSH 一样合成一个菜单，紧挨「开始生成」。
+ * `getModel/setModel` 由调用方决定存在哪里（工作站 / 稿件处理各自保存）。
+ */
+function aiModelEffortMenu(opts) {
   const models = currentModels();
-  const active = wsModelName(ws);
   let details = null;
   const menu = h('div', { class: 'agent-model-menu', role: 'menu' });
-  if (!models.length) {
-    menu.appendChild(h('div', { class: 'small muted', text: i18n.t('workstation.model_missing_hint') }));
+  const modelName = h('span', { class: 'agent-model-name' });
+  const effortName = h('span', { class: 'agent-model-effort' });
+  const summary = h('summary', {
+    title: i18n.t('workstation.model_and_effort'),
+    'aria-label': i18n.t('workstation.model_and_effort')
+  }, modelName, effortName);
+  const update = () => {
+    modelName.textContent = opts.model() || i18n.t('workstation.model_missing');
+    effortName.textContent = effortLabel(opts.effort());
+  };
+  const option = (label, on, run) => h('button', {
+    class: 'agent-model-item' + (on ? ' on' : ''), role: 'menuitemradio',
+    'aria-checked': String(on), text: label,
+    onclick: () => { run(); details.open = false; update(); }
+  });
+  const refresh = () => {
+    clear(menu);
+    menu.appendChild(h('div', { class: 'agent-menu-label', text: i18n.t('workstation.model_label') }));
+    if (!models.length) {
+      menu.appendChild(h('div', { class: 'small muted agent-menu-empty', text: i18n.t('workstation.model_missing_hint') }));
+    } else {
+      const active = opts.model();
+      models.forEach(model => menu.appendChild(option(model, model === active, () => opts.setModel(model))));
+    }
+    menu.appendChild(h('div', { class: 'agent-menu-sep', 'aria-hidden': 'true' }));
+    menu.appendChild(h('div', { class: 'agent-menu-label', text: i18n.t('workstation.effort_label') }));
+    const effort = opts.effort();
+    effortChoices().forEach(value => menu.appendChild(option(effortLabel(value), value === effort, () => opts.setEffort(value))));
+    menu.appendChild(h('div', { class: 'agent-menu-sep', 'aria-hidden': 'true' }));
     menu.appendChild(h('button', {
-      class: 'mini', text: i18n.t('workstation.open_settings'),
+      class: 'agent-model-item agent-model-setting', text: i18n.t('workstation.open_settings'),
       onclick: () => { details.open = false; openSettings(); }
     }));
-  } else {
-    models.forEach(model => menu.appendChild(h('button', {
-      class: 'agent-model-item' + (model === active ? ' on' : ''),
-      role: 'menuitemradio', 'aria-checked': String(model === active), text: model,
-      onclick: () => {
-        ws.selection.model = model;
-        touch('state', true);
-        details.open = false;
-        renderMain();
-      }
-    })));
-  }
-  details = h('details', { class: 'agent-model' },
-    h('summary', { title: i18n.t('workstation.model'), 'aria-label': i18n.t('workstation.model') },
-      h('span', { class: 'agent-model-name', text: active || i18n.t('workstation.model_missing') })),
-    menu);
+  };
+  details = h('details', { class: 'agent-model' }, summary, menu);
+  details.addEventListener('toggle', () => { if (details.open) refresh(); });
+  refresh(); update();
   return details;
+}
+
+/** AI 工作站：模型与推理强度来自当前会话的选择，没有选中时用模式的默认值。 */
+function wsModelMenu(ws, mode) {
+  return aiModelEffortMenu({
+    model: () => wsModelName(ws),
+    setModel: name => { ws.selection.model = name; touch('state', true); },
+    effort: () => ws.selection.effort || (mode && mode.effort) || 'medium',
+    setEffort: name => { ws.selection.effort = name; touch('state', true); }
+  });
 }
 
 /** 写作模式选择：窗口里带一行小字说明，比只看名字清楚。 */
@@ -288,7 +322,7 @@ function agentTurn(turn, index) {
     actions.appendChild(h('button', { class: 'primary agent-open-chapter',
       text: i18n.t('workstation.open_manuscript'), onclick: () => openManuscriptChapter(chapter) }));
   } else {
-    actions.appendChild(h('button', { text: i18n.t('workstation.to_materials'), onclick: () => sendOutputToText(text) }));
+    actions.appendChild(h('button', { text: i18n.t('workstation.append_to_manuscript'), onclick: () => sendOutputToText(text) }));
   }
   actions.appendChild(h('button', { text: i18n.t('common.copy'), onclick: () => copyOutput(text) }));
   actions.appendChild(h('button', { text: i18n.t('workstation.save_txt'), onclick: () => saveOutputDialog('txt', text) }));
@@ -391,11 +425,13 @@ function viewWorkstation(main) {
     modeButton,
     target,
     h('button', { text: i18n.t('workstation.details'), onclick: openWorkstationDetails }),
-    wsModelMenu(ws),
-    generating
-      ? h('button', { class: 'agent-send agent-stop', text: i18n.t('workstation.stop'), onclick: stopWorkstation })
-      : h('button', { class: 'primary agent-send', text: i18n.t('workstation.start'),
-          title: 'Ctrl+Enter', disabled: !mode, onclick: runWorkstation })));
+    h('span', { class: 'agent-controls-spacer', 'aria-hidden': 'true' }),
+    h('div', { class: 'agent-send-group' },
+      wsModelMenu(ws, mode),
+      generating
+        ? h('button', { class: 'agent-send agent-stop', text: i18n.t('workstation.stop'), onclick: stopWorkstation })
+        : h('button', { class: 'primary agent-send', text: i18n.t('workstation.start'),
+            title: 'Ctrl+Enter', disabled: !mode, onclick: runWorkstation }))));
   // 输入栏下方只留一行：左边是本次带入的设定，右边是快捷键。
   const footRow = h('div', { class: 'agent-foot-row' },
     h('span', { class: 'agent-summary small muted', text: wsSummary() }),
@@ -583,7 +619,10 @@ async function runWorkstation() {
     const res = await streamWorkstation({
       surface: 'workstation',
       mode_id: ws.mode,
-      override: ws.selection.model ? {model:ws.selection.model} : {},
+      override: {
+        ...(ws.selection.model ? { model: ws.selection.model } : {}),
+        ...(ws.selection.effort ? { effort: ws.selection.effort } : {})
+      },
       prompt: ws.prompt,
       work_prompt: ws.work_prompt,
       selection,

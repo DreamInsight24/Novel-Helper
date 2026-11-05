@@ -276,7 +276,6 @@ class _GenerationMixin:
             session_id = ""
             session_payload = None
             turn_payload = {}
-            ai_result = None
             chapter = None
 
             if surface == "workstation":
@@ -348,35 +347,6 @@ class _GenerationMixin:
                     store.save("state", state)
                 except Exception:
                     pass
-            else:
-                # 稿件处理：不进写稿对话历史，也不覆盖工作站的最近输出，
-                # 只把结果放进文本面板，刷新页面后仍能在文本下方看到。
-                ai_result = {
-                    "id": store.new_id("ai"),
-                    "text": clean_text,
-                    "mode": mode_id,
-                    "mode_label": mode_label,
-                    "prompt": user_prompt,
-                    "source_chars": len(source_text),
-                    "created": store.now_str(),
-                    "meta": {
-                        "model": result.get("model", ""),
-                        "effort": result.get("effort", ""),
-                        "provider": result.get("provider", ""),
-                        "elapsed": result.get("elapsed", 0),
-                        "usage": result.get("usage") or {},
-                        "transport": result.get("transport", ""),
-                        "output_chars": len(clean_text),
-                    },
-                }
-                try:
-                    state = store.load("state")
-                    panel = state.setdefault("textPanel", {})
-                    panel["aiResult"] = ai_result
-                    state["updated"] = store.now_str()
-                    store.save("state", state)
-                except Exception:
-                    pass
 
             payload = dict(result)
             payload.update({
@@ -395,8 +365,6 @@ class _GenerationMixin:
                     "user_chars": len(assembled["user"]),
                 },
             })
-            if ai_result is not None:
-                payload["ai_result"] = ai_result
             if chapter is not None:
                 payload["chapter"] = chapter
             return payload

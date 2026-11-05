@@ -451,6 +451,11 @@ defaults.tool.summarize_prompt: |-
 
   没有内容的行写“无”。不要输出解释或额外文字，不要用代码块包裹。
 
+effort.high: 高
+effort.low: 低
+effort.max: 最高
+effort.medium: 中
+effort.none: 不推理
 elements.add_child: 在这个元素下面加子元素
 elements.add_top: ＋ 顶层元素
 elements.applied_count: 共补充 {count} 个元素
@@ -564,13 +569,6 @@ errors.novel_active_required: 请先打开一本小说
 errors.novel_config_invalid: 小说配置格式无效
 errors.novel_title_mismatch: 确认标题与小说标题不一致
 errors.novel_recycle_failed: 无法将小说移入系统回收站；数据已保留
-manuscript.chapter_ai: 来自对话
-manuscript.chapter_ai_hint: 打开生成这一章的对话
-manuscript.chapter_empty: 还没有章节。完整写作的结果会自动出现在这里。
-manuscript.chapter_opened: 已打开章节：{name}
-manuscript.chapter_size: '{size} KB'
-manuscript.chapters_count: '{count} 章'
-manuscript.chapters_title: 章节
 modes.builtin_prompt_note: 内置模式使用固定的基础提示词（Agent 工作方式 + 这个模式的任务说明），不在界面上编辑；需要自己的提示词请新增模式。
 modes.builtin_prompt_view: 查看内置任务提示词
 novels.home: 作品库
@@ -665,13 +663,55 @@ language.step_of: "第 {step} 步 / 共 {total} 步"
 language.switch_failed_reason: 语言切换失败：{reason}
 manuscript.access_failed_reason: 无法访问：{reason}
 manuscript.ai_assist: AI 辅助
-manuscript.ai_question: 我们要对文本怎么做？
-manuscript.ai_result_warning: 当前工作区还有未处理的 AI 结果，继续后会被清除。
-manuscript.ai_scope: 将处理当前工作区全文 {count} 字。结果会显示在文本下方，可编辑后再决定覆盖、删除或转存。
-manuscript.ai_title: AI 辅助 · 稿件处理
+manuscript.ai_cancelled: 已停止这次改写
+manuscript.ai_cancelled_hint: 正文未改动
+manuscript.ai_cancelled_toast: 已停止，正文未改动。
+manuscript.ai_diff_added: 改写后
+manuscript.ai_diff_removed: 原文
+manuscript.ai_discarded: 已放弃未确认的 AI 改写。
+manuscript.ai_done: 改写完成
+manuscript.ai_edit_stats: 替换 {before} 字 → {after} 字
+manuscript.ai_empty: 还没有对话。告诉 AI 要改哪里、怎么改，它会直接在正文上写。
+manuscript.ai_empty_prompt: 先说说要改什么，例如「把这段写得更紧张」。
+manuscript.ai_empty_result: 模型没有返回可用的文字。
+manuscript.ai_failed: 改写失败
+manuscript.ai_failed_reason: 改写失败：{reason}
+manuscript.ai_hint: Enter 换行 · Ctrl+Enter 发送
+manuscript.ai_keep: 保留
+manuscript.ai_kept: 已保留
+manuscript.ai_kept_toast: 已保留这次修改，正文会自动保存。
+manuscript.ai_mode_picker: 选择处理方式
+manuscript.ai_panel_subtitle: 对话式改写 · 可保留或回滚
+manuscript.ai_panel_title: AI 辅助
+manuscript.ai_pending_block: 先保留或回滚这次改写，再开始下一次。
+manuscript.ai_pending_hint: AI 改写待确认
+manuscript.ai_pending_stats: 替换 {before} 字 → {after} 字
+manuscript.ai_placeholder: 例如：把这一段写得更紧张；删掉重复的描写；改成第三人称…
+manuscript.ai_prompt_label: 改写要求
+manuscript.ai_ready: 改写完成，待确认
+manuscript.ai_revert: 回滚
+manuscript.ai_reverted: 已回滚
+manuscript.ai_reverted_hint: 正文已回到修改前
+manuscript.ai_reverted_toast: 已回滚到修改前。
+manuscript.ai_review_stale: 这次改写已失效（正文已变或又发起了新的改写）。
+manuscript.ai_scope_document: 全文 {count} 字
+manuscript.ai_scope_selection: 选中 {count} 字
+manuscript.ai_send: 开始改写
+manuscript.ai_view_diff: 查看改动
+manuscript.ai_writing: 正在改写…
 manuscript.autosaved: 已自动保存 {name}
 manuscript.autosaving: 自动保存中…
-manuscript.busy: AI 正在处理中，请稍候。
+manuscript.chapter_ai: 来自对话
+manuscript.chapter_ai_hint: 打开生成这一章的对话
+manuscript.chapter_empty: 还没有章节。完整写作的结果会自动出现在这里。
+manuscript.chapter_name: 章节名称
+manuscript.chapter_opened: 已打开章节：{name}
+manuscript.chapter_saved: 已导入至章节
+manuscript.chapter_size: '{size} KB'
+manuscript.chapters_collapse: 收起章节
+manuscript.chapters_count: '{count} 章'
+manuscript.chapters_expand: 展开章节
+manuscript.chapters_title: 章节
 manuscript.clean_cn_quotes: 中文引号→英文
 manuscript.clean_fullwidth_space: 全角空格→半角
 manuscript.clean_merge_breaks: 合并段内换行
@@ -680,86 +720,42 @@ manuscript.clean_remove_empty: 删除所有空行
 manuscript.clean_tools: 文本清理工具
 manuscript.clean_trim: 去首尾空白
 manuscript.clean_trim_indent: 去掉行首缩进
-manuscript.cleared: 已清空，保存时会让你选文件名
 manuscript.current_dir: 当前目录
-manuscript.delete_result: 删除结果
-manuscript.delete_result_confirm: 删除这次 AI 处理结果？工作区原文不会改变。
 manuscript.dir_label: 目标目录（可以一路点进去，也可以直接改路径）
-manuscript.dir_status: 目录：{dir} · 当前：{file}
 manuscript.draft_staged: 草稿已自动暂存（未命名，点「保存」定成文件）
+manuscript.editor_label: 正文编辑区
 manuscript.editor_placeholder: 在这里写 / 贴入要处理的稿件…
-manuscript.empty_not_saved: 内容为空，未保存。
 manuscript.empty_unnamed: 空（未命名）
 manuscript.enc_gbk: GBK（部分中文站点需要）
 manuscript.enc_utf8: UTF-8（推荐）
 manuscript.enc_utf8_bom: UTF-8 带 BOM（部分编辑器）
 manuscript.encoding: 编码
-manuscript.export_memory: 导出至记忆
-manuscript.export_title: '{base} · {date}'
 manuscript.export_txt: 导出为 txt
 manuscript.export_txt_btn: 另存为 / 导出 txt…
 manuscript.exported_size: 已导出：{path}（{size}KB）
-manuscript.file_overwrite_confirm: 「{name}」已存在，覆盖？
 manuscript.filename_placeholder: 文件名.txt
 manuscript.find_replace: 查找替换
-manuscript.find_replace_btn: 查找替换…
-manuscript.folder_title: 文本文件夹
-manuscript.import_other_btn: 从其他导入…
-manuscript.import_output: 从产出导入（workspace/output/）
-manuscript.import_output_btn: 从产出导入…
-manuscript.imported: 已导入：{path}
 manuscript.lock_hint: 完成前无法修改文本或切换操作。
 manuscript.lock_title: AI 正在处理中
-manuscript.memory_content_label: 内容（可直接改）
-manuscript.meta_elapsed: 耗时 {elapsed}s
-manuscript.meta_line: 模型 {model} · 推理 {effort}
-manuscript.meta_model: 模型 {model}
 manuscript.mode_fallback: AI 处理
-manuscript.new_text: 新建文本
 manuscript.no_mode: 还没有稿件处理模式。请到「模式管理 → 稿件处理模式」新增，例如「润色修订」。
-manuscript.no_outputs: workspace/output/ 下还没有产出。
-manuscript.no_text_files: 这个目录里还没有文本文件。
 manuscript.nothing_export: 工作区没有可导出的文本。
 manuscript.nothing_process: 工作区还没有可处理的文本。
-manuscript.open_failed_reason: 打开失败：{reason}
 manuscript.open_file: 打开文本文件
-manuscript.overwrite: 覆盖原工作区
-manuscript.overwrite_confirm: 用这个结果覆盖当前工作区？原文本会被替换。
-manuscript.overwritten_draft: 已覆盖工作区（当前是未命名草稿，记得保存）。
-manuscript.overwritten_file: 已覆盖工作区，文件会自动保存。
-manuscript.page_desc: 独立的大文本工作区：上方工具栏可以调用 AI 辅助、打开文本文件夹或导出到记忆库。内容会自动暂存，绑定文件后停手 1.5 秒自动写盘。
+manuscript.page_desc: 左侧是正文，右侧是 AI 对话：AI 直接在原文上改写并标出改动，可保留或回滚。内容自动暂存，绑定文件后停手 1.5 秒自动写盘。
 manuscript.pending_save: 待自动保存…
-manuscript.process_done: 处理完成
-manuscript.process_done_hint: 处理完成，结果在文本下方，可编辑后再应用。
-manuscript.process_failed: 处理失败
-manuscript.process_failed_reason: 处理失败：{reason}
+manuscript.process_tools: 文本处理工具
+manuscript.redo: 重做
 manuscript.replace_all: 全部替换
-manuscript.req_hint: 不填也可以，会按这个模式自己的要求处理。结果会出现在文本下方，可编辑后再应用。
-manuscript.req_label: 处理要求（可选）
-manuscript.req_placeholder: 例如：只调整第 3 段的节奏；统一为第三人称；保留全部对话与情节。
-manuscript.result_deleted: 已删除处理结果。
-manuscript.result_empty: 结果为空，无法覆盖。
-manuscript.result_empty_save: 结果为空，无法转存。
-manuscript.result_placeholder: AI 处理结果会显示在这里，可直接修改。
-manuscript.result_stat: 原文 {before} 字 → 结果 {after} 字 · 可直接修改后再应用。
-manuscript.result_title: AI 处理结果
-manuscript.result_warning: 结果由 AI 生成，应用前请自行核对
-manuscript.save_prompt: 保存到 {folder}/ 的文件名
-manuscript.save_result_memory: 转存至记忆
-manuscript.save_to_memory: 保存到记忆
 manuscript.saved_status: 已保存 {name}
-manuscript.saved_to_memory: 已保存到记忆库。
-manuscript.source_ai: 稿件处理 · AI 结果 · {mode}
-manuscript.source_workspace: 稿件处理 · 工作区
-manuscript.start: 开始处理
+manuscript.selection_scope: 有选区时仅处理选中文字，否则处理全文
 manuscript.stat_line: 字符 {chars} · 汉字 {han} · 行 {lines} · 段 {paras} · {save}
+manuscript.to_chapter: 导入至章节
 manuscript.too_big: 内容过大，草稿不暂存（绑定文件后照常自动写盘）
-manuscript.try_another: ← 换一种处理
+manuscript.undo: 撤销
 manuscript.unnamed_draft: （未命名，草稿）
 manuscript.unsaved_clear: 「（未命名）」里还没落盘的内容会被清掉，继续吗？
-manuscript.unsaved_discard: 「（未命名）」里还没落盘的内容会被丢弃，继续吗？
 manuscript.up_level: ⬆ 上一层
-manuscript.workspace_title: 稿件工作区
 memories.all_categories: 全部分类
 memories.category_label: 分类
 memories.chapter_label: 章节 / 时间
@@ -1150,7 +1146,6 @@ workstation.system_label: system（{count} 字）
 workstation.target_default: 默认 {count} 字
 workstation.target_label: 本次目标字数
 workstation.to_manuscript: 转到稿件处理
-workstation.to_materials: 移入稿件处理
 workstation.untitled_chapter: 新章节
 workstation.user_label: user（{count} 字）
 workstation.view_raw: 查看原文
@@ -1273,35 +1268,10 @@ workstation.rename_conversation: "重命名对话"
 
 workstation.conversations: "对话"
 
-manuscript.material_added: "已加入当前小说的素材区。"
-manuscript.materials: "素材"
-manuscript.materials_count: "素材 · {count}"
-manuscript.materials_hint: "点击预览 · 拖入正文"
-manuscript.materials_empty: "导入文件，或从 AI 工作站转入内容。"
-manuscript.import_files: "导入文件"
-manuscript.import_chapter: "从章节导入"
-manuscript.process_tools: "文本处理工具"
-manuscript.selection_scope: "有选区时仅处理选中文字，否则处理全文"
-manuscript.editor_label: "正文编辑区"
-manuscript.composer_placeholder: "在这里写作，或将上方素材拖到需要插入的位置……"
-manuscript.insert_cursor: "插入到光标处"
-manuscript.preview_material: "预览：{title}"
-manuscript.remove_material: "移除素材卡片（保留正文与原文件）"
-manuscript.remove_material_title: "移除素材：{title}"
-manuscript.source_sample: "示例文档"
-manuscript.source_file: "导入文件"
-manuscript.material_source_ai: "AI 工作站"
-manuscript.source_chapter: "章节"
-manuscript.undo: "撤销"
-manuscript.redo: "重做"
-manuscript.file_too_large: "单份素材请控制在 8 MB 以内。"
-manuscript.text_files_only: "支持导入 TXT 和 Markdown 文件。"
-manuscript.sample_1_title: "雨夜入城 · 开篇.txt"
-manuscript.sample_1_content: "城门将闭，林舟赶在最后一声钟响前走进雨幕。\n\n他握紧怀中的信，抬眼望向街角那盏仍亮着的灯。守门人没有盘问他的来路，只在看见信封上的红印时，悄悄退了半步。\n\n“今晚别走河边。”那人说。\n\n林舟回头时，城门已经合上了。"
-manuscript.sample_2_title: "林舟 · 人物动机.md"
-manuscript.sample_2_content: "## 表层目标\n找到失踪的故人，交出三年前未能送达的信。\n\n## 内在矛盾\n他相信自己只是一个送信人，却始终不敢承认：故人的失踪与他当年的沉默有关。\n\n## 场景线索\n信封上的红印、故人惯用的三下敲门声、河边旧客栈的登记簿。"
-manuscript.sample_3_title: "河边客栈 · 场景补写.txt"
-manuscript.sample_3_content: "门轴轻响，客栈里的人同时抬起了头。\n\n掌柜擦拭着一只早已干净的杯子，目光越过林舟的肩膀，看向空无一人的雨巷。楼上传来三下敲击声，间隔很慢，像是有人在等待回应。\n\n林舟把信放在柜台上。\n\n“我要找一个人。”\n\n掌柜停下手里的动作：“这里的人，都这么说。”"
+workstation.append_to_manuscript: "追加到当前稿件"
+workstation.effort_label: "推理强度"
+workstation.model_and_effort: "模型与推理强度"
+workstation.model_label: "模型"
 
 # Setting editor and centralized import
 records.help_title: "设定填写帮助"
@@ -1347,28 +1317,6 @@ workstation.map_whole: "将带入整张地图及其区域设定。"
 workstation.supplement: "补充要求（可直接修改）"
 workstation.supplement_placeholder: "在这里填写额外的写作要求、风格或限制；上面的勾选决定带入哪些设定。"
 workstation.no_settings_selected: "未选择设定"
-
-manuscript.to_chapter: "导入至章节"
-
-manuscript.chapter_name: "章节名称"
-
-manuscript.chapter_saved: "已导入至章节"
-
-manuscript.new_folder: "新建素材文件夹"
-
-manuscript.all_materials: "全部素材"
-
-manuscript.open_folder: "打开文件夹：{name}"
-
-manuscript.folder_count: "{count} 个素材"
-
-manuscript.move_material: "移动到文件夹"
-
-manuscript.move_material_title: "移动素材：{title}"
-
-manuscript.folder_back: "后退"
-
-manuscript.folder_forward: "前进"
 
 relations.search: "搜索任意条目或栏目"
 
@@ -1450,7 +1398,6 @@ records.add_tag: "添加标签"
 records.supplement: "其他 / 补充描述"
 records.create_hint: "使用右上角“新建”添加条目。"
 records.overwrite_confirm: "文件已存在，是否覆盖？覆盖前将保留 .bak 备份：{path}"
-workstation.model: "本次模型"
 workstation.limited: "限定字数"
 workstation.unlimited: "不限字数"
 workstation.invalid_target: "目标字数必须为正整数。"
