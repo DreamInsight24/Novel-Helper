@@ -40,6 +40,16 @@ def default_config() -> dict:
             "target_chars": 8000,
             "strict_length": True,
         },
+        "revision": {
+            "sample_first": True,
+            "soft_rounds": 3,
+            "hard_rounds": 5,
+            "global_review": "auto",
+            "full_text_limit": 12000,
+            "max_targets": 40,
+            "max_target_chars": 20000,
+            "max_paragraph_chars": 1200,
+        },
         "paths": {
             "data_dir": "data",
             "import_dir": "import",

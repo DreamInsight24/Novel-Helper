@@ -483,6 +483,26 @@ class _ApiMixin:
             self._workstation_stream()
             return
 
+        if path == "/api/revision/stream" and method == "POST":
+            self._revision_stream()
+            return
+
+        if path == "/api/revision/sessions" and method == "GET":
+            self._revision_sessions()
+            return
+
+        if path == "/api/revision/session" and method == "GET":
+            self._revision_session(query)
+            return
+
+        if path == "/api/revision/delete" and method == "POST":
+            self._revision_delete()
+            return
+
+        if path == "/api/revision/cancel" and method == "POST":
+            self._revision_cancel()
+            return
+
         if path == "/api/history/current" and method == "POST":
             body = self._body()
             session = history.set_current(body.get("id") or "")

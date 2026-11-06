@@ -225,6 +225,36 @@ def main() -> int:
           and cfg["api"]["models"] == ["deepseek-flash", "deepseek-v4-pro"]
           and cfg["api"]["default_model"] == "deepseek-flash")
 
+    # 润色修订 Agent：段落索引、需求卡、轮次与配置默认值。
+    from novelhelper.agent import Document
+    from novelhelper.agent import rounds as revision_rounds
+    from novelhelper.revision import card as revision_card
+    from novelhelper.revision import store as revision_store
+    revision_doc = Document("第一段。\n\n第二段。\n\n“对话。”\n")
+    check("修订按自然段切分并生成稳定 ID 与哈希",
+          [p.paragraph_id for p in revision_doc.paragraphs] == ["p_001", "p_002", "p_003"]
+          and revision_doc.paragraphs[0].hash.startswith("sha256:")
+          and revision_doc.paragraphs[0].next_id == "p_002")
+    check("修订需求卡默认保留剧情事实与人物称呼",
+          revision_card.normalize_card({}, wish="改得紧张一点", scope_ids=["p_001"],
+                                       scope_kind="chapter")[0]["preserve"]
+          == ["人物称呼", "关键设定", "剧情事实"])
+    check("修订只接受带至少两个选项的追问",
+          revision_card.normalize_question(
+              {"text": "要哪种？", "options": [{"label": "更紧张"}, {"label": "更克制"}]})
+          is not None
+          and revision_card.normalize_question(
+              {"text": "要哪种？", "options": ["唯一"]}) is None)
+    check("修订默认软 3 轮、硬 5 轮",
+          cfg["revision"]["soft_rounds"] == 3 and cfg["revision"]["hard_rounds"] == 5
+          and revision_store.options({})["hard_rounds"] == 5)
+    same_issue = [{"paragraph_id": "p_001", "type": "style", "problem": "偏书面"}]
+    check("修订在连续两轮同一问题时停止",
+          (revision_rounds.evaluate([
+              {"round": 1, "issues": same_issue},
+              {"round": 2, "issues": same_issue},
+          ]) or {}).get("reason") == "no_progress")
+
     # ── 1. 造数据并组装 ───────────────────────
     store.save("characters", {"items": [{
         "id": "ch_test", "name": "测试角色", "tag": "主角",

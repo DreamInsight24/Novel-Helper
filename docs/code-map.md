@@ -29,6 +29,7 @@
 | 模式管理 | `web/config.js`: `viewModes`、`addModeDialog`、`modeKindLabel` | `prompts.py`: `DEFAULT_MODES`、`default_modes`；`ai.py`: `mode_settings` | `data/novels/<id>/modes.json` |
 | 模型与提供商 | `web/config.js`: `currentModels`、`providerById`、`apiCfg`、`defaultModelName`、`effortChoices` | `providers.py`: `PROVIDERS`、`provider_models`、`default_model`、`endpoint`；`ai.py`: `list_models`、`ping` | `data/config.json` 的 `api` 段 |
 | 稿件处理 | `web/manuscript.js`: `viewManuscript`、`manuscriptEditRange`、`manuscriptStartEdit`、`manuscriptSetEditText`、`manuscriptFinishEdit`、`manuscriptRevertEdit`、`assistantPanel`、`runManuscriptEdit`、`acceptEdit`、`rejectEdit`、`chapterBar`、`loadChapter`、`exportAs`、`browseOpen` | `project/_outputs.py`: `write_output`、`write_plan`、`write_txt_from_md`；`project/_text.py`: `apply_text_op`、`md_to_txt`；`server/_generation.py`: `_run_workstation`（`surface == "manuscript"`） | `workspace/novels/<id>/output`、`text`；草稿与对话在 `state.json` 的 `textPanel` |
+| 润色修订 Agent | `web/manuscript.js`: `sendRevisionWish`、`revisionExecute`、`applyRevisionView`、`revisionHandlers`、`assistantPanel`；`web/revision.js`: `streamRevision`、`revisionFlowNode`、`revisionCardNode`、`revisionSampleNode`、`revisionReviewNode`、`revisionChangesNode` | `revision/engine.py`: `RevisionEngine.execute`、`plan`、`sample`、`batch`、`manual_review`、`accept`、`rollback`、`increment`；`revision/card.py`、`summary.py`、`plan.py`、`revise.py`、`merge.py`、`review.py`；`server/_revision.py`: `_revision_stream` | `data/novels/<id>/revisions/<session>.json`；`config.revision` |
 | 章节 | `web/manuscript.js`: `chapterBar`（可收起章节栏）；`web/views.js`: `previewFile` | `project/_outputs.py`: `write_chapter`、`write_auto_chapter`、`next_chapter_number`、`list_chapters`；`server/_api.py`: `/api/chapters`、`/api/output` | `workspace/novels/<id>/output`；来源对话记在 `state.json` 的 `workstation.chapters` |
 | 记忆 | `web/views.js`: `viewMemories`、`compressMemories` | `project/_parsers.py`: `import_memories`；`tool_prompts.py`: `prompt('compress')`；`server/_generation.py`: `_ai_run` | `data/novels/<id>/memories.json` |
 | 世界地图 | `web/views.js`: `viewWorld`、`newBoard`、`boardCells` | `context.py`: `render_worldmap`；`project/_parsers.py`: `parse_worldmap` | `data/novels/<id>/worldmap.json` |
@@ -62,7 +63,8 @@
 | `_base.py` | `_BaseHandler.do_GET/do_POST/do_PUT/do_DELETE`、`_dispatch`、`_dispatch_localized`、`_static`、`_json`、`_error`、`_body` |
 | `_api.py` | `_ApiMixin._api()`（全部 `/api/*` 路由）、`_preserve_language_fields()` |
 | `_records.py` | `_RecordMixin._import()`、`_auto_sort()`、`_move()` |
-| `_generation.py` | `_GenerationMixin._ai_run()`、`_workstation_run()`、`_ai_setting_gen()`、`_ai_setting_gen_undo()` |
+| `_generation.py` | `_GenerationMixin._ai_run()`、`_workstation_run()`、`_workstation_stream()`、`_ai_setting_gen()`、`_ai_setting_gen_undo()` |
+| `_revision.py` | `_RevisionMixin._revision_stream()`（ndjson：`start` / `stage` / `warn` / `result` / `done` / `error`）、`_revision_session()`、`_revision_sessions()`、`_revision_delete()`、`_revision_cancel()` |
 | `_state.py` | `MAX_BODY`、`_RUN_LOCK`、`_RUN_STATE`（生成锁与状态） |
 | `_helpers.py` | `_api_ready()`、`_surface_error()`、`_compact_selection()` |
 | `_language.py` | `first_run()`、`load_persisted_language()`、`save_language()` |
@@ -112,6 +114,27 @@
 | `logger.py` | `start_session()`、`log_event()`、`log_exception()` |
 | `localization/_runtime.py` | `initialize()`、`t()`、`set_language()`、`get_language()`、`get_translations()`、`get_languages()`、`language_context()`、`validate_translations()` |
 
+### 3.6 Agent 工具包与润色修订（`app/novelhelper/agent/`、`revision/`）
+
+| 文件 | 关键符号 |
+|---|---|
+| `agent/segments.py` | `Document`、`Paragraph`、`segment`（内部）、`sha256_text()`、`classify_paragraph()`、`Document.groups()`、`Document.set_texts()`、`Document.snapshot()` |
+| `agent/jsonio.py` | `parse_json()`、`ParseError`、`as_dict/as_list/as_str/as_bool/as_int/as_float` |
+| `agent/llm.py` | `LLM.text()`、`LLM.json()`（失败一次修复）、`LLM.usage()`、`REPAIR_PROMPT` |
+| `agent/diff.py` | `segments()`、`stats()`、`change_ratio()`、`change_spans()`、`preview()` |
+| `agent/rounds.py` | `evaluate()`、`issue_signature()`、`detect_oscillation()`、`stop_decision()`、`SOFT_LIMIT/HARD_LIMIT` |
+| `agent/sessions.py` | `SessionStore.load/save/list/delete`（原子写入、ID 校验） |
+| `agent/events.py` | `EventSink.stage/warn/result`、`Cancelled` |
+| `revision/engine.py` | `RevisionEngine.create/plan/answer/sample/sample_choice/batch/manual_review/accept/rollback/increment/execute`、`RevisionError`、状态常量 |
+| `revision/card.py` | `normalize_card()`、`normalize_question()`、`preview()`、`merge_increment()`、`wants_direct_accept()` |
+| `revision/summary.py` | `append()`、`render()`、`seed()`（稳定摘要只追加） |
+| `revision/plan.py` | `normalize_plan()`、`select_sample()`、`merge_targets()`、`target_ids()` |
+| `revision/revise.py` | `revise_targets()`、`normalize_results()`（越界/全文/哈希丢弃）、`sample_payload()` |
+| `revision/merge.py` | `apply_results()`（哈希校验）、`cumulative_changes()`、`aggregate_warnings()` |
+| `revision/review.py` | `run_layers()`、`normalize_review()`、`targeted_ids()`、`review_payload()` |
+| `revision/prompts.py` | `PLAN_SYSTEM`、`REVISE_SYSTEM`、`REVIEW_SYSTEM`、`plan_messages()`、`revise_messages()`、`local/consistency/global_review_messages()` |
+| `revision/store.py` | `options()`、`root()`、`session_store()`、`new_session_id()` |
+
 ## 4. 前端函数索引（`app/novelhelper/web/`）
 
 | 文件 | 关键符号 |
@@ -122,9 +145,10 @@
 | `views.js` | `viewInventory()`、`viewWorld()`、`viewMemories()`、`compressMemories()`、`previewFile()` |
 | `config.js` | `viewAI()`（设置页）、`viewModes()`、`addModeDialog()`、`viewSections()`、`viewElements()`、`settingMetadataEditor()`、`currentModels()`、`refreshConfigMeta()`、`restoreNovelConfig()`、`showOnboarding()`、`showSettingImport()` |
 | `workstation.js` | `viewWorkstation()`、`runWorkstation()`、`streamWorkstation()`、`paintStreaming()`、`openModePicker()`、`wsModelMenu()`、`stopWorkstation()`、`openManuscriptChapter()`、`previewWorkstation()`、`newConversation()`、`loadCurrentSession()`、`pollBusyState()`、`boot()`、`refreshWorkstationHistory()`、`switchWorkstationSession()`、`saveOutputDialog()`、`sendOutputToText()` |
-| `manuscript.js` | `viewManuscript()`、`chapterBar()`、`loadChapter()`、`exportAs()`、`browseOpen()`、`processModes()` |
+| `manuscript.js` | `viewManuscript()`、`chapterBar()`、`loadChapter()`、`exportAs()`、`browseOpen()`、`processModes()`、`sendRevisionWish()`、`revisionExecute()`、`applyRevisionView()`、`revisionHandlers` |
+| `revision.js` | `streamRevision()`、`revisionFlowNode()`、`revisionCardNode()`、`revisionQuestionNode()`、`revisionSampleNode()`、`revisionReviewNode()`、`revisionChangesNode()`、`revisionStopNode()`、`revisionHistoryNode()` |
 | `i18n/i18n.js` | `i18n.t()`、`i18n.apply()`、`i18n.load()` |
-| `i18n/bootstrap.js` | 翻译表加载完成后按顺序加载 `core/records/relations/cards/views/config/workstation/manuscript`，再 `boot()` |
+| `i18n/bootstrap.js` | 翻译表加载完成后按顺序加载 `core/records/relations/cards/views/config/workstation/revision/manuscript`，再 `boot()` |
 | `index.html` | 外壳：`#sidebar`、`#nav`、`#main`、`#overlay-root`、`#toast-root` |
 | `style.css` | 全部样式与响应式断点 |
 
@@ -155,6 +179,10 @@
 | `/api/workstation/run` | POST | `_generation.py:_workstation_run` → `_run_workstation` | AI 工作站生成（等整段返回） |
 | `/api/workstation/stream` | POST | `_generation.py:_workstation_stream` | 流式生成：`application/x-ndjson`，帧为 `start` / `delta` / `done`（payload 同 `/run`）/ `error` |
 | `/api/workstation/cancel` | POST | `_api.py` → `_state.cancel_run` | 停止生成：标记结果作废并放开生成锁 |
+| `/api/revision/stream` | POST | `_revision.py:_revision_stream` → `revision.engine` | 修订 Agent 单步执行：`application/x-ndjson`，帧为 `start` / `stage` / `warn` / `result` / `done` / `error` |
+| `/api/revision/session`、`/sessions` | GET | `_revision.py` | 读取 / 列举修订会话（刷新后恢复） |
+| `/api/revision/delete` | POST | `_revision.py` | 删除修订会话 |
+| `/api/revision/cancel` | POST | `_revision.py` → `_state.cancel_run` | 停止修订 |
 | `/api/workstation/status`、`/modes` | GET | `_api.py` | 生成状态 / 模式列表 |
 | `/api/history`、`/api/history/<id>` | GET/DELETE | `_api.py` → `history` | 会话列表 / 读取 / 删除 |
 | `/api/history/current`、`/rename`、`/new` | POST | `_api.py` → `history` | 切换 / 重命名 / 新建会话 |
@@ -172,6 +200,7 @@ data/
     worldmap.json relations.json sections.json schema.json modes.json
     state.json history.json meta.json
     conversations/<session_id>.json
+    revisions/<revision_id>.json   # 润色修订会话：需求卡、计划、每轮 diff、审核、版本快照
 workspace/novels/<novel_id>/
   import/  export/  output/  text/
 log/                               # 日志（配置 paths.log_dir）
@@ -186,7 +215,7 @@ log/                               # 日志（配置 paths.log_dir）
 - 基线：`python -X utf8 -B scripts/smoke_test.py`、`python -X utf8 -B app/selftest.py`、`python -X utf8 -B scripts/check_dependencies.py`
 - 前端语法：`node --check app/novelhelper/web/<file>.js`
 - 国际化：`node scripts/test_i18n.cjs`、`python scripts/test_localization.py`
-- 模块测试：`scripts/test_relations.py`、`test_relations_ui.cjs`、`test_settings_ui.cjs`、`test_record_forms.cjs`、`test_setting_gen.py`、`test_setting_gen_ui.cjs`、`test_workstation_ui.cjs`、`test_workstation_details.cjs`、`test_workstation_stream.py`、`test_manuscript_ui.cjs`、`test_memories_ui.cjs`、`test_layout_migration.py`、`test_language_settings.py`、`test_desktop.py`、`test_run_cancel.py`
+- 模块测试：`scripts/test_relations.py`、`test_relations_ui.cjs`、`test_settings_ui.cjs`、`test_record_forms.cjs`、`test_setting_gen.py`、`test_setting_gen_ui.cjs`、`test_workstation_ui.cjs`、`test_workstation_details.cjs`、`test_workstation_stream.py`、`test_manuscript_ui.cjs`、`test_revision.py`、`test_revision_stream.py`、`test_revision_ui.cjs`、`test_memories_ui.cjs`、`test_layout_migration.py`、`test_language_settings.py`、`test_desktop.py`、`test_run_cancel.py`
 - 打包：`scripts/exe_smoke_test.py`；Windows 工作流 `.github/workflows/build-windows.yml`
 
 ## 8. 常见改动定位示例
@@ -197,6 +226,7 @@ log/                               # 日志（配置 paths.log_dir）
 | 改分类/标签 | `web/records.js`: `manageRecordCategories`/`renameRecordCategory`/`recordTags`；写入清理 `store/_repository.py: _clean_records` |
 | 改关联图与创建关联 | `web/relations.js`；后端 `relations.py` + `store/_repository.py: save('relations')` |
 | 改 AI 上下文拼装 | `context.py`: `build_user_message`/`render_record_selection`/`render_*` |
+| 改润色修订 Agent | `revision/engine.py`（状态机/轮次）、`revision/prompts.py`（三组提示词）、`revision/revise.py`（越界与哈希校验）、`revision/review.py`（分层审核）、`web/revision.js`（会话视图） |
 | 改导入 | `project/_imports.py` + `project/_parsers.py` + `server/_records.py: _import` + `web/records.js: importPanel` |
 | 改导出 | `project/_exports.py` + `server/_api.py: /api/export` |
 | 加配置项 | `store/_defaults.py: default_config` + `web/config.js: viewAI` + `server/_api.py: /api/settings/config` |

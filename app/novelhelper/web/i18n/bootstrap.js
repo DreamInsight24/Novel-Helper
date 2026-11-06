@@ -33,7 +33,7 @@
     i18n.defaults.current = config.current;
     await i18n.load(new URLSearchParams(location.search).get('lang') || config.current);
     i18n.apply(document);
-    for (const file of ['core', 'records', 'relations', 'cards', 'views', 'config', 'workstation', 'manuscript']) {
+    for (const file of ['core', 'records', 'relations', 'cards', 'views', 'config', 'workstation', 'revision', 'manuscript']) {
       await new Promise((resolve, reject) => {
         const script = document.createElement('script');
         script.src = '/' + file + '.js';

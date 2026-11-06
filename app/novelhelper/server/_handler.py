@@ -29,9 +29,10 @@ from ._base import _BaseHandler
 from ._generation import _GenerationMixin
 from ._language import apply_persisted_language
 from ._records import _RecordMixin
+from ._revision import _RevisionMixin
 
 
-class Handler(_ApiMixin, _RecordMixin, _GenerationMixin, _BaseHandler):
+class Handler(_ApiMixin, _RecordMixin, _RevisionMixin, _GenerationMixin, _BaseHandler):
     server_version = f"NovelHelper/{APP_VERSION.lstrip('v')}"
     protocol_version = "HTTP/1.1"
 

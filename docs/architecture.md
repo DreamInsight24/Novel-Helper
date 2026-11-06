@@ -48,8 +48,29 @@ app/novelhelper/
     _api.py            # API 路由 mixin
     _records.py        # 导入、自动归类和集合搬运 mixin
     _generation.py     # AI 与工作站生成 mixin
+    _revision.py       # 润色修订 Agent 的流式接口与会话读取
     _language.py       # 语言持久化、首次判定与损坏配置恢复
     _handler.py        # Handler 组合及 serve 生命周期
+  agent/               # 可复用 Agent 工具包（与小说业务无关）
+    __init__.py        # 公共导出
+    segments.py        # 段落切分、稳定 ID/哈希、文档重建
+    jsonio.py          # 结构化输出容错解析
+    llm.py             # 结构化模型调用（JSON 修复、用量统计）
+    diff.py            # 字符级 diff、改动量、字符区间
+    rounds.py          # 软/硬轮次、无进展与震荡检测
+    sessions.py        # 通用会话 JSON 存储（原子写入）
+    events.py          # 进度事件与告警
+  revision/            # 小说润色修订业务层
+    __init__.py        # RevisionEngine / RevisionError
+    engine.py          # 状态机：计划、样例、批量、审核、确认、回滚、增量
+    card.py            # 需求卡、最多 1 个带选项的追问、直接接受
+    summary.py         # 稳定摘要（只追加）
+    plan.py            # 改稿计划校验、预算与样例段选择
+    revise.py          # 局部改写、越界丢弃、漏段重试、哈希校验
+    merge.py           # 合并与逐段 diff
+    review.py          # 局部/一致性/全局审核
+    prompts.py         # 三组固定提示词
+    store.py           # 会话目录与可配置项
   ai.py                # 模型 API 适配，保持独立模块
   context.py           # 模型上下文组装，保持独立模块
   elements.py          # 设定元素树，保持独立模块
@@ -136,6 +157,8 @@ app/novelhelper/
 | `server` | HTTP 服务、静态资源和 API 编排 | `ai`、`context`、`history`、`logger`、`project`、`store` 等 | P3 已实施；接口见 `docs/api/server.md` |
 | `ai`、`context`、`elements`、`history`、`logger`、`prompts`、`providers`、`tool_prompts` | 保留职责相对单一的模块，作为根包公开模块 | 依具体模块而定；依赖方向以迁移计划为准 | 已保留；符号基线见 `docs/restructure/public-api-baseline.md` |
 | `setting_gen` | AI 设定生成：目标目录构建、隐藏系统提示词、按段落分块与修复重试、结果校验与确定性映射、事务写入与指纹撤销 | `store`、`logger`、`localization`；`server/_generation` 通过 `extract_records` / `validate_batch` / `write_batch` / `undo_last_batch` 调用 | v2610.3 任务 3 新增；接口见 `docs/api/server.md` 的 AI 设定生成接口 |
+| `agent` | 可复用 Agent 工具包：段落索引、结构化 JSON、模型调用、diff、轮次收敛、会话存储与事件 | 仅标准库（默认模型调用入口 `ai` 通过构造函数注入） | 新增；不包含小说业务词，可被其他 Agent 复用 |
+| `revision` | 润色修订业务：需求卡、稳定摘要、改稿计划、局部改写与合并校验、分层审核、状态机与回滚 | `agent`、`ai`、`store`、`logger`、`localization`；`server/_revision` 调用 `RevisionEngine.execute` | 新增；接口见 `docs/code-map.md` 与 `README` 的润色修订 Agent |
 | `ports` | 端口配置迁移、显式端口校验、优先级解析与错误消息 | 仅标准库 | v2610.3 任务 4 新增；供 `store`、`server` 与 `app` 使用 |
 | `desktop` | pywebview 懒加载、窗口参数、HTTP 服务线程与清理、Windows 错误框 | 标准库；仅在打开窗口时导入 pywebview | v2610.3 任务 4 新增 |
 | `app` | CLI 参数、启动顺序、服务/窗口模式、失败退出与日志 | `desktop`、`ports`、`server`、`store`、`logger` | v2610.3 任务 4 调整；`--no-window` 为测试入口 |
