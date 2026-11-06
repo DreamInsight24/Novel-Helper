@@ -761,7 +761,7 @@ manuscript.no_mode: No manuscript modes yet. Create one under Mode Management �
 manuscript.nothing_export: The workspace has no text to export.
 manuscript.nothing_process: The workspace has no text to process yet.
 manuscript.open_file: Open text file
-manuscript.page_desc: 'The text is on the left and the AI chat on the right: the AI rewrites in place and marks the change; keep or revert it. Content is auto-staged, and once bound to a file it auto-saves 1.5s after you stop typing.'
+manuscript.page_desc: 'The text is on the left and the polish agent on the right: describe the change, confirm the requirement card and sample, then review the batch result. Content is auto-staged, and once bound to a file it auto-saves 1.5s after you stop typing.'
 manuscript.pending_save: pending auto-save…
 manuscript.process_tools: Text tools
 manuscript.redo: Redo
@@ -1566,8 +1566,6 @@ revision.rollback_version: "Rolled back to version {n}"
 revision.no_change: "No paragraph needs revising in this round."
 revision.panel_title: "Polish agent"
 revision.panel_subtitle: "Wish-style requests · sample first · converge by rounds"
-revision.mode_agent: "Revision agent"
-revision.mode_quick: "Quick rewrite"
 revision.placeholder: "e.g. Make the opening of this chapter tenser"
 revision.send: "Start revision"
 revision.increment_send: "Add requirement"

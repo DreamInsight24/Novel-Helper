@@ -601,12 +601,10 @@ function appendToTextPanel(content, quiet) {
   if (!text.trim()) return '';
   const saved = ((state.db.state = state.db.state || {}).textPanel = state.db.state.textPanel || {});
   const ui = state.ui.text && state.ui.text.novelId === state.activeNovelId ? state.ui.text : null;
-  // 手上还有未确认的 AI 改写时先还原原文，避免追加后偏移对不上。
+  // 手上还有未确认的修订时先还原原文，避免追加后偏移对不上。
   if (ui && ui.pending) {
     const pending = ui.pending;
     ui.value = ui.value.slice(0, pending.start) + pending.original + ui.value.slice(pending.end);
-    const message = (ui.chat || []).find(item => item.id === pending.messageId);
-    if (message && message.status === 'review') message.status = 'cancelled';
     ui.pending = null;
   }
   const base = ui ? ui.value : (saved.value || '');

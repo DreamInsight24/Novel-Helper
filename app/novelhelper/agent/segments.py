@@ -19,7 +19,8 @@
 novelhelper/agent/segments.py
 段落切分与文档模型（可复用）。
 
-* 最小单位是自然段：空行分隔；单段过长时按句末标点继续拆分；
+* 最小单位是自然段：每个非空行就是一段；空行只作为段落之间的空白保留，
+  不会再被当成「两段之间必须有空行」的 Markdown 规则；
 * 每段都有稳定 ``paragraph_id``、原文哈希 ``original_hash`` 与前后指针；
 * 段落文本之外的空白（分隔符）单独保存，合并改写时原样保留，
   因此可以随时从「段落列表」还原整篇文本，不会吞掉排版；
@@ -32,7 +33,6 @@ import re
 from dataclasses import dataclass, field
 
 DEFAULT_MAX_PARAGRAPH_CHARS = 1200
-DEFAULT_SEPARATOR = "\n\n"
 
 _SENTENCE_END = re.compile(r"[。！？!?…；;]+[”’\"'」』]?")
 _SCENE_HEAD = re.compile(r"^(?:\*{3,}|—{3,}|-{3,}|={3,}|场景[：:]|\[场景\])")
@@ -107,26 +107,20 @@ def _trim(text: str, start: int, end: int) -> tuple[int, int]:
 
 
 def _block_ranges(text: str) -> list[tuple[int, int]]:
-    """按空行切分自然段，返回去掉首尾空白后的区间。"""
+    """按换行切分自然段：每个非空行自成一段，空行只保留为分段空白。
+
+    这样单换行（常见的小说正文）与空行分隔（Markdown 习惯）都能正确识别，
+    不会要求用户为了「成段」额外补一个空行。
+    """
     ranges: list[tuple[int, int]] = []
-    block_start = None
-    block_end = None
     pos = 0
     for line in text.split("\n"):
         line_start = pos
         line_end = pos + len(line)
         pos = line_end + 1
-        if line.strip():
-            if block_start is None:
-                block_start = line_start
-            block_end = line_end
-        elif block_start is not None and block_end is not None:
-            start, end = _trim(text, block_start, block_end)
-            if end > start:
-                ranges.append((start, end))
-            block_start = block_end = None
-    if block_start is not None and block_end is not None:
-        start, end = _trim(text, block_start, block_end)
+        if not line.strip():
+            continue
+        start, end = _trim(text, line_start, line_end)
         if end > start:
             ranges.append((start, end))
     return ranges

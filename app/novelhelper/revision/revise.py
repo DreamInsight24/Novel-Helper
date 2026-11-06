@@ -48,7 +48,8 @@ def _looks_like_full_text(revised: str, doc, paragraph_id: str) -> bool:
         return False
     if "<target" in text or "<document" in text or "</target>" in text:
         return True
-    if "\n\n" in text.strip() and "\n\n" not in original:
+    # 单段里不应出现换行：多段或整篇返回一定会带换行。
+    if "\n" in text.strip() and "\n" not in original:
         return True
     if len(text) > max(len(original) * 2.5, 2000):
         return True

@@ -62,9 +62,9 @@ def check(name: str, ok: bool, extra: str = "") -> None:
 
 
 SAMPLE_TEXT = (
-    "雨落在码头上，林昭把信收进衣袋里，慢慢沿着铁轨往前走。\n\n"
-    "她想起三年前那个晚上，也是这样一场雨。\n\n"
-    "“你终于来了。”沈砚站在灯下，声音很轻。\n\n"
+    "雨落在码头上，林昭把信收进衣袋里，慢慢沿着铁轨往前走。\n"
+    "她想起三年前那个晚上，也是这样一场雨。\n"
+    "“你终于来了。”沈砚站在灯下，声音很轻。\n"
     "远处传来汽笛声，像有人在黑暗里叹气。\n"
 )
 
@@ -187,7 +187,14 @@ def test_segments():
     check("哈希随文本变化", doc.get("p_001").hash != Document("另一段。").paragraphs[0].hash)
     check("对话段识别", doc.get("p_003").type == "dialogue", doc.get("p_003").type)
     check("场景段识别",
-          Document("***\n\n之后。").paragraphs[0].type == "scene")
+          Document("***\n之后。").paragraphs[0].type == "scene")
+    blank_separated = Document("第一段。\n\n第二段。")
+    check("空行分隔仍按两段处理", len(blank_separated) == 2
+          and blank_separated.paragraphs[1].text == "第二段。")
+    check("单换行即分段", len(Document("第一段。\n第二段。")) == 2)
+    check("连续空行不产生空段",
+          [p.text for p in Document("第一段。\n\n\n第二段。").paragraphs]
+          == ["第一段。", "第二段。"])
     selected = doc.ids_in_range(doc.get("p_002").start, doc.get("p_002").end + 1)
     check("按选区取段", selected == ["p_002"], str(selected))
     long_text = "这是一句很长的话。" * 200
@@ -545,7 +552,7 @@ def test_context_budget(store: SessionStore):
     document_calls = sum(1 for call in chat.revise_calls if "<document>" in call["user"])
     check("多轮之间不重复发送全文", document_calls == 1, str(document_calls))
 
-    long_text = "\n\n".join(f"第 {index} 段，" + "很长的叙述。" * 40 for index in range(60))
+    long_text = "\n".join(f"第 {index} 段，" + "很长的叙述。" * 40 for index in range(60))
     chat = FakeChat()
     engine = make_engine(chat, store)
     view = start(engine, chat, text=long_text,

@@ -871,32 +871,8 @@ textarea.agent-prompt { width: 100%; min-height: 72px; max-height: 180px; resize
 .manuscript-agent-title { min-width: 0; flex: 1; }
 .manuscript-agent-title h2 { margin: 0; font-size: 13.5px; }
 .manuscript-agent-title .small { display: block; font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.agent-mode-compact { font-size: 11.5px; max-width: 140px; flex: none; padding: 4px 8px; border-radius: 7px; border: 1px solid var(--line); background: var(--panel-2); }
 .manuscript-agent-close { border: 0; background: transparent; box-shadow: none; color: var(--muted); font-size: 18px; line-height: 1; padding: 2px 6px; border-radius: 6px; flex: none; }
 .manuscript-agent-close:hover { color: var(--text); background: var(--panel-2); }
-.manuscript-agent-feed { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 12px; display: flex; flex-direction: column; gap: 12px; }
-.manuscript-agent-empty { padding: 18px 6px; line-height: 1.7; }
-.manuscript-msg { border-radius: 10px; }
-.manuscript-msg.user { align-self: flex-end; max-width: 92%; background: #e9edf4; padding: 9px 12px; }
-.manuscript-msg.assistant { border: 1px solid var(--line); padding: 10px 12px; background: var(--panel-2); }
-.manuscript-msg-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.6; }
-.manuscript-msg-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
-.manuscript-msg-meta { font-size: 10.5px; }
-.manuscript-msg-status { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12.5px; }
-.manuscript-msg-status.error { color: var(--danger); }
-.manuscript-msg-done { font-weight: 600; color: #22673a; }
-.manuscript-msg-actions { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
-.manuscript-msg-actions button { font-size: 12px; padding: 5px 12px; }
-.manuscript-diff { margin-top: 8px; }
-.manuscript-diff > summary { cursor: pointer; font-size: 11.5px; color: var(--muted); list-style: none; }
-.manuscript-diff > summary::before { content: '▸ '; }
-.manuscript-diff[open] > summary::before { content: '▾ '; }
-.manuscript-diff-body { margin-top: 6px; display: grid; gap: 4px; }
-.manuscript-diff-label { font-size: 10.5px; color: var(--muted); }
-.manuscript-diff-old, .manuscript-diff-new { margin: 0; padding: 6px 8px; border-radius: 6px; font-size: 11.5px;
-  line-height: 1.6; max-height: 160px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
-.manuscript-diff-old { background: #fdf1f1; color: #8a2f2f; }
-.manuscript-diff-new { background: #f2faf4; color: #22673a; }
 .manuscript-agent-compose { flex: none; border-top: 1px solid var(--line); padding: 10px 12px; display: grid; gap: 8px; }
 textarea.manuscript-agent-input { width: 100%; min-height: 54px; max-height: 140px; resize: none; font-size: 13px;
   line-height: 1.6; padding: 7px 9px; }
@@ -910,9 +886,6 @@ textarea.manuscript-agent-input { width: 100%; min-height: 54px; max-height: 140
 .manuscript-agent-hint { font-size: 10.5px; }
 
 /* ── 润色修订 Agent ── */
-.revision-mode-switch { display: flex; flex: none; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; background: var(--panel-2); }
-.revision-mode-switch button { border: 0; border-radius: 0; background: transparent; box-shadow: none; font-size: 11px; padding: 4px 8px; color: var(--muted); }
-.revision-mode-switch button.on { background: var(--panel); color: var(--text); box-shadow: inset 0 0 0 1px var(--line); font-weight: 600; }
 .revision-flow { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
 .revision-flow-body { display: flex; flex-direction: column; gap: 10px; }
 .revision-headline { display: flex; align-items: center; justify-content: space-between; gap: 8px; }

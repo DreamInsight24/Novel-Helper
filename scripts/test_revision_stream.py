@@ -36,8 +36,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "app"))
 
-TEXT = ("雨落在码头上，林昭把信收进衣袋里。\n\n"
-        "“你终于来了。”沈砚站在灯下。\n\n"
+TEXT = ("雨落在码头上，林昭把信收进衣袋里。\n"
+        "“你终于来了。”沈砚站在灯下。\n"
         "远处传来汽笛声。\n")
 
 

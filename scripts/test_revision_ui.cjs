@@ -34,14 +34,14 @@ run(`
   globalThis.byText = (value) => nodes(main).find(node=>node.props.text===value && node.props.onclick);
   globalThis.sendButton = () => nodes(main).find(node=>node.props.onclick && String(node.props.class||'').includes('agent-send') && String(node.props.class||'').includes('primary'));
   state.activeNovelId='novel-a';
-  state.db={state:{textPanel:{value:'第一段。\\n\\n第二段。'}},
+  state.db={state:{textPanel:{value:'第一段。\\n第二段。'}},
             modes:{items:[{id:'polish',label:'润色修订',kind:'process',effort:'medium'}]}};
   state.ui = {}; state.paths={}; state.io={files:[]};
   globalThis.bodies=[];
   globalThis.nextView=null;
   streamRevision = async (body) => { bodies.push(body); return nextView; };
   api = async () => ({session: nextView});
-  globalThis.baseDoc = '第一段。\\n\\n第二段。';
+  globalThis.baseDoc = '第一段。\\n第二段。';
   globalThis.v = (overrides={}) => Object.assign({
     id:'rev_1', title:'润色修订 · 第三章', state:'LOCATE', accepted:false, auto_step:'sample',
     doc:{text:baseDoc, original_text:baseDoc, path:'text/ch.md', chapter:'第三章', chars:baseDoc.length, count:2},
@@ -56,14 +56,13 @@ run(`
   draw();`);
 
 (async () => {
-  // 1. Switch the docked panel to the revision agent.
+  // 1. AI assist opens directly in the polish-agent panel; there is no mode switch.
   run("find(node=>String(node.props.class||'').indexOf('manuscript-ai-toggle')>=0).props.onclick();");
-  run("byText('revision.mode_agent').props.onclick();");
-  assert.equal(run('state.ui.text.agentMode'), 'revision');
   assert.equal(run("nodes(main).some(node=>node.props.class==='revision-flow')"), true);
+  assert.equal(run("nodes(main).some(node=>node.props.class==='revision-mode-switch')"), false);
   assert.equal(run("nodes(main).find(node=>node.props.class==='manuscript-agent-title').children[0].props.text"),
     'revision.panel_title');
-  console.log('PASS: revision agent is a mode of the docked panel');
+  console.log('PASS: AI assist is the polish agent, with no separate quick mode');
 
   // 2. A wish is sent as a plan request with the document and selection scope.
   run(`editor().setSelectionRange(0,2); editor().props.onselect();
@@ -92,7 +91,7 @@ run(`
   console.log('PASS: the sample diff appears before anything is applied');
 
   // 4. Accepting the sample applies the whole document as a reviewable pending edit.
-  run(`nextView = v({state:'USER_CONFIRM_FINAL', auto_step:'', doc:{text:'第一段，更紧张。\\n\\n第二段。',original_text:baseDoc,path:'text/ch.md',chapter:'第三章',chars:11,count:2},
+  run(`nextView = v({state:'USER_CONFIRM_FINAL', auto_step:'', doc:{text:'第一段，更紧张。\\n第二段。',original_text:baseDoc,path:'text/ch.md',chapter:'第三章',chars:11,count:2},
     changes:[{paragraph_id:'p_001',before:'第一段。',after:'第一段，更紧张。',stats:{added:5,removed:0,total:5},diff:[{op:'delete',text:'第一段。'},{op:'insert',text:'第一段，更紧张。'}]}],
     review:{pass:false,issues:[{paragraph_id:'p_001',type:'style',problem:'仍偏书面',suggestion:'再短一点'}],next_instruction:'把 p_001 改得更短',layers:{local:{pass:false},consistency:{pass:true}}},
     stop:{reason:'hard_limit',options:['accept_current','change_strategy','manual_issues']},
@@ -102,10 +101,10 @@ run(`
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(run("bodies[bodies.length-1].step"), 'sample_choice');
   assert.equal(run("bodies[bodies.length-1].choice"), 'accept');
-  assert.equal(run("editor().value"), '第一段，更紧张。\n\n第二段。');
+  assert.equal(run("editor().value"), '第一段，更紧张。\n第二段。');
   assert.equal(run("state.ui.text.pending && state.ui.text.pending.revision"), true);
   assert.equal(run("state.ui.text.pending.ranges.length"), 1);
-  assert.equal(run("nodes(main).find(node=>node.props.class==='manuscript-edit-bar').hidden"), true);
+  assert.equal(run("nodes(main).some(node=>node.props.class==='manuscript-edit-bar')"), false);
   assert.equal(run("nodes(main).some(node=>node.props.class==='revision-review')"), true);
   assert.equal(run("nodes(main).some(node=>node.props.class==='revision-stop')"), true);
   assert.equal(run("nodes(main).some(node=>node.tag==='del')"), true);
@@ -113,7 +112,7 @@ run(`
   console.log('PASS: batch diff, review issues and stop options render as review cards');
 
   // 5. Keeping the version ends the session and records an undo point.
-  run("nextView = v({state:'DONE', accepted:true, auto_step:'', doc:{text:'第一段，更紧张。\\n\\n第二段。',original_text:baseDoc,path:'text/ch.md',chapter:'第三章',chars:11,count:2}, changes:[{paragraph_id:'p_001',before:'第一段。',after:'第一段，更紧张。',stats:{added:5,removed:0,total:5},diff:[]}], versions:[{index:0,label:'original',source:'original',chars:9},{index:1,label:'已保留',source:'accept',chars:11}]}); byText('revision.apply').props.onclick();");
+  run("nextView = v({state:'DONE', accepted:true, auto_step:'', doc:{text:'第一段，更紧张。\\n第二段。',original_text:baseDoc,path:'text/ch.md',chapter:'第三章',chars:11,count:2}, changes:[{paragraph_id:'p_001',before:'第一段。',after:'第一段，更紧张。',stats:{added:5,removed:0,total:5},diff:[]}], versions:[{index:0,label:'original',source:'original',chars:9},{index:1,label:'已保留',source:'accept',chars:11}]}); byText('revision.apply').props.onclick();");
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(run("bodies[bodies.length-1].step"), 'accept');
   assert.equal(run('state.ui.text.pending'), null);
@@ -132,7 +131,7 @@ run(`
   console.log('PASS: rollback restores the previous version');
 
   // 7. Increment: a follow-up wish continues the same session; a question waits for an option.
-  run(`state.ui.text.agentMode='revision'; draw();`);
+  run(`draw();`);
   await new Promise(resolve => setImmediate(resolve));
   run(`find(node=>node.props.class==='manuscript-agent-input').props.oninput({target:{value:'再把最后一句改冷静'}});
     nextView = v({state:'LOCATE', auto_step:'', question:{text:'想更冷静还是更疏离？',options:[{id:'calm',label:'更冷静'},{id:'distant',label:'更疏离'}]}, warnings:[{code:'out_of_scope',count:2}]});
@@ -142,7 +141,7 @@ run(`
   assert.equal(run("bodies[bodies.length-1].session_id"), 'rev_1');
   assert.equal(run("nodes(main).some(node=>node.props.class==='revision-question')"), true);
   assert.equal(run("nodes(main).some(node=>node.props.text==='revision.warn.out_of_scope{\"count\":2}')"), true);
-  run(`nextView = v({state:'USER_CONFIRM_FINAL', auto_step:'', changes:[{paragraph_id:'p_001',before:'第一段。',after:'更紧张。',stats:{added:4,removed:0,total:4},diff:[]}], doc:{text:'更紧张。\\n\\n第二段。',original_text:baseDoc,path:'text/ch.md',chapter:'第三章',chars:8,count:2}});
+  run(`nextView = v({state:'USER_CONFIRM_FINAL', auto_step:'', changes:[{paragraph_id:'p_001',before:'第一段。',after:'更紧张。',stats:{added:4,removed:0,total:4},diff:[]}], doc:{text:'更紧张。\\n第二段。',original_text:baseDoc,path:'text/ch.md',chapter:'第三章',chars:8,count:2}});
     byText('更冷静').props.onclick();`);
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(run("bodies[bodies.length-1].step"), 'answer');
@@ -151,13 +150,13 @@ run(`
 
   // 8. Reload restores the revision session and its pending diff.
   run(`state.ui.text = null;
-    state.db.state.textPanel = {value:'第一段。\\n\\n第二段。', assistant:true, agentMode:'revision', revisionId:'rev_1'};
-    nextView = v({state:'USER_CONFIRM_FINAL', auto_step:'', doc:{text:'第一段，更紧张。\\n\\n第二段。',original_text:baseDoc,path:'text/ch.md',chapter:'第三章',chars:11,count:2},
+    state.db.state.textPanel = {value:'第一段。\\n第二段。', assistant:true, revisionId:'rev_1'};
+    nextView = v({state:'USER_CONFIRM_FINAL', auto_step:'', doc:{text:'第一段，更紧张。\\n第二段。',original_text:baseDoc,path:'text/ch.md',chapter:'第三章',chars:11,count:2},
       changes:[{paragraph_id:'p_001',before:'第一段。',after:'第一段，更紧张。',stats:{added:5,removed:0,total:5},diff:[]}]});
     draw();`);
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(run("state.ui.text.revisionId"), 'rev_1');
-  assert.equal(run("editor().value"), '第一段，更紧张。\n\n第二段。');
+  assert.equal(run("editor().value"), '第一段，更紧张。\n第二段。');
   assert.equal(run("state.ui.text.pending && state.ui.text.pending.revision"), true);
   console.log('PASS: reload restores the revision session and its pending diff');
 

@@ -17,17 +17,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-/* NovelHelper —— 稿件处理（大文本工作区 + 对话式 AI 辅助） */
+/* NovelHelper —— 稿件处理（大文本工作区 + 润色修订 Agent） */
 'use strict';
-
-function processModes() {
-  return modesOfKind('process');
-}
-
-function manuscriptModeLabel(id) {
-  const mode = allModes().find(m => m.id === id);
-  return mode ? (mode.label || mode.id) : (id || i18n.t('manuscript.mode_fallback'));
-}
 
 function manuscriptShortName(path) {
   return String(path || '').split(/[\\/]/).pop() || i18n.t('common.unnamed_paren');
@@ -47,24 +38,6 @@ function manuscriptToggleClass(el, name, on) {
   if (typeof el.classList.toggle === 'function') el.classList.toggle(name, !!on);
   else if (on) el.classList.add(name);
   else el.classList.remove(name);
-}
-
-let manuscriptRun = null;              // 当前 AI 改写的请求（跨页面重建也能停）
-let manuscriptStopRequested = false;   // 是「用户主动停止」还是真的失败
-
-function manuscriptClip(text, max) {
-  const value = String(text || '');
-  return value.length > max ? value.slice(0, max) + '…' : value;
-}
-
-/** 草稿里只保留最近一段对话：正文片段截短，避免 state.json 越滚越大。 */
-function manuscriptChatForDraft(chat) {
-  return (chat || []).slice(-60).map(message => {
-    const copy = { ...message };
-    if (copy.original) copy.original = manuscriptClip(copy.original, 4000);
-    if (copy.added) copy.added = manuscriptClip(copy.added, 4000);
-    return copy;
-  });
 }
 
 /**
@@ -127,14 +100,9 @@ function manuscriptRevertEdit(ui) {
   return true;
 }
 
-/** 放弃未确认的改写（换章、追加结果等）：正文还原，对话里那条结果标成已停止。 */
+/** 放弃未确认的修订（换章、追加结果等）：正文还原。 */
 function manuscriptDiscardPending(ui) {
-  const pending = ui && ui.pending;
-  if (!pending) return false;
-  const message = (ui.chat || []).find(item => item.id === pending.messageId);
-  if (!manuscriptRevertEdit(ui)) return false;
-  if (message && message.status === 'review') message.status = 'cancelled';
-  return true;
+  return manuscriptRevertEdit(ui);
 }
 
 // ═══════════════════════════════════════════
@@ -144,7 +112,7 @@ function manuscriptDiscardPending(ui) {
 //   · 输入先落进内存草稿 → 切到别的栏目再回来，原样还在；
 //   · 停手 0.5 秒把草稿写进 data/state.json → 刷新浏览器 / 重开页面也还在；
 //   · 绑定到具体文件后，停手 1.5 秒自动写盘 → 不必再点「保存」；
-//   · AI 辅助是右侧对话：改写直接落在正文上并高亮，保留或回滚都由你决定。
+//   · AI 辅助就是右侧的润色修订 Agent：先许愿，再样例、批量、审核；保留或回滚都由你决定。
 // ═══════════════════════════════════════════
 function viewManuscript(main) {
   if (state.ui.textObserver) { state.ui.textObserver.disconnect(); state.ui.textObserver = null; }
@@ -162,27 +130,22 @@ function viewManuscript(main) {
       path: saved.path || '',
       value: saved.value || '',
       dirty: !!saved.dirty,
-      chat: Array.isArray(saved.chat) ? saved.chat : [],
       pending: saved.pending && typeof saved.pending === 'object' ? saved.pending : null,
       assistant: !!saved.assistant,
       assistantPrompt: saved.assistantPrompt || '',
-      mode: saved.mode || '',
       model: saved.model || '',
       effort: saved.effort || '',
-      agentMode: saved.agentMode || 'quick',
       revisionId: saved.revisionId || '',
       revision: null,
       chapterCollapsed: !!saved.chapterCollapsed
     };
   }
   const ui = state.ui.text;
-  // 记得上次没处理完的改写：正文对不上（文件被外部改过）就放弃这次结果。
+  // 记得上次没处理完的修订：正文对不上（文件被外部改过）就放弃这次结果。
   if (ui.pending) {
     const p = ui.pending;
     if (typeof p.start !== 'number' || typeof p.text !== 'string' ||
         ui.value.slice(p.start, p.start + p.text.length) !== p.text) {
-      const message = ui.chat.find(item => item.id === p.messageId);
-      if (message && message.status === 'review') message.status = 'cancelled';
       ui.pending = null;
     } else {
       p.end = p.start + p.text.length;
@@ -191,13 +154,6 @@ function viewManuscript(main) {
       p.tail = ui.value.slice(p.end);
     }
   }
-  // 上次刷新 / 关闭页面时还在生成的那一轮已经断了：标成「已停止」，不要一直转。
-  ui.chat.forEach(message => {
-    if (message.status === 'streaming' && (!ui.pending || ui.pending.messageId !== message.id) &&
-        (!manuscriptRun || manuscriptRun.messageId !== message.id)) {
-      message.status = 'cancelled';
-    }
-  });
 
   const DRAFT_DELAY = 500;    // 草稿写盘防抖
   const FILE_DELAY = 1500;    // 文件自动保存防抖
@@ -205,33 +161,25 @@ function viewManuscript(main) {
   let draftTimer = null, fileTimer = null, fileSaving = false, filePending = false;
   const tooBig = () => ui.value.length > DRAFT_MAX;
 
-  // ── 草稿：内容 + 当前文件名 + 对话 + 未确认的改写一起存进 data/state.json ──
+  // ── 草稿：内容 + 当前文件名 + 修订会话 + 未确认的修订一起存进 data/state.json ──
   const writeDraft = () => {
     const d = draftSlot();
-    const streaming = !!(ui.pending && ui.pending.status === 'streaming');
-    // 流式过程中不把半截结果写进草稿：刷新页面时正文回到改写前。
-    const draftValue = streaming
-      ? ui.pending.head + ui.pending.original + ui.pending.tail
-      : ui.value;
     d.path = ui.path;
-    d.value = tooBig() && ui.path ? '' : draftValue;    // 超大文本只留文件名，靠文件自动保存兜底
+    d.value = tooBig() && ui.path ? '' : ui.value;    // 超大文本只留文件名，靠文件自动保存兜底
     d.skipped = tooBig() && !!ui.path;
     d.dirty = !!ui.dirty;
     d.scrollTop = ui.scrollTop || 0;
-    d.chat = manuscriptChatForDraft(ui.chat);
     d.assistant = !!ui.assistant;
     d.assistantPrompt = ui.assistantPrompt || '';
-    d.mode = ui.mode || '';
     d.model = ui.model || '';
     d.effort = ui.effort || '';
-    d.agentMode = ui.agentMode || 'quick';
     d.revisionId = ui.revisionId || '';
     d.chapterCollapsed = !!ui.chapterCollapsed;
-    if (ui.pending && !streaming) {
+    if (ui.pending) {
       const p = ui.pending;
       d.pending = {
         start: p.start, end: p.end, text: p.text, original: p.original,
-        prompt: p.prompt || '', mode: p.mode || '', messageId: p.messageId || ''
+        revision: !!p.revision, sessionId: p.sessionId || '', prompt: p.prompt || ''
       };
     } else delete d.pending;
     d.updated = new Date().toISOString();
@@ -436,7 +384,7 @@ function viewManuscript(main) {
     const t = ui.value;
     const cjk = (t.match(/[\u4e00-\u9fff]/g) || []).length;
     const lines = t.split('\n').length;
-    const paras = t.split(/\n\s*\n/).filter(p => p.trim()).length;
+    const paras = t.split('\n').filter(p => p.trim()).length;
     let save;
     if (ui.path) save = ui.dirty ? (fileSaving ? i18n.t('manuscript.autosaving') : i18n.t('manuscript.pending_save')) : i18n.t('common.saved');
     else if (!t) save = i18n.t('manuscript.empty_unnamed');
@@ -501,7 +449,6 @@ function viewManuscript(main) {
   const ops = [
     [i18n.t('manuscript.clean_remove_empty'), t => t.split('\n').filter(l => l.trim() !== '').join('\n')],
     [i18n.t('manuscript.clean_merge_empty'), t => t.replace(/\n{3,}/g, '\n\n')],
-    [i18n.t('manuscript.clean_merge_breaks'), t => t.replace(/([^\n])\n(?!\n)/g, '$1')],
     [i18n.t('manuscript.clean_trim_indent'), t => t.split('\n').map(l => l.replace(/^[　 \t]+/, '')).join('\n')],
     [i18n.t('manuscript.clean_trim'), t => t.trim()],
     [i18n.t('manuscript.clean_fullwidth_space'), t => t.replace(/　/g, ' ')],
@@ -558,129 +505,17 @@ function viewManuscript(main) {
   };
 
   // ═══════════════════════════════════════════
-  // AI 辅助：右侧对话 + 原位改写
+  // 润色修订 Agent：AI 辅助的唯一形态
   // ═══════════════════════════════════════════
-  const modes = processModes();
-  const mode = modes.find(item => item.id === ui.mode) || modes[0] || null;
-  if (mode && ui.mode !== mode.id) { ui.mode = mode.id; }
-  const assistantEffort = () => ui.effort || (mode && mode.effort) || 'medium';
-
   const scopeText = (scope, chars) => i18n.t(
     scope === 'document' ? 'manuscript.ai_scope_document' : 'manuscript.ai_scope_selection',
     { count: chars });
 
   let assistantPrompt = ui.assistantPrompt || '';
   let chatInput = null;
-  const feed = h('div', { class: 'manuscript-agent-feed', role: 'log', 'aria-live': 'polite' });
-  const editBarStats = h('span', { class: 'small muted' });
-  const editBarTitle = h('span', { class: 'manuscript-edit-title' });
-  const revertBtn = h('button', { class: 'mini', text: i18n.t('manuscript.ai_revert'), onclick: () => rejectEdit() });
-  const keepBtn = h('button', { class: 'primary mini', text: i18n.t('manuscript.ai_keep'), onclick: () => acceptEdit() });
-  const editBar = h('div', { class: 'manuscript-edit-bar', hidden: !ui.pending },
-    editBarTitle, editBarStats, h('span', { class: 'manuscript-edit-actions' }, revertBtn, keepBtn));
+  let sendBtn = null, stopBtn = null;
 
-  const updateEditBar = () => {
-    // 修订 Agent 的保留/回滚在右侧会话里，正文上方的快捷条不重复出现；
-    // 「快速改写」产生的 pending 仍使用这条快捷栏。
-    const revisionPending = !!(ui.pending && ui.pending.revision);
-    editBar.hidden = !ui.pending || revisionPending;
-    if (!ui.pending || revisionPending) return;
-    // 还在流式写入时不提供「保留 / 回滚」：等这一轮写完再让你决定。
-    const streaming = ui.pending.status === 'streaming';
-    editBarTitle.textContent = i18n.t(streaming ? 'manuscript.ai_writing' : 'manuscript.ai_pending_hint');
-    editBarStats.textContent = streaming ? '' : i18n.t('manuscript.ai_pending_stats',
-      { before: ui.pending.original.length, after: ui.pending.text.length });
-    revertBtn.hidden = streaming;
-    keepBtn.hidden = streaming;
-  };
-
-  const chatMessageById = id => ui.chat.find(message => message.id === id) || null;
-
-  const diffBlock = (original, added) => h('div', { class: 'manuscript-diff-body' },
-    h('div', { class: 'manuscript-diff-label', text: i18n.t('manuscript.ai_diff_removed') }),
-    h('pre', { class: 'manuscript-diff-old', text: manuscriptClip(original, 1600) || i18n.t('common.empty_paren') }),
-    h('div', { class: 'manuscript-diff-label', text: i18n.t('manuscript.ai_diff_added') }),
-    h('pre', { class: 'manuscript-diff-new', text: manuscriptClip(added, 1600) }));
-
-  const assistantStats = message => i18n.t('manuscript.ai_edit_stats',
-    { before: message.before || 0, after: message.after || 0 });
-
-  const chatMessageNode = message => {
-    if (message.role === 'user') {
-      return h('div', { class: 'manuscript-msg user', dataset: { msg: message.id } },
-        h('div', { class: 'manuscript-msg-text', text: message.text }),
-        h('div', { class: 'manuscript-msg-meta small muted', text: scopeText(message.scope, message.chars) }));
-    }
-    const node = h('div', { class: 'manuscript-msg assistant', dataset: { msg: message.id } });
-    node.appendChild(h('div', { class: 'manuscript-msg-head' },
-      h('span', { class: 'tag mode-tag', text: message.modeLabel || manuscriptModeLabel(message.mode) }),
-      h('span', { class: 'manuscript-msg-meta small muted', text: scopeText(message.scope, message.chars) })));
-    if (message.status === 'streaming') {
-      node.appendChild(h('div', { class: 'manuscript-msg-status' },
-        h('span', { class: 'agent-dot', 'aria-hidden': 'true' }),
-        h('span', { text: i18n.t('manuscript.ai_writing') }),
-        h('span', { class: 'manuscript-stream-count small muted',
-          text: i18n.t('workstation.char_count', { count: (ui.pending && ui.pending.text || '').length }) })));
-    } else if (message.status === 'review') {
-      node.appendChild(h('div', { class: 'manuscript-msg-status' },
-        h('span', { class: 'manuscript-msg-done', text: i18n.t('manuscript.ai_done') }),
-        h('span', { class: 'small muted', text: assistantStats(message) })));
-      node.appendChild(h('details', { class: 'manuscript-diff' },
-        h('summary', { text: i18n.t('manuscript.ai_view_diff') }),
-        diffBlock(message.original, message.added || '')));
-      if (ui.pending && ui.pending.messageId === message.id) {
-        node.appendChild(h('div', { class: 'manuscript-msg-actions' },
-          h('button', { class: 'primary', text: i18n.t('manuscript.ai_keep'), onclick: () => acceptEdit() }),
-          h('button', { text: i18n.t('manuscript.ai_revert'), onclick: () => rejectEdit() })));
-      } else {
-        node.appendChild(h('div', { class: 'small muted manuscript-msg-stale',
-          text: i18n.t('manuscript.ai_review_stale') }));
-      }
-    } else if (message.status === 'applied') {
-      node.appendChild(h('div', { class: 'manuscript-msg-status' },
-        h('span', { class: 'tag ok', text: i18n.t('manuscript.ai_kept') }),
-        h('span', { class: 'small muted', text: assistantStats(message) })));
-    } else if (message.status === 'reverted') {
-      node.appendChild(h('div', { class: 'manuscript-msg-status' },
-        h('span', { class: 'tag', text: i18n.t('manuscript.ai_reverted') }),
-        h('span', { class: 'small muted', text: i18n.t('manuscript.ai_reverted_hint') })));
-    } else if (message.status === 'cancelled') {
-      node.appendChild(h('div', { class: 'manuscript-msg-status' },
-        h('span', { class: 'manuscript-msg-done', text: i18n.t('manuscript.ai_cancelled') }),
-        h('span', { class: 'small muted', text: i18n.t('manuscript.ai_cancelled_hint') })));
-    } else if (message.status === 'error') {
-      node.appendChild(h('div', { class: 'manuscript-msg-status error', role: 'alert' },
-        h('span', { text: message.error || i18n.t('manuscript.ai_failed') })));
-    }
-    return node;
-  };
-
-  const refreshChat = () => {
-    if (!feed) return;
-    // 重排对话后停在最新一条：第一次打开、或本来就贴着底部，就滚到底部；
-    // 用户手动往上翻的时候不抢滚动位置。
-    const nearBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 160;
-    const stick = !ui.chatSeen || nearBottom;
-    const top = feed.scrollTop;
-    clear(feed);
-    if (!ui.chat.length) {
-      feed.appendChild(h('div', { class: 'manuscript-agent-empty' },
-        h('div', { class: 'small muted', text: i18n.t('manuscript.ai_empty') })));
-      return;
-    }
-    ui.chat.forEach(message => feed.appendChild(chatMessageNode(message)));
-    ui.chatSeen = true;
-    if (stick) requestAnimationFrame(() => { if (feed.isConnected) feed.scrollTop = feed.scrollHeight; });
-    else feed.scrollTop = top;
-  };
-  const updateStreamStatus = () => {
-    const node = feed && typeof feed.querySelector === 'function'
-      ? feed.querySelector('.manuscript-stream-count') : null;
-    if (node) node.textContent = i18n.t('workstation.char_count',
-      { count: (ui.pending && ui.pending.text || '').length });
-  };
-
-  // 改写期间正文会整段重设，textarea 的滚动位置别跟着跳回顶部。
+  // 修订期间正文会整段重设，textarea 的滚动位置别跟着跳回顶部。
   const applyValue = value => {
     const top = area.scrollTop;
     if (area.value !== value) area.value = value;
@@ -695,172 +530,14 @@ function viewManuscript(main) {
     manuscriptToggleClass(editBox, 'has-pending', !!ui.pending);
     updateLayerText();
     if (!layerIns) buildLayer();
-    updateEditBar();
     updateStat();
-    updateStreamStatus();
-  };
-  state.ui.textLive = { paint: paintPending, refreshChat, updateEditBar };
-
-  const acceptEdit = () => {
-    if (!ui.pending) return;
-    const message = chatMessageById(ui.pending.messageId);
-    if (!manuscriptFinishEdit(ui)) return;
-    if (message) message.status = 'applied';
-    if (area.isConnected) {
-      applyValue(ui.value); area.readOnly = false;
-      manuscriptToggleClass(editBox, 'has-pending', false);
-      buildLayer(); updateEditBar(); updateStat(); refreshUndoState(); refreshChat();
-    }
-    scheduleDraft(); scheduleFileSave(); persistNow();
-    toast(i18n.t('manuscript.ai_kept_toast'), 'ok');
-  };
-  const rejectEdit = () => {
-    if (!ui.pending) return;
-    const message = chatMessageById(ui.pending.messageId);
-    if (!manuscriptRevertEdit(ui)) return;
-    if (message) message.status = 'reverted';
-    if (area.isConnected) {
-      applyValue(ui.value); area.readOnly = false;
-      manuscriptToggleClass(editBox, 'has-pending', false);
-      buildLayer(); updateEditBar(); updateStat(); refreshUndoState(); refreshChat();
-    }
-    scheduleDraft(); persistNow();
-    toast(i18n.t('manuscript.ai_reverted_toast'), 'ok');
   };
 
-  const openProcessModePicker = () => {
-    if (!modes.length) {
-      const empty = modal(i18n.t('manuscript.ai_mode_picker'), h('div', { class: 'small muted',
-        text: i18n.t('manuscript.no_mode') }), [
-        h('button', { text: i18n.t('common.close'), onclick: () => empty.close() }),
-        h('button', { class: 'primary', text: i18n.t('workstation.go_modes'), onclick: () => {
-          empty.close(); state.ui.modes = { kind: 'process', sel: '' }; go('modes');
-        } })
-      ], null, { size: 'confirm' });
-      return;
-    }
-    let dialog = null;
-    const body = h('div', { class: 'mode-picker' }, modes.map(item => h('button', {
-      class: 'mode-picker-row' + (item.id === ui.mode ? ' on' : ''),
-      'aria-pressed': String(item.id === ui.mode),
-      onclick: () => {
-        ui.mode = item.id;
-        writeDraft(); touch('state', true);
-        dialog.close();
-        renderMain();
-      }
-    },
-      h('span', { class: 'mode-picker-name', text: item.label || item.id }),
-      h('span', { class: 'mode-picker-desc small muted', text: item.desc || '' }))));
-    dialog = modal(i18n.t('manuscript.ai_mode_picker'), body, [
-      h('button', { text: i18n.t('common.close'), onclick: () => dialog.close() })
-    ], null, { size: 'confirm' });
-    dialog.dlg.classList.add('mode-picker-dialog');
-  };
-
-  const stopManuscriptEdit = async () => {
-    if (!manuscriptRun) return;
-    manuscriptStopRequested = true;
-    try { await api('/api/workstation/cancel', { method: 'POST', body: {} }); }
-    catch (e) { /* 可能刚好结束了，忽略 */ }
-    manuscriptRun.controller.abort();
-  };
-
-  // 生成中把「开始改写」换成「停止」，结束再换回来（不重排整个页面）。
-  let sendBtn = null, stopBtn = null;
+  // 生成中把「发送」换成「停止」，结束再换回来（不重排整个页面）。
   const setRunningUi = () => {
-    const running = !!manuscriptRun;
+    const running = revisionBusy();
     if (sendBtn) { sendBtn.hidden = running; sendBtn.disabled = running; }
     if (stopBtn) { stopBtn.hidden = !running; }
-  };
-  if (state.ui.textLive) state.ui.textLive.runUi = setRunningUi;
-
-  const runManuscriptEdit = async () => {
-    if (state.ui.busy || manuscriptRun) return;
-    if (ui.pending) { toast(i18n.t('manuscript.ai_pending_block'), 'err'); return; }
-    const promptText = String(assistantPrompt || '').trim();
-    if (!promptText) { toast(i18n.t('manuscript.ai_empty_prompt'), 'err'); return; }
-    if (!mode) { toast(i18n.t('manuscript.no_mode'), 'err'); return; }
-    const range = manuscriptEditRange(ui);
-    if (!range.text.trim()) { toast(i18n.t('manuscript.nothing_process'), 'err'); return; }
-
-    manuscriptStopRequested = false;
-    assistantPrompt = ''; ui.assistantPrompt = '';
-    if (chatInput) chatInput.value = '';
-    const userMessage = { id: newId('msg'), role: 'user', text: promptText,
-      scope: range.scope, chars: range.text.length, created: nowStr() };
-    const reply = { id: newId('msg'), role: 'assistant', status: 'streaming',
-      mode: mode.id, modeLabel: mode.label || mode.id,
-      model: ui.model || defaultModelName(), effort: assistantEffort(),
-      scope: range.scope, chars: range.text.length, prompt: promptText, created: nowStr() };
-    ui.chat.push(userMessage, reply);
-    if (ui.chat.length > 120) ui.chat.splice(0, ui.chat.length - 120);
-
-    const pending = manuscriptStartEdit(ui, range.start, range.end);
-    pending.prompt = promptText; pending.mode = mode.id; pending.messageId = reply.id;
-    pending.model = reply.model; pending.effort = reply.effort;
-    paintPending();
-    refreshChat();
-    persistNow();
-    status(i18n.t('workstation.generating'), 'busy');
-
-    const controller = new AbortController();
-    manuscriptRun = { controller, messageId: reply.id };
-    setRunningUi();
-    state.ui.textLive?.runUi?.();
-    try {
-      const res = await streamWorkstation({
-        surface: 'manuscript', mode_id: mode.id, prompt: promptText,
-        source_text: range.text,
-        override: {
-          ...(ui.model ? { model: ui.model } : {}),
-          ...(ui.effort ? { effort: ui.effort } : {})
-        },
-        config: state.db.config
-      }, controller.signal, delta => {
-        if (!ui.pending || ui.pending.messageId !== reply.id) return;
-        manuscriptSetEditText(ui, ui.pending.text + delta);
-        state.ui.textLive?.paint();
-      });
-      if (!ui.pending || ui.pending.messageId !== reply.id) return;   // 中途被回滚/切章
-      if (res && res.cancelled) throw Object.assign(new Error(i18n.t('workstation.stopped_hint')), { stopped: true });
-      const text = String(res && res.clean_text != null ? res.clean_text : (res && res.text) || '').replace(/\s+$/, '');
-      if (!text.trim()) throw new Error(i18n.t('manuscript.ai_empty_result'));
-      manuscriptSetEditText(ui, text);
-      pending.status = 'done';
-      reply.status = 'review';
-      reply.original = pending.original;
-      reply.added = text;
-      reply.before = pending.original.length;
-      reply.after = text.length;
-      state.ui.textLive?.paint?.();
-      state.ui.textLive?.refreshChat?.();
-      persistNow();
-      status(i18n.t('manuscript.ai_ready'), 'ok');
-      if (area.isConnected) { area.focus(); }
-    } catch (e) {
-      const stopped = manuscriptStopRequested || e?.stopped || e?.name === 'AbortError' || !!controller.signal.aborted;
-      if (ui.pending && ui.pending.messageId === reply.id) manuscriptRevertEdit(ui);
-      reply.status = stopped ? 'cancelled' : 'error';
-      if (!stopped) reply.error = e.message;
-      assistantPrompt = promptText; ui.assistantPrompt = promptText;
-      if (chatInput) chatInput.value = promptText;   // 失败时把要求放回输入框，直接重试
-      state.ui.textLive?.paint?.();
-      state.ui.textLive?.refreshChat?.();
-      persistNow();
-      if (stopped) {
-        status(i18n.t('manuscript.ai_cancelled'), 'ok');
-        toast(i18n.t('manuscript.ai_cancelled_toast'), 'ok');
-      } else {
-        status(i18n.t('manuscript.ai_failed'), 'err');
-        toast(i18n.t('manuscript.ai_failed_reason', { reason: e.message }), 'err');
-      }
-    } finally {
-      if (manuscriptRun && manuscriptRun.messageId === reply.id) manuscriptRun = null;
-      manuscriptStopRequested = false;
-      setRunningUi();
-      state.ui.textLive?.runUi?.();
-    }
   };
 
   // ═══════════════════════════════════════════
@@ -905,7 +582,7 @@ function viewManuscript(main) {
       if (area.isConnected) {
         area.readOnly = false;
         manuscriptToggleClass(editBox, 'has-pending', false);
-        applyValue(ui.value); buildLayer(); updateEditBar(); updateStat(); refreshUndoState();
+        applyValue(ui.value); buildLayer(); updateStat(); refreshUndoState();
       }
       scheduleDraft(); scheduleFileSave(); persistNow();
       return;
@@ -927,7 +604,7 @@ function viewManuscript(main) {
       if (area.isConnected) {
         applyValue(ui.value);
         manuscriptToggleClass(editBox, 'has-pending', false);
-        buildLayer(); updateEditBar(); updateStat(); refreshUndoState();
+        buildLayer(); updateStat(); refreshUndoState();
       }
     }
     scheduleDraft(); scheduleFileSave(); persistNow();
@@ -960,7 +637,7 @@ function viewManuscript(main) {
       if (area.isConnected) {
         applyValue(ui.value);
         manuscriptToggleClass(editBox, 'has-pending', false);
-        buildLayer(); updateEditBar(); updateStat(); refreshUndoState();
+        buildLayer(); updateStat(); refreshUndoState();
       }
       persistNow(); revisionPaint();
       try { await api('/api/revision/delete', { method: 'POST', body: { id } }); }
@@ -973,7 +650,7 @@ function viewManuscript(main) {
    * 期间只接收 stage 帧刷新进度，不重排整页。
    */
   const revisionExecute = async requests => {
-    if (revisionBusy() || manuscriptRun) return;
+    if (revisionBusy()) return;
     if (!requests || !requests.length) return;
     const controller = new AbortController();
     revisionRun = { controller };
@@ -1030,7 +707,7 @@ function viewManuscript(main) {
   };
 
   const sendRevisionWish = () => {
-    if (revisionBusy() || manuscriptRun) return;
+    if (revisionBusy()) return;
     const promptText = String(assistantPrompt || '').trim();
     if (!promptText) { toast(i18n.t('manuscript.ai_empty_prompt'), 'err'); return; }
     if (ui.pending && !ui.pending.revision) {
@@ -1082,60 +759,31 @@ function viewManuscript(main) {
     toast(i18n.t('revision.busy'), 'err');
   };
 
-  const switchAgentMode = mode => {
-    if (ui.agentMode === mode) return;
-    ui.agentMode = mode;
-    writeDraft(); touch('state', true);
-    renderMain();
-  };
-
   const assistantPanel = () => {
-    const revisionMode = ui.agentMode === 'revision';
     const session = ui.revision;
-    const panel = h('aside', { class: 'manuscript-agent' + (revisionMode ? ' revision-mode' : ''),
-      'aria-label': i18n.t(revisionMode ? 'revision.panel_title' : 'manuscript.ai_panel_title') });
-    const running = revisionMode ? revisionBusy() : !!manuscriptRun;
+    const panel = h('aside', { class: 'manuscript-agent revision-mode',
+      'aria-label': i18n.t('revision.panel_title') });
+    const running = revisionBusy();
     panel.appendChild(h('header', { class: 'manuscript-agent-head' },
       h('div', { class: 'manuscript-agent-title' },
-        h('h2', { text: i18n.t(revisionMode ? 'revision.panel_title' : 'manuscript.ai_panel_title') }),
-        h('span', { class: 'small muted', text: i18n.t(revisionMode ? 'revision.panel_subtitle' : 'manuscript.ai_panel_subtitle') })),
-      h('div', { class: 'revision-mode-switch', role: 'group',
-        'aria-label': i18n.t('revision.mode_agent') },
-        h('button', {
-          class: revisionMode ? '' : 'on', type: 'button', 'aria-pressed': String(!revisionMode),
-          text: i18n.t('revision.mode_quick'), onclick: () => switchAgentMode('quick')
-        }),
-        h('button', {
-          class: revisionMode ? 'on' : '', type: 'button', 'aria-pressed': String(revisionMode),
-          text: i18n.t('revision.mode_agent'), onclick: () => switchAgentMode('revision')
-        })),
-      revisionMode ? null : h('button', {
-        class: 'agent-mode agent-mode-compact', type: 'button',
-        title: mode ? (mode.desc || mode.label) : i18n.t('manuscript.ai_mode_picker'),
-        'aria-haspopup': 'dialog', onclick: openProcessModePicker
-      }, h('span', { text: mode ? (mode.label || mode.id) : i18n.t('manuscript.ai_mode_picker') }),
-        h('span', { class: 'agent-mode-caret', 'aria-hidden': 'true', text: '▾' })),
+        h('h2', { text: i18n.t('revision.panel_title') }),
+        h('span', { class: 'small muted', text: i18n.t('revision.panel_subtitle') })),
       h('button', {
         class: 'manuscript-agent-close', text: '×', title: i18n.t('common.close'),
         'aria-label': i18n.t('common.close'),
         onclick: () => { ui.assistant = false; writeDraft(); touch('state', true); renderMain(); }
       })));
-    if (revisionMode) {
-      revisionBox = h('div', { class: 'revision-flow', role: 'log', 'aria-live': 'polite' });
-      panel.appendChild(revisionBox);
-    } else {
-      refreshChat();
-      panel.appendChild(feed);
-    }
+    revisionBox = h('div', { class: 'revision-flow', role: 'log', 'aria-live': 'polite' });
+    panel.appendChild(revisionBox);
     chatInput = h('textarea', {
       rows: 2, class: 'manuscript-agent-input', value: assistantPrompt,
-      'aria-label': i18n.t(revisionMode ? 'revision.placeholder' : 'manuscript.ai_prompt_label'),
-      placeholder: i18n.t(revisionMode ? 'revision.placeholder' : 'manuscript.ai_placeholder'),
+      'aria-label': i18n.t('revision.placeholder'),
+      placeholder: i18n.t('revision.placeholder'),
       oninput: e => { assistantPrompt = e.target.value; ui.assistantPrompt = assistantPrompt; },
       onkeydown: e => {
         if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !e.isComposing) {
           e.preventDefault();
-          if (revisionMode) sendRevisionWish(); else runManuscriptEdit();
+          sendRevisionWish();
         }
       }
     });
@@ -1150,31 +798,30 @@ function viewManuscript(main) {
     const menu = aiModelEffortMenu({
       model: () => ui.model || defaultModelName(),
       setModel: name => { ui.model = name; writeDraft(); touch('state', true); },
-      effort: assistantEffort,
+      effort: () => ui.effort || 'medium',
       setEffort: name => { ui.effort = name; writeDraft(); touch('state', true); }
     });
-    const followUp = revisionMode && session &&
+    const followUp = session &&
       (session.state === 'DONE' || session.state === 'USER_CONFIRM_FINAL');
     sendBtn = h('button', {
       class: 'primary agent-send',
-      text: i18n.t(revisionMode ? (followUp ? 'revision.increment_send' : 'revision.send')
-        : 'manuscript.ai_send'),
+      text: i18n.t(followUp ? 'revision.increment_send' : 'revision.send'),
       title: 'Ctrl+Enter', hidden: running,
-      onclick: revisionMode ? sendRevisionWish : runManuscriptEdit
+      onclick: sendRevisionWish
     });
     stopBtn = h('button', {
       class: 'agent-send agent-stop', text: i18n.t('workstation.stop'),
-      hidden: !running, onclick: revisionMode ? revisionStop : stopManuscriptEdit
+      hidden: !running, onclick: revisionStop
     });
     panel.appendChild(h('div', { class: 'manuscript-agent-compose' },
       input,
       h('div', { class: 'manuscript-agent-tools' },
         scopeNode, h('span', { class: 'spacer' }), menu, sendBtn, stopBtn),
       h('div', { class: 'small muted manuscript-agent-hint',
-        text: i18n.t(revisionMode ? 'revision.hint' : 'manuscript.ai_hint') })));
+        text: i18n.t('revision.hint') })));
     revisionPaint = () => {
       if (!revisionBox || !revisionBox.isConnected) return;
-      if (sendBtn && ui.agentMode === 'revision') {
+      if (sendBtn) {
         const current = ui.revision;
         const follow = !!(current && (current.state === 'DONE' ||
           current.state === 'USER_CONFIRM_FINAL'));
@@ -1224,7 +871,7 @@ function viewManuscript(main) {
     h('button', {text:i18n.t('manuscript.export_txt_btn'), onclick:() => exportAs(ui.value)}),
     h('button', {text:i18n.t('manuscript.to_chapter'), onclick:importToChapter}));
   const workspace = h('div', { class: 'manuscript-workspace' + (ui.assistant ? '' : ' assistant-off') },
-    h('div', { class: 'manuscript-main' }, editBar, editBox),
+    h('div', { class: 'manuscript-main' }, editBox),
     ui.assistant ? assistantPanel() : null);
   const panel = h('div', {class:'card manuscript-editor-panel'},
     toolbar, cleanTools, h('div', {class:'manuscript-document-name'}, pathHint), workspace, statLine);
@@ -1233,7 +880,6 @@ function viewManuscript(main) {
   area.scrollTop = ui.scrollTop || 0;
   refreshHint();
   updateStat();
-  updateEditBar();
   buildLayer();
   if (ui.dirty && ui.path) scheduleFileSave();   // 上次没写完的，回到本页就补上
 
@@ -1268,7 +914,7 @@ function viewManuscript(main) {
   }
 
   // 刷新页面后恢复修订会话：结构化的需求卡、diff、审核问题全部来自服务端。
-  if (ui.agentMode === 'revision' && ui.assistant && ui.revisionId && !ui.revision) {
+  if (ui.assistant && ui.revisionId && !ui.revision) {
     api('/api/revision/session?id=' + encodeURIComponent(ui.revisionId)).then(r => {
       if (!r.session) { ui.revisionId = ''; writeDraft(); return; }
       if (r.session.doc.path && ui.path && r.session.doc.path !== ui.path) return;

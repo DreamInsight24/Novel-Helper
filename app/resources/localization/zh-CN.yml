@@ -742,7 +742,7 @@ manuscript.no_mode: 还没有稿件处理模式。请到「模式管理 → 稿�
 manuscript.nothing_export: 工作区没有可导出的文本。
 manuscript.nothing_process: 工作区还没有可处理的文本。
 manuscript.open_file: 打开文本文件
-manuscript.page_desc: 左侧是正文，右侧是 AI 对话：AI 直接在原文上改写并标出改动，可保留或回滚。内容自动暂存，绑定文件后停手 1.5 秒自动写盘。
+manuscript.page_desc: 左侧是正文，右侧是润色修订 Agent：许愿后先确认需求卡与样例，再批量改写并分层审核；保留或回滚由你决定。内容自动暂存，绑定文件后停手 1.5 秒自动写盘。
 manuscript.pending_save: 待自动保存…
 manuscript.process_tools: 文本处理工具
 manuscript.redo: 重做
@@ -1501,8 +1501,6 @@ revision.rollback_version: "已回滚到第 {n} 版"
 revision.no_change: "这一轮没有需要改写的段落。"
 revision.panel_title: "润色修订 Agent"
 revision.panel_subtitle: "许愿式提需求 · 样例先行 · 逐轮收敛"
-revision.mode_agent: "修订 Agent"
-revision.mode_quick: "快速改写"
 revision.placeholder: "例如：把这一章开头改得紧张一点"
 revision.send: "开始修订"
 revision.increment_send: "继续提要求"

@@ -230,7 +230,7 @@ def main() -> int:
     from novelhelper.agent import rounds as revision_rounds
     from novelhelper.revision import card as revision_card
     from novelhelper.revision import store as revision_store
-    revision_doc = Document("第一段。\n\n第二段。\n\n“对话。”\n")
+    revision_doc = Document("第一段。\n第二段。\n“对话。”\n")
     check("修订按自然段切分并生成稳定 ID 与哈希",
           [p.paragraph_id for p in revision_doc.paragraphs] == ["p_001", "p_002", "p_003"]
           and revision_doc.paragraphs[0].hash.startswith("sha256:")
@@ -684,7 +684,7 @@ def main() -> int:
             manuscript_js = resp.read().decode("utf-8")
         check("稿件处理前端静态资源可访问",
               "nav.text" in manuscript_js and "manuscript.ai_assist" in manuscript_js
-              and "manuscript.ai_keep" in manuscript_js)
+              and "revision.panel_title" in manuscript_js)
 
         deleted = delete("/api/history/" + hist["items"][0]["id"])
         check("DELETE /api/history/<id>", deleted.get("ok") is True)
