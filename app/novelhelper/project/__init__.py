@@ -29,6 +29,8 @@ from ._imports import (
 from ._outputs import (
     list_chapters,
     next_chapter_number,
+    rename_chapter,
+    reorder_chapters,
     write_auto_chapter,
     write_chapter,
     write_output,
@@ -80,6 +82,8 @@ __all__ = [
     "save_txt",
     "write_chapter",
     "write_auto_chapter",
+    "rename_chapter",
+    "reorder_chapters",
     "next_chapter_number",
     "write_output",
     "write_plan",

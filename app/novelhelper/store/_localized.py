@@ -29,7 +29,7 @@ import json
 import re
 
 from ..localization import get_languages, language_context, t
-from ._defaults import default_for
+from ._defaults import default_for, schema_for_mode, sections_for_mode
 from ._repository import _path, load, save
 
 # Collections whose built-in defaults carry user-visible language.
@@ -266,9 +266,17 @@ def _axis(value: str) -> str:
     return _tr(value)
 
 
-def localized_default_for(name: str, lang_id: str):
-    """Return the built-in default for ``name`` translated into ``lang_id``."""
+def localized_default_for(name: str, lang_id: str, mode: str | None = None):
+    """Return the built-in default for ``name`` translated into ``lang_id``.
+
+    ``mode`` only affects the schema / sections presets used for new novels.
+    Existing callers that seed global defaults keep the expert layout.
+    """
     with language_context(lang_id):
+        if name == "schema":
+            return _localize(schema_for_mode(mode or "expert"))
+        if name == "sections":
+            return _localize(sections_for_mode(mode or "expert"))
         if name == "worldmap":
             worldmap = default_for(name)
             worldmap["name"] = _tr(worldmap["name"])

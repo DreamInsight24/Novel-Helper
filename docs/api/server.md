@@ -37,7 +37,7 @@ httpd.serve_forever()
 |---|---|---|
 | `GET` | `/api/novels` | 列出小说元数据与 `active_novel_id`；损坏的单条元数据降级，不影响列表。 |
 | `GET` | `/api/novels/current` | 返回当前小说；没有活动小说时 `novel` 为 `null`。 |
-| `POST` | `/api/novels` | 使用 `title`（必填）、`author`、`description` 创建隔离小说，并复制全局配置作为初始配置。 |
+| `POST` | `/api/novels` | 使用 `title`（必填）、`author`、`description`、`mode`（`simple` / `normal` / `expert`，默认 `normal`）创建隔离小说，并复制全局配置、按模式生成初始设定栏目与字段模板。 |
 | `POST` | `/api/novels/open` | 请求体 `{ "id": "..." }`，切换活动小说；生成任务进行时拒绝。 |
 | `POST` | `/api/novels/update` | 请求体含 `id`，可更新 `title`、`author`、`description`。 |
 | `POST` | `/api/novels/delete` | 请求体含 `id` 和 `title_confirmation`；元数据正常时确认值必须匹配标题，元数据损坏时必须匹配小说 ID。确认后移入系统回收站，失败时保留数据并返回可读错误。 |
@@ -67,6 +67,8 @@ httpd.serve_forever()
 | POST | `/api/export` | 原 `{collection,format,filename?}` 不变，同名自动编号，返回 `{ok,path,rel}`。filename 只能是文件名，禁止越界路径。 |
 | GET | `/api/file?path=...` | 使用服务端返回的文件路径读取；当前活动小说不能读取另一本小说的工作区文件。外部文件读取保持兼容。 |
 | POST | `/api/import` | 原 kind/source/target 不变，可附 novel_id 检测迟到上传；md 格式同时接收 txt。空文本返回新增 0 条；写入前快照、失败回滚。 |
+| POST | `/api/chapters/rename` | `{path,name}`。重命名当前小说的章节文件，保留扩展名与显示位置；返回 `{ok,path,old,name,chapters}`。空名称或同名文件返回 400，越界路径返回 403。 |
+| POST | `/api/chapters/reorder` | `{paths:[...],novel_id?}`。按给定顺序写入输出目录的 `.chapters.json` 并返回 `{ok,chapters}`；仅接受当前小说输出目录内的章节，其他路径忽略。 |
 
 新文件 filename 不接受斜杠、反斜杠、冒号或 `.`/`..`。novel_id 与当前小说不符、参数无效返回 400，跨小说/越界返回 403，读取不存在文件返回 404，I/O 故障沿用错误响应。客户端显示路径可用绝对目录，但不得拼接该目录构造新文件请求。
 

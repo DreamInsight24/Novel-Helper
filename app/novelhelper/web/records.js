@@ -606,9 +606,16 @@ function recordGroupsEditor(coll, rec, onListChange, onEditorChange) {
   });
   i18n.apply(box);return box;
 }
-function recordStripButton(rec, selected, choose) {
+function recordStripButton(rec, selected, choose, opts={}) {
   return h('button',{type:'button',class:'record-strip-option'+(selected?' active':''),'aria-pressed':String(selected),'data-record-id':rec.id,
+    title:opts.title || null,draggable:opts.draggable?'true':null,
+    oncontextmenu:opts.oncontextmenu,ondragstart:opts.ondragstart,ondragover:opts.ondragover,
+    ondragleave:opts.ondragleave,ondrop:opts.ondrop,ondragend:opts.ondragend,
     onclick:()=>choose(rec),onkeydown:event=>{
+      if(event.altKey && ['ArrowLeft','ArrowRight'].includes(event.key) && opts.onreorder){
+        event.preventDefault();event.stopPropagation();
+        opts.onreorder(event.key==='ArrowLeft'?-1:1);return;
+      }
       if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
       event.preventDefault();
       const workspace=event.currentTarget.closest('.record-workspace');
@@ -755,6 +762,34 @@ function viewRecords(main, key) {
         tagSelect.appendChild(h('option',{value,text:label,selected:value===ui.tag})));
     }
   };
+  let recordDrag = null;
+  const clearRecordDropMarks = () => listScroll.querySelectorAll('.record-drop-before,.record-drop-after')
+    .forEach(node => node.classList.remove('record-drop-before', 'record-drop-after'));
+  const clearRecordMarks = () => {
+    clearRecordDropMarks();
+    listScroll.querySelectorAll('.record-dragging').forEach(node => node.classList.remove('record-dragging'));
+  };
+  const moveRecord = (sourceId, targetId, after) => {
+    if (sourceId === targetId) return;
+    const from = bucket.items.findIndex(rec => rec.id === sourceId);
+    const target = bucket.items.find(rec => rec.id === targetId);
+    if (from < 0 || !target) return;
+    const moved = bucket.items.splice(from, 1)[0];
+    const to = bucket.items.indexOf(target);
+    bucket.items.splice(to + (after ? 1 : 0), 0, moved);
+    touch(def.coll);
+    drawList(); drawEditor(); renderNav();
+  };
+  const renameRecord = rec => askDialog(i18n.t('records.rename_entry'), i18n.t('records.rename_prompt'),
+    rec.name || rec.title || '', value => {
+      const name = String(value || '').trim();
+      if (!name) return;
+      rec.name = name;
+      touch(def.coll);
+      renderNav(); drawList(); drawEditor();
+      toast(i18n.t('records.renamed', { name }), 'ok');
+    });
+
   const drawList = () => {
     refreshFilters();
     const keepLeft = ui.stripScroll || listScroll.scrollLeft;
@@ -764,8 +799,44 @@ function viewRecords(main, key) {
     const q = ui.q.toLowerCase();
     const items = bucket.items.filter(r => matchesRecordFilter(r, q, ui.category, ui.tag));
     clear(listScroll);
-    items.forEach(rec => {
-      const rowEl=recordStripButton(rec,ui.sel===rec.id,()=>{ui.sel=rec.id;setActive(rec.id);drawEditor();});
+    items.forEach((rec, index) => {
+      const rowEl=recordStripButton(rec,ui.sel===rec.id,()=>{ui.sel=rec.id;setActive(rec.id);drawEditor();},{
+        draggable:true,
+        title:i18n.t('records.reorder_entry_hint'),
+        onreorder:delta=>{
+          const target=items[index+delta];
+          if(target)moveRecord(rec.id,target.id,delta>0);
+        },
+        oncontextmenu:event=>{
+          event.preventDefault();
+          contextMenu([{label:i18n.t('records.rename_entry'),run:()=>renameRecord(rec)}],event);
+        },
+        ondragstart:event=>{
+          recordDrag=rec.id;
+          if(event.dataTransfer){event.dataTransfer.effectAllowed='move';event.dataTransfer.setData('text/plain',rec.id);}
+          event.currentTarget.classList.add('record-dragging');
+        },
+        ondragover:event=>{
+          if(!recordDrag || recordDrag===rec.id)return;
+          event.preventDefault();
+          if(event.dataTransfer)event.dataTransfer.dropEffect='move';
+          const bounds=event.currentTarget.getBoundingClientRect();
+          const after=event.clientX>=bounds.left+bounds.width/2;
+          clearRecordDropMarks();
+          event.currentTarget.classList.add(after?'record-drop-after':'record-drop-before');
+        },
+        ondragleave:event=>{
+          if(!event.currentTarget.contains(event.relatedTarget))event.currentTarget.classList.remove('record-drop-before','record-drop-after');
+        },
+        ondrop:event=>{
+          if(!recordDrag)return;
+          event.preventDefault();event.stopPropagation();
+          const source=recordDrag,after=event.currentTarget.classList.contains('record-drop-after');
+          recordDrag=null;clearRecordMarks();
+          moveRecord(source,rec.id,after);
+        },
+        ondragend:()=>{recordDrag=null;clearRecordMarks();}
+      });
       const item=h('div',{class:'record-strip-item'});
       if(key==='other')item.appendChild(h('input',{type:'checkbox',checked:state.sel[key].has(rec.id),
         'aria-label':i18n.t('records.select_for_move',{name:recordName(rec)}),onchange:event=>{

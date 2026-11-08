@@ -519,6 +519,10 @@ elements.value_placeholder: Content (multiline)
 errors.body_too_large: Request body too large
 errors.cells_bad_ref: 'cells references a nonexistent region id: {id}'
 errors.cells_key_invalid: Map cell keys must be "row|col" strings
+errors.chapter_exists: 'A chapter with this name already exists: {name}'
+errors.chapter_file_type: Chapter files must be .md or .txt
+errors.chapter_name_required: Chapter name is required
+errors.chapter_order_invalid: Invalid chapter order
 errors.collection_unsupported: Unsupported collection
 errors.debug_path: 'Debug paths must be within {root}: {path}'
 errors.dir_missing: 'Directory does not exist: {path}'
@@ -607,6 +611,14 @@ novels.title: Title
 novels.author: Author (optional)
 novels.description: Description (optional)
 novels.updated: 'Last edited: {date}'
+novels.mode: Setup mode
+novels.mode_hint: Pick a starting point; more setting sections can be enabled later in Settings.
+novels.mode_simple: Simple
+novels.mode_simple_desc: Just character profiles with essential fields, ready to write.
+novels.mode_normal: Standard
+novels.mode_normal_desc: Character profiles + world settings with lean fields for most stories.
+novels.mode_expert: Expert
+novels.mode_expert_desc: The full set of setting sections, with trimmed fields you can expand as needed.
 novels.back_home: ← Library
 settings.global_settings: Global settings
 settings.restore_global: Restore global config
@@ -723,8 +735,13 @@ manuscript.autosaving: Auto-saving…
 manuscript.chapter_ai: From chat
 manuscript.chapter_ai_hint: Open the conversation that wrote this chapter
 manuscript.chapter_empty: No chapters yet. Full drafts land here automatically.
+manuscript.chapter_drag_hint: Drag to reorder chapters
 manuscript.chapter_name: Chapter name
 manuscript.chapter_opened: 'Opened chapter: {name}'
+manuscript.chapter_rename: Rename chapter
+manuscript.chapter_rename_prompt: Chapter name
+manuscript.chapter_renamed: 'Renamed to: {name}'
+manuscript.chapter_reorder_failed: 'Could not reorder chapters: {reason}'
 manuscript.chapter_saved: Saved to chapters
 manuscript.chapter_size: '{size} KB'
 manuscript.chapters_collapse: Collapse chapters
@@ -768,6 +785,7 @@ manuscript.redo: Redo
 manuscript.replace_all: Replace all
 manuscript.saved_status: Saved {name}
 manuscript.selection_scope: Apply to selected text when available; otherwise the whole manuscript
+manuscript.stat_blank_hint: Blank lines do not count as lines or paragraphs
 manuscript.stat_line: Chars {chars} · Han {han} · Lines {lines} · Paras {paras} · {save}
 manuscript.to_chapter: Save to chapters
 manuscript.too_big: Content too large; draft not staged (auto-save to file still works once bound)
@@ -873,7 +891,10 @@ nav.items: Items
 nav.memories: Memories
 nav.modes: Mode Management
 nav.other: Other Settings
+nav.rename_setting: Rename setting section
 nav.sections: "Manage settings"
+nav.setting_name: Section name
+nav.setting_renamed: "Renamed to: {name}"
 nav.settings: Model Settings
 nav.text: Manuscript
 nav.worldmap: "Map settings"
@@ -1383,7 +1404,7 @@ workstation.supplement: "Additional requirements (editable)"
 workstation.supplement_placeholder: "Add extra writing requirements, style or constraints. The checkboxes above decide which settings are included."
 workstation.no_settings_selected: "No settings selected"
 
-relations.search: "Search entries or categories"
+relations.search: "Search entries"
 
 relations.type: "Relationship"
 
@@ -1397,17 +1418,47 @@ relations.in: "Target → Current entry"
 
 relations.both: "Mutual relationship ↔"
 
-relations.filter: "Filter category"
+relations.filter: "Filter relationship category"
+
+relations.category: "Category"
 
 relations.all_categories: "All categories"
 
-relations.pick_target: "Choose an entry"
+relations.pick_target: "Choose a related entry"
+
+relations.target: "Related entry"
+
+relations.endpoints: "Relationship"
+
+relations.choose_target: "Choose a related entry"
+
+relations.change_target: "Change"
+
+relations.pair_hint: "The current entry is on the left, the related entry on the right; the arrow shows direction."
 
 relations.edit: "Edit relationship"
+
+relations.create: "Add relationship"
+
+relations.edit_relation: "Edit relationship"
+
+relations.delete_relation: "Delete relationship"
 
 relations.required: "Choose an entry and enter a relationship"
 
 relations.duplicate: "This relationship already exists"
+
+relations.add_relation: "Add relationship"
+
+relations.add_setting: "Add setting"
+
+relations.add_setting_unavailable: "This record type cannot create a setting directly."
+
+relations.link_created: "Relationship created. Click the line to name it."
+
+relations.zoom_out_short: "Zoom out"
+
+relations.zoom_in_short: "Zoom in"
 
 relations.direct: "Direct relationships · {count}"
 
@@ -1480,8 +1531,9 @@ relations.create_collection: "Section for the new record"
 relations.default_type: "Related"
 relations.suggestions: "Related|Belongs to|Knows|Cooperates|Opposes|Located in|Owns|Participates|Investigates"
 relations.discarded: "Discarded {count} invalid relationships. The remaining links were saved."
-relations.network_hint: "Select a record to inspect links, double-click to open its relationships, or select an edge to edit. Drag to pan; scroll to zoom."
-relations.radial_hint: "Only direct links are shown. Double-click another record to open it; use the network for the complete graph."
+relations.network_hint: "Select a record to inspect its links, or click empty space to preview every relationship. Double-click to open it, or click an edge to name it. Right-click an edge to edit or delete it, or a record to add a relationship or setting. Drag to pan; scroll to zoom."
+relations.radial_hint: "Right-click a record to add a relationship; click an edge to name it, or right-click it to edit or delete. Double-click another record to open it. Drag to reposition; scroll to zoom."
+relations.network_all_hint: "All relationships are shown; select a record to inspect its links."
 cards.title: "Character cards"
 cards.description: "A global home for your original characters, across novels."
 cards.add: "Add character card"
@@ -1516,6 +1568,10 @@ relations.membership_type: Belongs to
 relations.invalid_data: Invalid relationship data. Check the record references and relationship name.
 
 records.entry_strip: "Switch records"
+records.rename_entry: "Rename entry"
+records.rename_prompt: "Entry name"
+records.renamed: "Renamed to: {name}"
+records.reorder_entry_hint: "Drag to reorder entries, or press Alt + Left / Right."
 records.reorder_group: "Reorder “{name}”"
 records.reorder_group_hint: "Drag to reorder groups, or press Alt + Up / Down."
 records.delete_group: "Delete information group “{name}”"

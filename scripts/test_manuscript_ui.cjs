@@ -58,6 +58,11 @@ run(`
 assert.equal(run('editor().value'), '第一段。\n第二段。');
 assert.equal(run("nodes(main).some(node=>node.props.class==='material-shelf')"), false);
 assert.equal(run('state.ui.text.materials === undefined'), true);
+assert.deepEqual(JSON.parse(run(`JSON.stringify(manuscriptTextStats('第一段。\\n\\n第二段。\\n\\n'))`)),
+  { chars: 12, han: 6, lines: 2, paras: 2 });
+assert.deepEqual(JSON.parse(run(`JSON.stringify(manuscriptTextStats('\\n \\n'))`)),
+  { chars: 3, han: 0, lines: 0, paras: 0 });
+console.log('PASS: blank lines are not counted as lines or paragraphs');
 
 // 2. The chapter bar can be collapsed and the choice is persisted in the draft.
 assert.equal(run("nodes(main).some(node=>node.props.class==='chapter-bar')"), true);

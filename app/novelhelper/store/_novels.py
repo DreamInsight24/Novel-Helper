@@ -8,6 +8,7 @@ import os
 import shutil
 from pathlib import Path
 
+from ._defaults import normalize_novel_mode
 from ._localized import localized_default_for
 from ._names import new_id, now_str
 from ._paths import (
@@ -198,12 +199,18 @@ def delete_novel(novel_id: str, title_confirmation: str) -> str:
     return value
 
 
-def create_novel(title: str, author: str = "", description: str = "", global_config: dict | None = None) -> dict:
-    """Create an isolated novel from defaults and a copied config snapshot."""
+def create_novel(title: str, author: str = "", description: str = "", global_config: dict | None = None,
+                 mode: str = "normal") -> dict:
+    """Create an isolated novel from defaults and a copied config snapshot.
+
+    ``mode`` selects how much of the setting system is exposed at first:
+    simple = characters only, normal = characters + world, expert = current layout.
+    """
     title = str(title or "").strip()
     if not title:
         from ..localization import t
         raise ValueError(t("errors.novel_title_required"))
+    mode = normalize_novel_mode(mode)
     config = copy.deepcopy(global_config) if global_config is not None else _load_global_config()
     novel_id = new_id("nv").lower()
     data_dir = novel_data_dir(novel_id)
@@ -216,6 +223,7 @@ def create_novel(title: str, author: str = "", description: str = "", global_con
         "title": title,
         "author": str(author or "").strip(),
         "description": str(description or "").strip(),
+        "setup_mode": mode,
         "created": created,
         "updated": created,
         "last_opened": "",
@@ -232,7 +240,8 @@ def create_novel(title: str, author: str = "", description: str = "", global_con
         for name in ("schema", "sections", "modes", "state", "history", "meta",
                      "characters", "factions", "items", "equipment", "other",
                      "memories", "worldmap"):
-            _write_json(data_dir / f"{name}.json", localized_default_for(name, language))
+            _write_json(data_dir / f"{name}.json",
+                        localized_default_for(name, language, mode))
     except Exception:
         shutil.rmtree(data_dir, ignore_errors=True)
         shutil.rmtree(workspace_dir, ignore_errors=True)

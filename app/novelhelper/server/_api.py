@@ -147,7 +147,8 @@ class _ApiMixin:
         if method == "POST" and path == "/api/novels":
             body = self._body()
             novel = store.create_novel(body.get("title") or "", body.get("author") or "",
-                                       body.get("description") or "")
+                                       body.get("description") or "",
+                                       mode=body.get("mode") or "normal")
             logger.log_event("NOVEL", "create", novel_id=novel["id"])
             self._json({"ok": True, "novel": novel}, status=201)
             return
@@ -357,6 +358,29 @@ class _ApiMixin:
             target = project.write_chapter(content, str(body.get("name") or ""))
             self._json({"ok": True, "path": str(target), "rel": project.rel_str(target),
                         "chapters": project.list_chapters()})
+            return
+
+        if path == "/api/chapters/rename" and method == "POST":
+            body = self._body()
+            rel = str(body.get("path") or "")
+            if not rel:
+                self._error(t('errors.chapter_name_required'))
+                return
+            source = self._workspace_file({"path": rel})
+            target = project.rename_chapter(source, str(body.get("name") or ""))
+            self._json({"ok": True, "path": project.rel_str(target), "old": rel,
+                        "name": target.name, "chapters": project.list_chapters()})
+            return
+
+        if path == "/api/chapters/reorder" and method == "POST":
+            body = self._body()
+            if body.get("novel_id") is not None and body["novel_id"] != store.active_novel_id():
+                raise ValueError(t('errors.workspace_changed'))
+            paths = body.get("paths")
+            if not isinstance(paths, list):
+                raise ValueError(t('errors.chapter_order_invalid'))
+            chapters = project.reorder_chapters([str(item) for item in paths if item])
+            self._json({"ok": True, "chapters": chapters})
             return
 
         if path == "/api/output" and method == "POST":

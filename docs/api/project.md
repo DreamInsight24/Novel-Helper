@@ -52,7 +52,9 @@ output = project.write_output("一个新场景")
 | `write_output(content: str, mode_label: str = "AI 工作站生成", name: str = "") -> Path` | 写入带时间戳的 Markdown 稿件输出；若提供 `name` 则使用指定名称。 |
 | `write_plan(content: str, chapter: str = "") -> Path` | 写入带时间戳的纯文本写作计划。 |
 | `write_txt_from_md(rel_md: str, blank_mode: str = "compact", keep_advice: bool = False) -> Path` | 将 Markdown 输出转换为文本并返回生成文件的路径。相对源路径受 `safe_rel` 约束。 |
-| `list_chapters() -> list` | 列出已识别的稿件/输出文件，按最新优先排序。 |
+| `list_chapters() -> list` | 列出已识别的稿件/输出文件。存在 `output/.chapters.json` 时按该显式顺序返回，否则按最新优先排序。 |
+| `rename_chapter(path, name) -> Path` | 重命名输出目录内的 `.md` / `.txt` 章节，保留扩展名与显示位置；名称会清理路径分隔符和非法字符。同名或空名称抛出 `ValueError`，越界路径抛出 `PermissionError`。 |
+| `reorder_chapters(paths) -> list` | 按给定路径顺序写入 `.chapters.json` 并返回新的章节列表；不属于输出目录的路径会忽略，未列出的现有章节保持原相对顺序。 |
 
 ## 文本处理与浏览
 

@@ -8,7 +8,7 @@ with tempfile.TemporaryDirectory(prefix='novelhelper_setting_gen_') as temp:
     from novelhelper import store,setting_gen
 
     store.save('config',store.default_config())
-    novel=store.create_novel('Setting gen test')
+    novel=store.create_novel('Setting gen test', mode='expert')
     store.open_novel(novel['id'])
 
     # 叶子路径：层级用 "/" 连接，分组自身不是叶子，关闭元素连同子树丢弃。

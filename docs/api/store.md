@@ -55,7 +55,7 @@ print(config["server"]["port_mode"])  # auto
 | `default_config() -> dict` | 返回一份新的默认配置，包括版本 4、`server.port_mode=auto`、写作默认项、提供商默认项和工作区路径设置。`server` 属于全局配置，不写入小说配置覆盖。 |
 | `default_workstation() -> dict` | 返回一份新的 AI 工作站状态及选择项默认值。 |
 | `default_state() -> dict` | 返回一份新的应用状态，包括工作站状态及兼容旧版的状态字段。 |
-| `default_schema() -> dict` | 返回一份新的内置记录与自定义栏目元素模板。 |
+| `default_schema(mode: str = "expert") -> dict` | 返回一份新的内置记录与自定义栏目元素模板；按简易 / 普通 / 专家返回精简程度不同的字段。 |
 | `default_character() -> dict` | 返回一条新角色记录，包含生成的 ID 和时间戳。 |
 | `default_faction() -> dict` | 返回一条新势力记录，包含生成的 ID 和时间戳。 |
 | `default_item() -> dict` | 返回一条新物品记录，包含生成的 ID 和时间戳。 |
@@ -64,7 +64,10 @@ print(config["server"]["port_mode"])  # auto
 | `default_memory() -> dict` | 返回一条新记忆记录，包含生成的 ID 和时间戳。 |
 | `default_worldmap() -> dict` | 返回一份新的世界地图结构。 |
 | `default_meta() -> dict` | 返回一份新的元数据结构。 |
-| `default_sections() -> dict` | 返回一份新的内置自定义栏目列表。 |
+| `default_sections(mode: str = "expert") -> dict` | 返回一份新的内置自定义栏目列表；按模式决定初始开启的栏目。 |
+| `schema_for_mode(mode: str) -> dict` | 返回指定模式（simple / normal / expert）的字段模板。 |
+| `sections_for_mode(mode: str) -> dict` | 返回指定模式的栏目开关预设。 |
+| `normalize_novel_mode(mode) -> str` | 将缺失或未知模式规范为 `simple` / `normal` / `expert`，默认 `normal`。 |
 | `section_store_name(key: str) -> str` | 使用 `SECTION_PREFIX` 构造自定义栏目集合名称。 |
 | `section_key(name: str) -> str` | 若名称带栏目集合前缀，则返回其后缀；否则返回空字符串。 |
 | `is_section(name: str) -> bool` | 检查名称是否为有效的 ASCII 自定义栏目集合名。 |
@@ -73,7 +76,7 @@ print(config["server"]["port_mode"])  # auto
 | `default_history() -> dict` | 返回空的历史索引和当前会话指针。 |
 | `default_for(name: str) -> Any` | 返回内置集合或有效自定义栏目的新默认值。名称未知时抛出 `KeyError`。始终返回原始内置数据，不随界面语言变化。 |
 | `migrate_active_layout() -> dict` | 迁移当前活动小说：补齐内置栏目并默认显示，将 equipment 记录按 ID 合并进 items，同步人物装备指针与关系引用；迁移前写快照，幂等，返回 `migrated`、`moved_equipment`、`rewired_relations`、`backup` 等字段。 |
-| `localized_default_for(name: str, lang_id: str) -> Any` | 返回与 `default_for` 相同结构、但用户可见文案已按 `lang_id` 翻译的副本。 |
+| `localized_default_for(name: str, lang_id: str, mode: str | None = None) -> Any` | 返回与 `default_for` 相同结构、但用户可见文案已按 `lang_id` 翻译的副本；`mode` 用于新小说的 schema / sections 预设。 |
 | `seed_localized_defaults(lang_id: str) -> None` | 首次语言保存时调用：仅当集合仍是未改动的内置默认值时，用 `lang_id` 生成并落盘；用户数据不会被覆盖。 |
 | `load(name: str) -> Any` | 加载集合。文件不存在或仅含空白时返回深拷贝后的默认值。名称未知时抛出 `KeyError`；UTF-8 或 JSON 无效时抛出 `RuntimeError`。 |
 | `save(name: str, data: Any) -> Path` | 原子写入 JSON 并返回文件路径。记录集合/自定义栏目会按现有元素规则清理；名称未知及文件系统/序列化错误不会被吞掉。 |
@@ -83,7 +86,7 @@ print(config["server"]["port_mode"])  # auto
 | `known_collection(name: str) -> bool` | 检查名称是否属于内置集合或自定义栏目集合。 |
 | `backup_all() -> Path` | 将现有集合 JSON 文件复制到 `io_out()` 下带时间戳的目录，并返回该目录路径。 |
 | `list_novels() -> list[dict]` | 列出小说元数据；损坏的单条 `novel.json` 以 `ok=false` 降级返回。 |
-| `create_novel(title, author="", description="", global_config=None) -> dict` | 创建小说数据、配置副本、内置预设和隔离工作区。 |
+| `create_novel(title, author="", description="", global_config=None, mode="normal") -> dict` | 创建小说数据、配置副本、按模式生成的内置预设和隔离工作区。 |
 | `open_novel(novel_id) -> dict` | 设置活动小说并更新最后打开时间。 |
 | `update_novel(novel_id, fields) -> dict` | 更新小说标题、作者或简介。 |
 | `delete_novel(novel_id, title_confirmation) -> str` | 标题确认后将小说数据和工作区移入系统回收站。 |

@@ -507,6 +507,10 @@ elements.value_placeholder: 内容（可多行）
 errors.body_too_large: 请求体过大
 errors.cells_bad_ref: cells 引用了不存在的区域 id：{id}
 errors.cells_key_invalid: 地图 cells 的键必须是「行|列」字符串
+errors.chapter_exists: 已有同名章节：{name}
+errors.chapter_file_type: 只支持 .md 或 .txt 章节文件
+errors.chapter_name_required: 章节名称不能为空
+errors.chapter_order_invalid: 章节顺序格式无效
 errors.collection_unsupported: 不支持的集合
 errors.debug_path: '调试模式路径必须位于 {root}: {path}'
 errors.dir_missing: '目录不存在: {path}'
@@ -593,6 +597,14 @@ novels.title: 标题
 novels.author: 作者（可选）
 novels.description: 简介（可选）
 novels.updated: 最近编辑：{date}
+novels.mode: 创建模式
+novels.mode_hint: 先按写作需要选一个起点；之后可在「设定管理」里随时开启更多栏目。
+novels.mode_simple: 简易
+novels.mode_simple_desc: 只保留人物档案和最必要的字段，打开就能写。
+novels.mode_normal: 普通
+novels.mode_normal_desc: 人物档案 + 世界设定，字段精简，适合大多数作品。
+novels.mode_expert: 专家
+novels.mode_expert_desc: 保留完整的设定栏目；字段仍经过精简，需要时再展开。
 novels.back_home: ← 作品库
 settings.global_settings: 全局设置
 settings.restore_global: 恢复全局配置
@@ -704,8 +716,13 @@ manuscript.autosaving: 自动保存中…
 manuscript.chapter_ai: 来自对话
 manuscript.chapter_ai_hint: 打开生成这一章的对话
 manuscript.chapter_empty: 还没有章节。完整写作的结果会自动出现在这里。
+manuscript.chapter_drag_hint: 拖动调整章节顺序
 manuscript.chapter_name: 章节名称
 manuscript.chapter_opened: 已打开章节：{name}
+manuscript.chapter_rename: 重命名章节
+manuscript.chapter_rename_prompt: 章节名称
+manuscript.chapter_renamed: 已重命名为：{name}
+manuscript.chapter_reorder_failed: 调整章节顺序失败：{reason}
 manuscript.chapter_saved: 已导入至章节
 manuscript.chapter_size: '{size} KB'
 manuscript.chapters_collapse: 收起章节
@@ -749,6 +766,7 @@ manuscript.redo: 重做
 manuscript.replace_all: 全部替换
 manuscript.saved_status: 已保存 {name}
 manuscript.selection_scope: 有选区时仅处理选中文字，否则处理全文
+manuscript.stat_blank_hint: 空行不计入行数和段数
 manuscript.stat_line: 字符 {chars} · 汉字 {han} · 行 {lines} · 段 {paras} · {save}
 manuscript.to_chapter: 导入至章节
 manuscript.too_big: 内容过大，草稿不暂存（绑定文件后照常自动写盘）
@@ -848,7 +866,10 @@ nav.items: 物品
 nav.memories: 记忆库
 nav.modes: 模式管理
 nav.other: 其他设定
+nav.rename_setting: 重命名设定栏目
 nav.sections: "设定管理"
+nav.setting_name: 栏目名称
+nav.setting_renamed: 已重命名为：{name}
 nav.settings: 模型设置
 nav.text: 稿件处理
 nav.worldmap: "地图设定"
@@ -1318,7 +1339,7 @@ workstation.supplement: "补充要求（可直接修改）"
 workstation.supplement_placeholder: "在这里填写额外的写作要求、风格或限制；上面的勾选决定带入哪些设定。"
 workstation.no_settings_selected: "未选择设定"
 
-relations.search: "搜索任意条目或栏目"
+relations.search: "搜索条目"
 
 relations.type: "关系名称"
 
@@ -1332,17 +1353,47 @@ relations.in: "对方 → 当前条目"
 
 relations.both: "双向关系 ↔"
 
-relations.filter: "筛选关联栏目"
+relations.filter: "筛选关联类别"
 
-relations.all_categories: "全部栏目"
+relations.category: "类别"
+
+relations.all_categories: "全部类别"
 
 relations.pick_target: "选择一个关联条目"
 
+relations.target: "关联条目"
+
+relations.endpoints: "关联双方"
+
+relations.choose_target: "选择关联条目"
+
+relations.change_target: "更换"
+
+relations.pair_hint: "左侧为当前条目，右侧为关联条目；箭头表示关系方向。"
+
 relations.edit: "编辑关联"
+
+relations.create: "添加关联"
+
+relations.edit_relation: "编辑关系"
+
+relations.delete_relation: "删除关系"
 
 relations.required: "请选择条目并填写关系名称"
 
 relations.duplicate: "这条关联已经存在"
+
+relations.add_relation: "添加关系"
+
+relations.add_setting: "增加设定"
+
+relations.add_setting_unavailable: "这个条目类型不能直接增加设定。"
+
+relations.link_created: "已创建关系；点击连线可以命名。"
+
+relations.zoom_out_short: "缩小"
+
+relations.zoom_in_short: "放大"
 
 relations.direct: "直接关联 · {count}"
 
@@ -1415,8 +1466,9 @@ relations.create_collection: "新条目所属栏目"
 relations.default_type: "关联"
 relations.suggestions: "关联|隶属|认识|合作|敌对|位于|持有|参与|追查"
 relations.discarded: "已丢弃 {count} 条无效关联，其余关联已保存。"
-relations.network_hint: "点击条目查看关联；双击跳转关联页；点击连线编辑。拖动可平移，滚轮可缩放。"
-relations.radial_hint: "仅显示当前条目的直接关联。双击其他条目可跳转；完整网络请打开关系网。"
+relations.network_hint: "点击条目查看关联，点击空白预览全部关系；双击跳转关联页；点击连线命名，右键连线可编辑或删除。右键条目可添加关系或增加设定。拖动可平移，滚轮可缩放。"
+relations.radial_hint: "右键条目添加关系；点击连线命名，右键连线可编辑或删除；双击其他条目跳转。拖动调整位置，滚轮缩放。"
+relations.network_all_hint: "当前显示全部关系；点击条目查看单个条目的关联。"
 cards.title: "角色卡"
 cards.description: "独立收藏你的 OC，跨小说保存。"
 cards.add: "添加角色卡"
@@ -1451,6 +1503,10 @@ relations.membership_type: 隶属
 relations.invalid_data: 关联数据无效，请检查条目引用与关系名称。
 
 records.entry_strip: "条目切换"
+records.rename_entry: "重命名条目"
+records.rename_prompt: "条目名称"
+records.renamed: "已重命名为：{name}"
+records.reorder_entry_hint: "拖动调整条目顺序，或按 Alt + ← / →。"
 records.reorder_group: "调整“{name}”的顺序"
 records.reorder_group_hint: "拖动调整分组顺序，或按 Alt + ↑ / ↓。"
 records.delete_group: "删除信息分组“{name}”"

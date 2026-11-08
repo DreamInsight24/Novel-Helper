@@ -303,6 +303,37 @@ function askDialog(title, label, defaultValue, onSubmit) {
   return m;
 }
 
+// ═══════════════════════════════════════════
+// 右键菜单
+// ═══════════════════════════════════════════
+let appContextMenu = null;
+function closeContextMenu() {
+  if (!appContextMenu) return;
+  appContextMenu.remove();
+  appContextMenu = null;
+}
+/** Lightweight menu shared by chapter/setting navigation. Items: {label, run, danger}. */
+function contextMenu(items, event) {
+  closeContextMenu();
+  const menu = h('div', { class: 'context-menu relation-context-menu', role: 'menu' });
+  items.forEach(item => menu.appendChild(h('button', {
+    type: 'button', role: 'menuitem', class: item.danger ? 'danger' : '', text: item.label,
+    onclick: () => { closeContextMenu(); item.run(); }
+  })));
+  document.body.appendChild(menu);
+  const width = 184, height = items.length * 38 + 10;
+  menu.style.left = Math.max(8, Math.min(event.clientX, (window.innerWidth || 1024) - width - 8)) + 'px';
+  menu.style.top = Math.max(8, Math.min(event.clientY, (window.innerHeight || 768) - height - 8)) + 'px';
+  appContextMenu = menu;
+  menu.addEventListener('pointerdown', e => e.stopPropagation());
+  setTimeout(() => {
+    document.addEventListener('pointerdown', event => {
+      if (!menu.contains(event.target)) closeContextMenu();
+    }, { once: true });
+  }, 0);
+  return menu;
+}
+
 function pickDialog(title, options, onPick) {
   const list = h('div', { class: 'list scroll' }, options.map(opt =>
     h('div', { class: 'list-item', onclick: () => { m.close(); onPick(opt.value); } },
@@ -662,6 +693,7 @@ const NOVEL_NAV = [
 ];
 
 function renderNav() {
+  closeContextMenu();
   if (state.ui.wsMenuClose) state.ui.wsMenuClose();
   const nav = document.getElementById('nav');
   // 重建导航时保留侧栏的滚动位置；否则点击设定项后 #nav 会被清空并跳回顶部。
@@ -695,14 +727,91 @@ function renderNav() {
           title: i18n.t('nav.sections'), 'aria-label': i18n.t('nav.sections'),
           onclick: () => go('sections') }, settingsIcon())));
       const settingNav = h('div', { id: 'setting-nav-items', hidden: collapsed });
-      if (!collapsed) settingEntries().forEach(item => {
+      const settings = state.db.sections = state.db.sections || { items: [] };
+      const settingItems = settingEntries();
+      const allSettings = settingEntries(true);
+      const settingById = new Map(allSettings.map(item => [item.id, item]));
+      const canDragSetting = item => !item.parent && item.id !== 'other';
+      let settingDrag = null;
+      const clearSettingDropMarks = () => settingNav.querySelectorAll('.nav-drop-before,.nav-drop-after')
+        .forEach(node => node.classList.remove('nav-drop-before', 'nav-drop-after'));
+      const clearSettingMarks = () => {
+        clearSettingDropMarks();
+        settingNav.querySelectorAll('.nav-dragging').forEach(node => node.classList.remove('nav-dragging'));
+      };
+      const reorderSetting = (sourceId, targetId, after) => {
+        const order = allSettings.map(item => item.id);
+        if (!order.includes(sourceId) || !order.includes(targetId)) return;
+        const block = [sourceId, ...order.filter(id => settingById.get(id)?.parent === sourceId)];
+        const next = order.filter(id => !block.includes(id));
+        const at = next.indexOf(targetId);
+        if (at < 0) return;
+        next.splice(at + (after ? 1 : 0), 0, ...block);
+        if (next.every((id, index) => id === order[index])) return;
+        settings.order = next;
+        touch('sections');
+        renderNav();
+      };
+      const renameSetting = item => {
+        askDialog(i18n.t('nav.rename_setting'), i18n.t('nav.setting_name'), item.label, value => {
+          const label = String(value || '').trim();
+          if (!label || label === item.label) return;
+          if (item.section) item.section.label = label;
+          else {
+            settings.builtins = settings.builtins || {};
+            settings.builtins[item.id] = { ...(settings.builtins[item.id] || {}), label };
+          }
+          touch('sections');
+          renderNav();
+          if (state.view === item.id) renderMain();
+          toast(i18n.t('nav.setting_renamed', { name: label }), 'ok');
+        });
+      };
+      if (!collapsed) settingItems.forEach(item => {
         const count = item.coll && item.coll !== 'worldmap' ? collItems(item.coll).length : null;
+        const draggable = canDragSetting(item);
         settingNav.appendChild(h('button', {
           class: 'nav-item nav-setting-item' + (item.parent ? ' nav-setting-child' : '') +
             (state.view === item.id ? ' active' : ''),
           'aria-current': state.view === item.id ? 'page' : null,
           'data-view': item.id,
+          draggable: draggable ? 'true' : null,
           title: item.desc || item.label,
+          oncontextmenu: event => {
+            event.preventDefault();
+            contextMenu([{ label: i18n.t('nav.rename_setting'), run: () => renameSetting(item) }], event);
+          },
+          ondragstart: draggable ? event => {
+            settingDrag = item.id;
+            if (event.dataTransfer) {
+              event.dataTransfer.effectAllowed = 'move';
+              event.dataTransfer.setData('text/plain', item.id);
+            }
+            event.currentTarget.classList.add('nav-dragging');
+          } : null,
+          ondragover: event => {
+            if (!settingDrag || !canDragSetting(item) || settingDrag === item.id) return;
+            event.preventDefault();
+            if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+            const bounds = event.currentTarget.getBoundingClientRect();
+            const after = event.clientY >= bounds.top + bounds.height / 2;
+            clearSettingDropMarks();
+            event.currentTarget.classList.add(after ? 'nav-drop-after' : 'nav-drop-before');
+          },
+          ondragleave: event => {
+            if (!event.currentTarget.contains(event.relatedTarget)) {
+              event.currentTarget.classList.remove('nav-drop-before', 'nav-drop-after');
+            }
+          },
+          ondrop: event => {
+            if (!settingDrag) return;
+            event.preventDefault(); event.stopPropagation();
+            const source = settingDrag;
+            const after = event.currentTarget.classList.contains('nav-drop-after');
+            settingDrag = null; clearSettingMarks();
+            reorderSetting(source, item.id, after);
+          },
+          ondragend: () => { settingDrag = null; clearSettingMarks(); },
           onclick: () => go(item.id)
         }, h('span', { class: 'nav-setting-label' },
              item.parent ? h('span', { class: 'nav-setting-elbow', text: '└', 'aria-hidden': 'true' }) : null,
@@ -850,15 +959,42 @@ function showCreateNovel() {
   const title = h('input', { type: 'text', maxlength: 160 });
   const author = h('input', { type: 'text', maxlength: 160 });
   const description = h('textarea', { rows: 4 });
+  let setupMode = 'normal';
+  const modes = [
+    ['simple', 'novels.mode_simple', 'novels.mode_simple_desc'],
+    ['normal', 'novels.mode_normal', 'novels.mode_normal_desc'],
+    ['expert', 'novels.mode_expert', 'novels.mode_expert_desc']
+  ];
+  const optionButtons = [];
+  const pickMode = id => {
+    setupMode = id;
+    optionButtons.forEach(button => {
+      const on = button.dataset.mode === id;
+      button.classList.toggle('on', on);
+      button.setAttribute('aria-pressed', String(on));
+    });
+  };
+  const picker = h('div', { class: 'novel-mode-picker', role: 'group',
+    'aria-label': i18n.t('novels.mode') }, modes.map(([id, label, desc]) => {
+    const button = h('button', {
+      type: 'button', class: 'novel-mode-option', dataset: { mode: id },
+      'aria-pressed': String(id === setupMode), onclick: () => pickMode(id)
+    }, h('strong', { text: i18n.t(label) }), h('span', { text: i18n.t(desc) }));
+    optionButtons.push(button);
+    return button;
+  }));
+  pickMode(setupMode);
   const body = h('div', null,
     h('div', { class: 'field' }, h('label', { text: i18n.t('novels.title') }), title),
     h('div', { class: 'field' }, h('label', { text: i18n.t('novels.author') }), author),
-    h('div', { class: 'field' }, h('label', { text: i18n.t('novels.description') }), description));
+    h('div', { class: 'field' }, h('label', { text: i18n.t('novels.description') }), description),
+    h('div', { class: 'field' }, h('label', { text: i18n.t('novels.mode') }), picker,
+      h('div', { class: 'small muted', text: i18n.t('novels.mode_hint') })));
   const dialog = modal(i18n.t('novels.create'), body, [
     h('button', { text: i18n.t('common.cancel'), onclick: () => dialog.close() }),
     h('button', { class: 'primary', dataset: { noclose: '1' }, text: i18n.t('novels.create'), onclick: async () => {
       try {
-        const result = await api('/api/novels', { method: 'POST', body: { title: title.value, author: author.value, description: description.value } });
+        const result = await api('/api/novels', { method: 'POST', body: { title: title.value, author: author.value, description: description.value, mode: setupMode } });
         dialog.close();
         await loadNovelList();
         renderMain();
@@ -964,6 +1100,7 @@ function go(view) {
 }
 
 function renderMain() {
+  closeContextMenu();
   const recordSession=state.ui.recordEditSession;
   if(recordSession && (recordSession.view!==state.view || recordSession.novel!==(state.activeNovelId || '')))delete state.ui.recordEditSession;
   const main = document.getElementById('main');

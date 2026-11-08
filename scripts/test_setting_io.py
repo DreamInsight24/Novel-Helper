@@ -161,6 +161,29 @@ class SettingIOTests(unittest.TestCase):
             self.assertIn('1234', captured[-1][1][-1]['content'])
         self.assertGreater(self.context._target_chars({'writing': {'target_chars': 8000}}, {}), 0)
 
+    def test_chapter_rename_and_reorder_endpoints(self):
+        for name, content in [('001-one', 'one'), ('002-two', 'two'), ('003-three', 'three')]:
+            self.request('/api/chapters', {'name': name, 'content': content})
+        chapters = self.request('/api/state')['chapters']
+        self.assertEqual([item['name'] for item in chapters],
+                         ['003-three.txt', '002-two.txt', '001-one.txt'])
+        paths = [item['path'] for item in chapters]
+        reordered = self.request('/api/chapters/reorder', {'paths': list(reversed(paths))})
+        self.assertEqual([item['name'] for item in reordered['chapters']],
+                         ['001-one.txt', '002-two.txt', '003-three.txt'])
+        renamed = self.request('/api/chapters/rename', {
+            'path': paths[2], 'name': '001-renamed'})
+        self.assertEqual(renamed['name'], '001-renamed.txt')
+        self.assertEqual(renamed['old'], paths[2])
+        self.assertEqual([item['name'] for item in renamed['chapters']],
+                         ['001-renamed.txt', '002-two.txt', '003-three.txt'])
+        renamed_path = Path(renamed['path'])
+        if not renamed_path.is_absolute():
+            renamed_path = self.store.PROJECT_ROOT / renamed_path
+        self.assertEqual(renamed_path.read_text(encoding='utf-8'), 'one')
+        self.request('/api/chapters/rename', {'path': paths[1], 'name': '001-renamed'}, status=400)
+        self.request('/api/chapters/rename', {'path': paths[1], 'name': '   '}, status=400)
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

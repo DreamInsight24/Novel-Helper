@@ -24,6 +24,22 @@ function manuscriptShortName(path) {
   return String(path || '').split(/[\\/]/).pop() || i18n.t('common.unnamed_paren');
 }
 
+/** Blank lines are layout, not content: neither lines nor paragraphs count them. */
+function manuscriptTextStats(value) {
+  const text = String(value || '');
+  const contentLines = text.split('\n').filter(line => line.trim() !== '');
+  return {
+    chars: text.length,
+    han: (text.match(/[\u4e00-\u9fff]/g) || []).length,
+    lines: contentLines.length,
+    paras: contentLines.length
+  };
+}
+
+function manuscriptChapterName(path) {
+  return manuscriptShortName(path).replace(/\.(md|txt)$/i, '');
+}
+
 function manuscriptConfirm(message) {
   return new Promise(resolve => {
     const dialog = modal(i18n.t('common.confirm'), h('div', {text:message}), [
@@ -233,7 +249,8 @@ function viewManuscript(main) {
   };
   const flushFile = async () => {
     clearTimeout(fileTimer);
-    if (ui.path && ui.dirty) await saveToFile(ui.path, ui.value, true);
+    if (ui.path && ui.dirty) return saveToFile(ui.path, ui.value, true);
+    return true;
   };
 
   // ── 章节：完整写作的结果会自己出现在这里，也可以直接打开某一章 ──
@@ -275,6 +292,70 @@ function viewManuscript(main) {
     if (!sessionId) return;
     switchWorkstationSession(sessionId).catch(() => {});
   };
+
+  const renameChapter = chapter => {
+    const current = manuscriptChapterName(chapter.path);
+    askDialog(i18n.t('manuscript.chapter_rename'), i18n.t('manuscript.chapter_rename_prompt'),
+      current, async value => {
+        const name = String(value || '').trim();
+        if (!name || name === current) return;
+        try {
+          // Rename the file only after its latest text is on disk.
+          if (ui.path === chapter.path && ui.dirty && !await flushFile()) return;
+          const res = await api('/api/chapters/rename', {
+            method: 'POST', body: { path: chapter.path, name }
+          });
+          const oldPath = chapter.path, newPath = res.path || oldPath;
+          state.chapters = res.chapters || state.chapters;
+          if (ui.path === oldPath) ui.path = newPath;
+          const saved = draftSlot();
+          if (saved.path === oldPath) saved.path = newPath;
+          const workstation = ((state.db.state || {}).workstation || {});
+          if (workstation.chapters && workstation.chapters[oldPath] && !workstation.chapters[newPath]) {
+            workstation.chapters[newPath] = workstation.chapters[oldPath];
+            delete workstation.chapters[oldPath];
+          }
+          if (ui.revision && ui.revision.doc && ui.revision.doc.path === oldPath) {
+            ui.revision.doc.path = newPath;
+          }
+          writeDraft(); touch('state', true);
+          renderMain();
+          toast(i18n.t('manuscript.chapter_renamed', { name: manuscriptChapterName(newPath) }), 'ok');
+        } catch (e) {
+          toast(e.message, 'err');
+        }
+      });
+  };
+
+  const reorderChapter = async (sourcePath, targetPath, after) => {
+    const books = chapterBooks();
+    const sourceIndex = books.findIndex(book => book.path === sourcePath);
+    if (sourceIndex < 0 || sourcePath === targetPath) return;
+    const next = books.slice();
+    const moved = next.splice(sourceIndex, 1)[0];
+    const targetIndex = next.findIndex(book => book.path === targetPath);
+    if (targetIndex < 0) return;
+    next.splice(targetIndex + (after ? 1 : 0), 0, moved);
+    // Apply optimistically so the chip lands under the cursor immediately.
+    const bookPaths = new Set(books.map(book => book.path));
+    let cursor = 0;
+    const previous = state.chapters;
+    state.chapters = (state.chapters || []).map(book =>
+      bookPaths.has(book.path) ? next[cursor++] : book);
+    renderMain();
+    try {
+      const res = await api('/api/chapters/reorder', {
+        method: 'POST',
+        body: { paths: next.map(book => book.path), novel_id: state.activeNovelId }
+      });
+      if (res.chapters) { state.chapters = res.chapters; renderMain(); }
+    } catch (e) {
+      state.chapters = previous;
+      renderMain();
+      toast(i18n.t('manuscript.chapter_reorder_failed', { reason: e.message }), 'err');
+    }
+  };
+
   const chapterBar = () => {
     const books = chapterBooks();
     const origins = chapterOrigins();
@@ -295,15 +376,76 @@ function viewManuscript(main) {
       ui.path ? h('span', { class: 'chapter-bar-current small', text: manuscriptShortName(ui.path) }) : null));
     if (collapsed) return bar;
     const list = h('div', { class: 'chapter-bar-list' });
+    let chapterDrag = null;
+    const clearChapterDropMarks = () => list.querySelectorAll('.chapter-drop-before,.chapter-drop-after')
+      .forEach(node => node.classList.remove('chapter-drop-before', 'chapter-drop-after'));
+    const clearChapterMarks = () => {
+      clearChapterDropMarks();
+      list.querySelectorAll('.chapter-dragging').forEach(node => node.classList.remove('chapter-dragging'));
+    };
     if (!books.length) list.appendChild(h('div', { class: 'small muted chapter-bar-empty',
       text: i18n.t('manuscript.chapter_empty') }));
     books.forEach(chapter => {
       const origin = origins[chapter.path] || null;
-      const chip = h('div', { class: 'chapter-chip' + (ui.path === chapter.path ? ' on' : '') });
+      const index = books.indexOf(chapter);
+      const chip = h('div', {
+        class: 'chapter-chip' + (ui.path === chapter.path ? ' on' : ''),
+        draggable: 'true',
+        oncontextmenu: event => {
+          event.preventDefault();
+          contextMenu([{
+            label: i18n.t('manuscript.chapter_rename'),
+            run: () => renameChapter(chapter)
+          }], event);
+        },
+        ondragstart: event => {
+          if (event.target.closest?.('.chapter-chip-ai')) { event.preventDefault(); return; }
+          chapterDrag = chapter.path;
+          if (event.dataTransfer) {
+            event.dataTransfer.effectAllowed = 'move';
+            event.dataTransfer.setData('text/plain', chapter.path);
+          }
+          chip.classList.add('chapter-dragging');
+        },
+        ondragover: event => {
+          if (!chapterDrag || chapterDrag === chapter.path) return;
+          event.preventDefault();
+          if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+          const bounds = chip.getBoundingClientRect();
+          const after = event.clientX >= bounds.left + bounds.width / 2;
+          clearChapterDropMarks();
+          chip.classList.add(after ? 'chapter-drop-after' : 'chapter-drop-before');
+        },
+        ondragleave: event => {
+          if (!chip.contains(event.relatedTarget)) {
+            chip.classList.remove('chapter-drop-before', 'chapter-drop-after');
+          }
+        },
+        ondrop: event => {
+          if (!chapterDrag) return;
+          event.preventDefault(); event.stopPropagation();
+          const source = chapterDrag;
+          const after = chip.classList.contains('chapter-drop-after');
+          chapterDrag = null;
+          clearChapterMarks();
+          reorderChapter(source, chapter.path, after);
+        },
+        ondragend: () => { chapterDrag = null; clearChapterMarks(); }
+      });
+      chip.appendChild(h('span', {
+        class: 'chapter-chip-drag', text: '⠿', title: i18n.t('manuscript.chapter_drag_hint'),
+        'aria-hidden': 'true'
+      }));
       chip.appendChild(h('button', {
         class: 'chapter-chip-open', title: chapter.path,
-        onclick: () => loadChapter(chapter.path, chapter.name)
-      }, h('span', { class: 'chapter-chip-name', text: String(chapter.name || '').replace(/\.(md|txt)$/i, '') }),
+        onclick: () => loadChapter(chapter.path, chapter.name),
+        onkeydown: event => {
+          if (!event.altKey || !['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+          event.preventDefault();
+          const target = books[index + (event.key === 'ArrowLeft' ? -1 : 1)];
+          if (target) reorderChapter(chapter.path, target.path, event.key === 'ArrowRight');
+        }
+      }, h('span', { class: 'chapter-chip-name', text: manuscriptChapterName(chapter.path) }),
          h('span', { class: 'chapter-chip-size small muted', text: i18n.t('manuscript.chapter_size', { size: Math.max(1, Math.round((chapter.size || 0) / 1024)) }) })));
       if (origin && origin.session_id) {
         chip.appendChild(h('button', {
@@ -382,15 +524,14 @@ function viewManuscript(main) {
 
   const updateStat = () => {
     const t = ui.value;
-    const cjk = (t.match(/[\u4e00-\u9fff]/g) || []).length;
-    const lines = t.split('\n').length;
-    const paras = t.split('\n').filter(p => p.trim()).length;
+    const stats = manuscriptTextStats(t);
     let save;
     if (ui.path) save = ui.dirty ? (fileSaving ? i18n.t('manuscript.autosaving') : i18n.t('manuscript.pending_save')) : i18n.t('common.saved');
     else if (!t) save = i18n.t('manuscript.empty_unnamed');
     else save = i18n.t('manuscript.draft_staged');
     if (tooBig()) save = i18n.t('manuscript.too_big');
-    statLine.textContent = i18n.t('manuscript.stat_line', { chars: t.length, han: cjk, lines: lines, paras: paras, save: save });
+    statLine.title = i18n.t('manuscript.stat_blank_hint');
+    statLine.textContent = i18n.t('manuscript.stat_line', { ...stats, save: save });
   };
 
   const rememberSelection = () => {

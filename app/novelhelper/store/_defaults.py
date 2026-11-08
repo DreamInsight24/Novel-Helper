@@ -26,6 +26,14 @@ from ..ports import default_server_config
 from ._names import is_section, new_id, now_str
 from ._paths import DEFAULT_LOG_DIR
 
+NOVEL_MODES = ("simple", "normal", "expert")
+
+
+def normalize_novel_mode(value: str | None) -> str:
+    """Map unknown / missing values to the default setup level."""
+    mode = str(value or "normal").strip().lower()
+    return mode if mode in NOVEL_MODES else "normal"
+
 def default_config() -> dict:
     return {
         "version": 4,
@@ -114,92 +122,158 @@ def default_state() -> dict:
     })
     return state
 
-def default_schema() -> dict:
-    """设定元素模板：作者可在「元素模板」页自由增删。"""
-    schema = {
-        "characters": {
-            "label": "人物档案",
-            "elements": [
-                {"key": "身份", "children": [
-                    {"key": "本名"}, {"key": "性别"}, {"key": "物种"}, {"key": "年龄"}, {"key": "生日"},
-                    {"key": "身份标签"},
-                ]},
-                {"key": "外貌", "children": [
-                    {"key": "整体", "children": [{"key": "身高"}, {"key": "体重"}, {"key": "体型"}]},
-                    {"key": "毛发与瞳色", "children": [{"key": "毛色"}, {"key": "瞳色"}, {"key": "角与耳"}]},
-                    {"key": "手与足", "children": [{"key": "手部结构"}, {"key": "足部结构"}, {"key": "肉垫"}]},
-                    {"key": "尾巴"},
-                    {"key": "标记与伤痕"},
-                    {"key": "角色锚点"},
-                ]},
-                {"key": "服装", "children": [
-                    {"key": "常服"}, {"key": "配色偏好"}, {"key": "穿鞋习惯"},
-                ]},
-                {"key": "性格", "children": [
-                    {"key": "核心性格"}, {"key": "行为特征"}, {"key": "取向"}, {"key": "特殊癖好"},
-                    {"key": "弱点"}, {"key": "心结"}, {"key": "雷点"},
-                ]},
-                {"key": "能力", "children": [
-                    {"key": "职业"}, {"key": "善用武器"}, {"key": "魔法适应性"},
-                    {"key": "擅长法术"}, {"key": "本命技能"}, {"key": "战斗风格"},
-                ]},
-                {"key": "关系", "children": [{"key": "关系列表"}]},
-                {"key": "背景", "children": [{"key": "自身故事"}, {"key": "隐藏设定"}]},
-            ],
-        },
-        "factions": {
-            "label": "势力设定",
-            "elements": [
-                {"key": "基本", "children": [{"key": "类型"}, {"key": "首领"}, {"key": "领地"}, {"key": "成立时间"}]},
-                {"key": "立场与目标", "children": [{"key": "立场"}, {"key": "目标"}, {"key": "对外关系"}]},
-                {"key": "实力", "children": [{"key": "人数规模"}, {"key": "实力评级"}, {"key": "核心战力"}]},
-                {"key": "历史与现状", "children": [{"key": "历史"}, {"key": "现状"}]},
-            ],
-        },
-        # 道具、服饰、装备共用一个「物品」栏目；类别由记录字段区分。
-        "items": {
-            "label": "物品",
-            "elements": [
-                {"key": "基本", "children": [{"key": "类型"}, {"key": "品级"}, {"key": "价格"}]},
-                {"key": "穿戴", "children": [{"key": "穿戴部位"}, {"key": "材质"}]},
-                {"key": "外观", "children": [
-                    {"key": "外形"}, {"key": "配色"}, {"key": "特殊纹样"}, {"key": "大小"},
-                ]},
-                {"key": "效果", "children": [
-                    {"key": "主要效果"}, {"key": "消耗"}, {"key": "限制"},
-                    {"key": "穿戴效果"}, {"key": "耐久"},
-                ]},
-                {"key": "来历", "children": [{"key": "获得方式"}, {"key": "持有者"}]},
-            ],
-        },
-        # 兼容旧数据读取；界面与 AI 目录不再单列服饰/装备栏目。
-        "equipment": {
-            "label": "服饰与装备（已并入物品）",
-            "elements": [],
-        },
-        "other": {
-            "label": "其他设定",
-            "elements": [],
-        },
-        "memories": {
-            "label": "记忆",
-            "elements": [],
-        },
-    }
-    # 自定义栏目的默认模板（与 data/schema.json 的既有设置保持一致）。
+def default_schema(mode: str = "expert") -> dict:
+    """Built-in setting templates, trimmed for the selected novel mode."""
+    return schema_for_mode(mode)
+
+
+def schema_for_mode(mode: str) -> dict:
+    """Setting field templates for simple / normal / expert novels.
+
+    The previous templates exposed nearly every possible field at once.  These
+    presets keep the writing-facing essentials and leave the rest available
+    through the existing template editor instead of presenting it up front.
+    """
+    level = normalize_novel_mode(mode)
+    characters = {
+        "simple": [
+            {"key": "身份", "children": [{"key": "本名"}, {"key": "性别"}, {"key": "年龄"}]},
+            {"key": "性格", "children": [{"key": "核心性格"}]},
+            {"key": "背景", "children": [{"key": "自身故事"}]},
+            {"key": "关系", "children": [{"key": "关系列表"}]},
+        ],
+        "normal": [
+            {"key": "身份", "children": [
+                {"key": "本名"}, {"key": "性别"}, {"key": "年龄"}, {"key": "身份标签"},
+            ]},
+            {"key": "外貌", "children": [{"key": "整体"}]},
+            {"key": "性格", "children": [{"key": "核心性格"}, {"key": "弱点"}]},
+            {"key": "能力", "children": [{"key": "职业"}]},
+            {"key": "背景", "children": [{"key": "自身故事"}]},
+            {"key": "关系", "children": [{"key": "关系列表"}]},
+        ],
+        "expert": [
+            {"key": "身份", "children": [
+                {"key": "本名"}, {"key": "性别"}, {"key": "物种"}, {"key": "年龄"},
+                {"key": "身份标签"},
+            ]},
+            {"key": "外貌", "children": [
+                {"key": "整体", "children": [{"key": "身高"}, {"key": "体型"}]},
+                {"key": "标记与伤痕"},
+            ]},
+            {"key": "服装", "children": [{"key": "常服"}]},
+            {"key": "性格", "children": [
+                {"key": "核心性格"}, {"key": "行为特征"}, {"key": "弱点"}, {"key": "心结"},
+            ]},
+            {"key": "能力", "children": [
+                {"key": "职业"}, {"key": "善用武器"}, {"key": "战斗风格"},
+            ]},
+            {"key": "关系", "children": [{"key": "关系列表"}]},
+            {"key": "背景", "children": [{"key": "自身故事"}, {"key": "隐藏设定"}]},
+        ],
+    }[level]
+    factions = {
+        "simple": [
+            {"key": "基本", "children": [{"key": "类型"}, {"key": "首领"}]},
+        ],
+        "normal": [
+            {"key": "基本", "children": [{"key": "类型"}, {"key": "首领"}, {"key": "领地"}]},
+            {"key": "立场与目标", "children": [{"key": "立场"}, {"key": "目标"}]},
+        ],
+        "expert": [
+            {"key": "基本", "children": [{"key": "类型"}, {"key": "首领"}, {"key": "领地"}]},
+            {"key": "立场与目标", "children": [
+                {"key": "立场"}, {"key": "目标"}, {"key": "对外关系"},
+            ]},
+            {"key": "实力", "children": [{"key": "人数规模"}, {"key": "实力评级"}]},
+            {"key": "历史与现状", "children": [{"key": "历史"}, {"key": "现状"}]},
+        ],
+    }[level]
+    items = {
+        "simple": [
+            {"key": "基本", "children": [{"key": "类型"}, {"key": "品级"}]},
+            {"key": "效果", "children": [{"key": "主要效果"}]},
+        ],
+        "normal": [
+            {"key": "基本", "children": [{"key": "类型"}, {"key": "品级"}, {"key": "价格"}]},
+            {"key": "外观", "children": [{"key": "外形"}]},
+            {"key": "效果", "children": [{"key": "主要效果"}, {"key": "限制"}]},
+        ],
+        "expert": [
+            {"key": "基本", "children": [{"key": "类型"}, {"key": "品级"}, {"key": "价格"}]},
+            {"key": "穿戴", "children": [{"key": "穿戴部位"}, {"key": "材质"}]},
+            {"key": "外观", "children": [{"key": "外形"}, {"key": "配色"}]},
+            {"key": "效果", "children": [{"key": "主要效果"}, {"key": "限制"}]},
+            {"key": "来历", "children": [{"key": "获得方式"}, {"key": "持有者"}]},
+        ],
+    }[level]
     section_templates = {
-        "section_world": ("世界观", ["概述", "规则", "细则", "备注"]),
-        "section_species": ("物种", ["概述", "生理特征", "亚种", "能力倾向", "社会地位", "服装偏好", "备注"]),
-        "section_magic": ("魔法与技能", ["概述", "规则", "细则", "备注"]),
-        "section_places": ("地点与城市", ["位置", "概况", "特点", "社会", "备注"]),
-        "section_history": ("历史与时间线", ["时间", "起因", "经过", "结果", "影响", "备注"]),
-        "section_economy": ("经济与物价", ["概述", "细则", "备注"]),
-        "section_rules": ("规则与疾病", ["概述", "表现", "治疗", "备注"]),
-        "section_religion": ("宗教与信仰", ["信仰对象", "分支", "教义", "组织", "备注"]),
+        "section_world": {
+            "simple": ["概述", "规则"],
+            "normal": ["概述", "规则", "备注"],
+            "expert": ["概述", "规则", "细则", "备注"],
+        },
+        "section_species": {
+            "simple": ["概述", "备注"],
+            "normal": ["概述", "生理特征", "备注"],
+            "expert": ["概述", "生理特征", "社会地位", "备注"],
+        },
+        "section_magic": {
+            "simple": ["概述", "备注"],
+            "normal": ["概述", "规则", "备注"],
+            "expert": ["概述", "规则", "细则", "备注"],
+        },
+        "section_places": {
+            "simple": ["位置", "备注"],
+            "normal": ["位置", "概况", "备注"],
+            "expert": ["位置", "概况", "特点", "备注"],
+        },
+        "section_history": {
+            "simple": ["时间", "备注"],
+            "normal": ["时间", "起因", "经过", "备注"],
+            "expert": ["时间", "起因", "经过", "结果", "备注"],
+        },
+        "section_economy": {
+            "simple": ["概述", "备注"],
+            "normal": ["概述", "细则", "备注"],
+            "expert": ["概述", "细则", "备注"],
+        },
+        "section_rules": {
+            "simple": ["概述", "备注"],
+            "normal": ["概述", "表现", "备注"],
+            "expert": ["概述", "表现", "治疗", "备注"],
+        },
+        "section_religion": {
+            "simple": ["信仰对象", "备注"],
+            "normal": ["信仰对象", "教义", "备注"],
+            "expert": ["信仰对象", "分支", "教义", "备注"],
+        },
     }
-    for key, (label, fields) in section_templates.items():
-        schema[key] = {"label": label, "elements": [{"key": field} for field in fields]}
+    schema = {
+        "characters": {"label": "人物档案", "elements": characters},
+        "factions": {"label": "势力设定", "elements": factions},
+        # 道具、服饰、装备共用一个「物品」栏目；类别由记录字段区分。
+        "items": {"label": "物品", "elements": items},
+        # 兼容旧数据读取；界面与 AI 目录不再单列服饰/装备栏目。
+        "equipment": {"label": "服饰与装备（已并入物品）", "elements": []},
+        "other": {"label": "其他设定", "elements": []},
+        "memories": {"label": "记忆", "elements": []},
+    }
+    labels = {
+        "section_world": "世界观",
+        "section_species": "物种",
+        "section_magic": "魔法与技能",
+        "section_places": "地点与城市",
+        "section_history": "历史与时间线",
+        "section_economy": "经济与物价",
+        "section_rules": "规则与疾病",
+        "section_religion": "宗教与信仰",
+    }
+    for key, fields in section_templates.items():
+        schema[key] = {"label": labels[key],
+                       "elements": [{"key": field} for field in fields[level]]}
     return schema
+
 
 def default_character() -> dict:
     return {
@@ -262,31 +336,44 @@ def default_worldmap() -> dict:
 def default_meta() -> dict:
     return {"version": 3, "created": now_str(), "last_import": {}, "notes": ""}
 
-def default_sections() -> dict:
-    """内置设定栏目；默认只显示世界设定，扩展栏目可手动开启，顺序由前端导航统一编排。
+def default_sections(mode: str = "expert") -> dict:
+    """Built-in setting sections, opened according to the novel setup mode.
 
-    道具、服饰、装备已合并为「物品」，因此这里不再声明 equipment。
+    专家模式保留与之前一致的默认栏目；简易 / 普通模式只打开最核心的栏目，
+    其余栏目仍可在「设定管理」里随时启用。
     """
-    return {
-        "items": [
-            {"key": "world", "label": "世界设定", "desc": "世界背景、大陆概况、总体设定", "on": True,
-             "auto_from": ["世界背景", "设定", "关于世界"]},
-            {"key": "species", "label": "物种", "desc": "种族、生理特征、社会地位与亚种", "on": False,
-             "auto_from": ["物种"]},
-            {"key": "magic", "label": "魔法与技能", "desc": "属性、来源、技能类型、学习方式", "on": False,
-             "auto_from": ["魔法"]},
-            {"key": "places", "label": "地点与城市", "desc": "地理、城市、地点与交通", "on": False},
-            {"key": "history", "label": "历史与时间线", "desc": "重大事件、战争、条约、预言", "on": False,
-             "auto_from": ["时间线以及重大事件", "历史事件"]},
-            {"key": "economy", "label": "经济与物价", "desc": "货币、物价参考、贸易", "on": False,
-             "auto_from": ["货币"]},
-            {"key": "rules", "label": "规则与疾病", "desc": "世界规则、特殊疾病、习俗", "on": False,
-             "auto_from": ["特殊疾病"]},
-            {"key": "religion", "label": "宗教与信仰", "desc": "教会、神系、信仰", "on": False,
-             "auto_from": ["宗教"]},
-        ],
-        "layout_version": 2,
+    return sections_for_mode(mode)
+
+
+def sections_for_mode(mode: str) -> dict:
+    level = normalize_novel_mode(mode)
+    items = [
+        {"key": "world", "label": "世界设定", "desc": "世界背景、大陆概况、总体设定",
+         "on": level in ("normal", "expert"), "auto_from": ["世界背景", "设定", "关于世界"]},
+        {"key": "species", "label": "物种", "desc": "种族、生理特征、社会地位与亚种",
+         "on": False, "auto_from": ["物种"]},
+        {"key": "magic", "label": "魔法与技能", "desc": "属性、来源、技能类型、学习方式",
+         "on": False, "auto_from": ["魔法"]},
+        {"key": "places", "label": "地点与城市", "desc": "地理、城市、地点与交通", "on": False},
+        {"key": "history", "label": "历史与时间线", "desc": "重大事件、战争、条约、预言",
+         "on": False, "auto_from": ["时间线以及重大事件", "历史事件"]},
+        {"key": "economy", "label": "经济与物价", "desc": "货币、物价参考、贸易",
+         "on": False, "auto_from": ["货币"]},
+        {"key": "rules", "label": "规则与疾病", "desc": "世界规则、特殊疾病、习俗",
+         "on": False, "auto_from": ["特殊疾病"]},
+        {"key": "religion", "label": "宗教与信仰", "desc": "教会、神系、信仰",
+         "on": False, "auto_from": ["宗教"]},
+    ]
+    builtins = {
+        "characters": {"on": True},
+        "inventory": {"on": level == "expert"},
+        "world": {"on": level == "expert"},
+        "factions": {"on": level == "expert"},
+        "items": {"on": level == "expert"},
+        "other": {"on": level == "expert"},
     }
+    return {"items": items, "builtins": builtins, "layout_version": 2}
+
 
 def default_memory_categories() -> list:
     return ["短期记忆", "长期记忆", "重要伏笔", "设定备忘"]

@@ -34,10 +34,11 @@ from ._names import (
     stamp,
 )
 from ._defaults import (
-    default_character, default_config, default_equipment, default_faction,
+    NOVEL_MODES, default_character, default_config, default_equipment, default_faction,
     default_for, default_history, default_item, default_memory,
     default_memory_categories, default_meta, default_other, default_schema,
     default_sections, default_state, default_worldmap, default_workstation,
+    normalize_novel_mode, schema_for_mode, sections_for_mode,
 )
 from ._repository import load, save
 from ._layout import LAYOUT_VERSION, migrate_active_layout
@@ -74,6 +75,7 @@ __all__ = [
     'RECORD_COLLECTIONS', 'SECTION_PREFIX', 'now_str', 'stamp', 'new_id', 'data_dir',
     'ensure_dirs', 'io_in', 'io_out', 'out_dir', 'plan_dir', 'txt_dir', 'text_dir',
     'log_dir', 'default_config', 'default_workstation', 'default_state', 'default_schema',
+    'NOVEL_MODES', 'normalize_novel_mode', 'schema_for_mode', 'sections_for_mode',
     'default_character', 'default_faction', 'default_item', 'default_equipment',
     'default_other', 'default_memory', 'default_worldmap', 'default_meta', 'default_sections',
     'section_store_name', 'section_key', 'is_section', 'section_names',

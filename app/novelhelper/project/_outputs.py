@@ -18,12 +18,95 @@
 """Writing outputs, plans, converted text, and chapter listings."""
 from __future__ import annotations
 
+import json
+import re
 from datetime import datetime
 from pathlib import Path
 
+from ..localization import t
 from ..store import out_dir, plan_dir, stamp, txt_dir
 from ._paths import rel_str, safe_rel
 from ._text import clean_blank_lines, md_to_txt, merge_intra_paragraph_breaks
+
+# Sidecar stored beside the chapter files. It only records display order, so
+# renaming/reordering never changes chapter text or breaks external editors.
+CHAPTER_ORDER_FILE = ".chapters.json"
+_CHAPTER_SUFFIXES = {".md", ".txt"}
+_WINDOWS_RESERVED = {
+    "CON", "PRN", "AUX", "NUL",
+    *[f"COM{i}" for i in range(1, 10)],
+    *[f"LPT{i}" for i in range(1, 10)],
+}
+
+
+def _chapter_stem(name: str) -> str:
+    """Turn a user-supplied chapter name into a safe file stem."""
+    title = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", str(name or "")).strip(" .")
+    title = re.sub(r"\.(txt|md)$", "", title, flags=re.IGNORECASE)[:120].strip(" .")
+    if title.upper() in _WINDOWS_RESERVED:
+        title = "_" + title
+    return title
+
+
+def _chapter_order_path(base: Path) -> Path:
+    return base / CHAPTER_ORDER_FILE
+
+
+def _chapter_key(path: Path, base: Path) -> str:
+    try:
+        return path.resolve().relative_to(base.resolve()).as_posix()
+    except ValueError:
+        return rel_str(path)
+
+
+def _load_chapter_order(base: Path) -> list[str]:
+    try:
+        data = json.loads(_chapter_order_path(base).read_text(encoding="utf-8"))
+    except (FileNotFoundError, OSError, ValueError, UnicodeDecodeError):
+        return []
+    items = data.get("paths") if isinstance(data, dict) else data
+    if not isinstance(items, list):
+        return []
+    return [str(item) for item in items if str(item or "").strip()]
+
+
+def _write_chapter_order(base: Path, keys: list[str]) -> None:
+    base.mkdir(parents=True, exist_ok=True)
+    seen: set[str] = set()
+    clean = []
+    for key in keys:
+        value = str(key or "").strip().replace("\\", "/")
+        if value and value not in seen:
+            seen.add(value)
+            clean.append(value)
+    target = _chapter_order_path(base)
+    temporary = target.with_suffix(target.suffix + ".tmp")
+    temporary.write_text(json.dumps({"version": 1, "paths": clean}, ensure_ascii=False, indent=2) + "\n",
+                         encoding="utf-8")
+    temporary.replace(target)
+
+
+def _prepend_chapter_order(path: Path, base: Path) -> None:
+    """New chapters appear first once the user has established an explicit order."""
+    order = _load_chapter_order(base)
+    if not order:
+        return
+    key = _chapter_key(path, base)
+    _write_chapter_order(base, [key, *[item for item in order if item != key]])
+
+
+def _resolve_chapter(path: str | Path, base: Path) -> Path:
+    target = Path(path)
+    if not target.is_absolute():
+        target = safe_rel(str(path))
+    target = target.resolve()
+    if not target.is_relative_to(base.resolve()):
+        raise PermissionError(t("errors.path_outside", path=str(path)))
+    if target.suffix.lower() not in _CHAPTER_SUFFIXES:
+        raise ValueError(t("errors.chapter_file_type"))
+    if not target.is_file():
+        raise FileNotFoundError(str(path))
+    return target
 
 
 def write_output(content: str, mode_label: str = "AI 工作站生成", name: str = "") -> Path:
@@ -44,12 +127,7 @@ def write_output(content: str, mode_label: str = "AI 工作站生成", name: str
 
 
 def write_chapter(content: str, name: str) -> Path:
-    import re
-
-    title = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', name).strip(' .') or 'chapter'
-    title = re.sub(r'\.(txt|md)$', '', title, flags=re.IGNORECASE)[:120].strip(' .') or 'chapter'
-    if title.upper() in {'CON', 'PRN', 'AUX', 'NUL', *[f'COM{i}' for i in range(1, 10)], *[f'LPT{i}' for i in range(1, 10)]}:
-        title = '_' + title
+    title = _chapter_stem(name) or "chapter"
     directory = out_dir()
     directory.mkdir(parents=True, exist_ok=True)
     number = 1
@@ -58,9 +136,68 @@ def write_chapter(content: str, name: str) -> Path:
         try:
             with target.open('x', encoding='utf-8') as output:
                 output.write(content)
+            _prepend_chapter_order(target, directory)
             return target
         except FileExistsError:
             number += 1
+
+
+def rename_chapter(path: str | Path, name: str) -> Path:
+    """Rename one chapter file in place and preserve its position in the bar."""
+    base = out_dir()
+    source = _resolve_chapter(path, base)
+    stem = _chapter_stem(name)
+    if not stem:
+        from ..localization import t
+        raise ValueError(t("errors.chapter_name_required"))
+    target = source.with_name(stem + source.suffix.lower())
+    if target == source:
+        return source
+    if target.exists():
+        from ..localization import t
+        raise ValueError(t("errors.chapter_exists", name=target.name))
+    # Freeze the current visual order before renaming; otherwise the file's
+    # fresh mtime would silently move it to the top on the next listing.
+    before = _current_chapter_keys(base)
+    source_key = _chapter_key(source, base)
+    target_key = _chapter_key(target, base)
+    source.rename(target)
+    keys = [target_key if key == source_key else key for key in before]
+    if target_key not in keys:
+        keys.insert(0, target_key)
+    _write_chapter_order(base, keys)
+    return target
+
+
+def reorder_chapters(paths: list[str | Path]) -> list[dict]:
+    """Persist the chapter display order; paths not mentioned keep their old order."""
+    base = out_dir()
+    wanted: list[str] = []
+    for item in paths or []:
+        try:
+            source = _resolve_chapter(item, base)
+        except (FileNotFoundError, PermissionError, ValueError):
+            continue
+        key = _chapter_key(source, base)
+        if key not in wanted:
+            wanted.append(key)
+    if not wanted:
+        return list_chapters()
+    existing = _current_chapter_keys(base)
+    keys = wanted + [key for key in existing if key not in wanted]
+    _write_chapter_order(base, keys)
+    return list_chapters()
+
+
+def _entry_chapter_key(entry: dict, base: Path) -> str:
+    path = Path(entry["path"])
+    if not path.is_absolute():
+        path = safe_rel(entry["path"])
+    return _chapter_key(path, base)
+
+
+def _current_chapter_keys(base: Path) -> list[str]:
+    return [_entry_chapter_key(entry, base) for entry in list_chapters()]
 
 
 def next_chapter_number() -> int:
@@ -128,4 +265,12 @@ def list_chapters() -> list:
             "ts": stat.st_mtime,
         })
     entries.sort(key=lambda e: e["ts"], reverse=True)
+    order = _load_chapter_order(base)
+    if order:
+        rank = {key: index for index, key in enumerate(order)}
+        decorated = [(entry, _entry_chapter_key(entry, base)) for entry in entries]
+        decorated.sort(key=lambda pair: (
+            (0, rank[pair[1]], 0) if pair[1] in rank else (1, 0, -pair[0]["ts"])
+        ))
+        entries = [entry for entry, _ in decorated]
     return entries
