@@ -17,5 +17,5 @@
 
 """Canonical version values for the novelhelper package."""
 
-__version__ = "2611.1"
-APP_VERSION = "v2611.1"
+__version__ = "2611.2"
+APP_VERSION = "v2611.2"
